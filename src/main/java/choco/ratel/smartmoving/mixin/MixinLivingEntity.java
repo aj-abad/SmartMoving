@@ -1,12 +1,11 @@
 package choco.ratel.smartmoving.mixin;
 
 import choco.ratel.smartmoving.server.SmartMovingServer;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.math.Box;
-
 import java.util.List;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -34,9 +33,9 @@ public abstract class MixinLivingEntity {
      * ServerPlayerEntity 인스턴스 확인 → SmartMovingServer 상태 기반 판정.
      * 클라이언트 측 동등 로직 → MixinLivingEntityClient.sm_isClimbing_client()
      */
-    @Inject(method = "isClimbing", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "onClimbable", at = @At("HEAD"), cancellable = true)
     private void sm_isClimbing_server(CallbackInfoReturnable<Boolean> cir) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
         if (sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing) {
             cir.setReturnValue(false);
@@ -54,9 +53,9 @@ public abstract class MixinLivingEntity {
      * 클라이언트 측 → MixinLivingEntityClient.sm_isInSwimmingPose_client()
      * Yarn: isInSwimmingPose (intermediary: method_20232 확인 완료)
      */
-    @Inject(method = "isInSwimmingPose", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isVisuallySwimming", at = @At("HEAD"), cancellable = true)
     private void sm_isInSwimmingPose_server(CallbackInfoReturnable<Boolean> cir) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
         if (sm.isCrawling || sm.isCrawlClimbing) {
             cir.setReturnValue(false);
@@ -73,23 +72,23 @@ public abstract class MixinLivingEntity {
      *   standardBox = offsetBox.expand(0, -0.25, 0) — Y 원상복구
      *   offsetBox에만 있고 standardBox에는 없는 엔티티 → onPlayerCollision
      */
-    @Inject(method = "tickMovement", at = @At("TAIL"))
+    @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_afterTickMovement(CallbackInfo ci) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
         if (!sm.isSmall) return;
         if (player.getHealth() <= 0) return;
 
-        Box offsetBox = player.getBoundingBox().expand(1.0, SmartMovingServer.SMALL_SIZE_ITEM_GRAB_HEIGHT, 1.0);
-        List<Entity> offsetEntities = player.getWorld().getOtherEntities(player, offsetBox);
+        AABB offsetBox = player.getBoundingBox().inflate(1.0, SmartMovingServer.SMALL_SIZE_ITEM_GRAB_HEIGHT, 1.0);
+        List<Entity> offsetEntities = player.level().getEntities(player, offsetBox);
         if (offsetEntities.isEmpty()) return;
 
-        Box standardBox = offsetBox.expand(0.0, -SmartMovingServer.SMALL_SIZE_ITEM_GRAB_HEIGHT, 0.0);
-        List<Entity> standardEntities = player.getWorld().getOtherEntities(player, standardBox);
+        AABB standardBox = offsetBox.inflate(0.0, -SmartMovingServer.SMALL_SIZE_ITEM_GRAB_HEIGHT, 0.0);
+        List<Entity> standardEntities = player.level().getEntities(player, standardBox);
 
         for (Entity entity : offsetEntities) {
             if (standardEntities.contains(entity)) continue;
-            if (!entity.isRemoved()) entity.onPlayerCollision(player);
+            if (!entity.isRemoved()) entity.playerTouch(player);
         }
     }
 
@@ -99,15 +98,15 @@ public abstract class MixinLivingEntity {
     // HEAD: afterAddMovingHungerBatch (depth 감소)
     // TAIL: beforeAddMovingHungerBatch (depth 증가)
 
-    @Inject(method = "tickStatusEffects", at = @At("HEAD"))
+    @Inject(method = "tickEffects", at = @At("HEAD"))
     private void sm_beforeTickStatusEffects(CallbackInfo ci) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer.get(player).afterAddMovingHungerBatch();
     }
 
-    @Inject(method = "tickStatusEffects", at = @At("TAIL"))
+    @Inject(method = "tickEffects", at = @At("TAIL"))
     private void sm_afterTickStatusEffects(CallbackInfo ci) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer.get(player).beforeAddMovingHungerBatch();
     }
 
@@ -119,9 +118,9 @@ public abstract class MixinLivingEntity {
      * isInsideWall()은 LivingEntity에서 마지막으로 override되므로 여기서 inject.
      * ServerPlayerEntity에는 선언되어 있지 않아 MixinServerPlayerEntity에서 inject 불가.
      */
-    @Inject(method = "isInsideWall", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isInWall", at = @At("HEAD"), cancellable = true)
     private void sm_isInsideWall(CallbackInfoReturnable<Boolean> cir) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
         if (sm.crawlingCooldown > 0) {
             cir.setReturnValue(false);

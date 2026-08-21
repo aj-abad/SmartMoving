@@ -13,11 +13,11 @@ import choco.ratel.smartmoving.climbing.HandsClimbing;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.MovementType;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -52,8 +52,8 @@ public abstract class MixinLivingEntityClient {
      *
      */
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
-    private void sm_travel_client(Vec3d movementInput, CallbackInfo ci) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+    private void sm_travel_client(Vec3 movementInput, CallbackInfo ci) {
+        if (!((Object) this instanceof LocalPlayer player)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
@@ -75,13 +75,13 @@ public abstract class MixinLivingEntityClient {
         // 🔴 사용자 보고 fix (2026-05-04 — "비행 중 vine 콜리전 겹치면 아래로 쭉 내려감"):
         //   비행 시 SM 처리 skip → vanilla travel 만 작동 → vy 음수 발생 (= 떨어짐).
         //   fix: !flying 가드 추가 → 비행 시 SM 처리 진행 → handleFlying 정상 비행 motion.
-        net.minecraft.block.BlockState _stateAtPos = player.getWorld()
-                .getBlockState(player.getBlockPos());
-        net.minecraft.block.Block _blockAtPos = _stateAtPos.getBlock();
-        boolean _isVineBlock = _blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES
-                || _blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES_PLANT
-                || _blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES
-                || _blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES_PLANT;
+        net.minecraft.world.level.block.state.BlockState _stateAtPos = player.level()
+                .getBlockState(player.blockPosition());
+        net.minecraft.world.level.block.Block _blockAtPos = _stateAtPos.getBlock();
+        boolean _isVineBlock = _blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES
+                || _blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES_PLANT
+                || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES
+                || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT;
         if (_isVineBlock && !player.getAbilities().flying) {
             return;  // vanilla travel 본체 진행 (cancel 안 함)
         }
@@ -90,8 +90,8 @@ public abstract class MixinLivingEntityClient {
         // 1.21.1: jumpMovementFactor 필드 없음 → getOffGroundSpeed() 메서드(PlayerEntity) (A-30 확인)
         // C-41: getOffGroundSpeed() @HEAD Mixin으로 0.05F 반환하여 공중 이동 억제
         if (player.getAbilities().flying && !cfg.fly) {
-            Vec3d vel = player.getVelocity();
-            player.setVelocity(vel.x, vel.y * 0.5999755859375D, vel.z);
+            Vec3 vel = player.getDeltaMovement();
+            player.setDeltaMovement(vel.x, vel.y * 0.5999755859375D, vel.z);
         }
 
         // [10-1] 점프 판정 — 수영 체크 전 매 틱 실행
@@ -119,17 +119,17 @@ public abstract class MixinLivingEntityClient {
         //   해결: sm_travel_client 진입 시 매 tick (isCrawling || isHeadJumping || isSliding) + onGround=true
         //     시점 박스 ground 안 박힘 검출 → entity.y push + velocity Y/fallDistance reset.
         //   가드: groundTop > bbMin + 0.005 (= 잠긴 detection) + groundTop <= bbMin + 1.0 (= 1칸 천장 매치 차단).
-        if (player.isOnGround() && (sm.isCrawling || sm.isHeadJumping || sm.isSliding || sm.isClimbCrawling)) {
-            net.minecraft.util.math.Box _stuckBb = player.getBoundingBox();
+        if (player.onGround() && (sm.isCrawling || sm.isHeadJumping || sm.isSliding || sm.isClimbCrawling)) {
+            net.minecraft.world.phys.AABB _stuckBb = player.getBoundingBox();
             double _stuckBbMin = _stuckBb.minY;
             double _stuckGround = choco.ratel.smartmoving.client.SmartMovingClientState
                     .getMaxPlayerSolidBetween(player, _stuckBbMin - 0.5, _stuckBbMin + 1.5, 0);
             if (_stuckGround > _stuckBbMin + 0.005 && _stuckGround <= _stuckBbMin + 1.0) {
                 double _pushY = _stuckGround - _stuckBbMin;
-                player.setPosition(player.getX(), player.getY() + _pushY, player.getZ());
-                player.lastRenderY += _pushY;
-                player.prevY += _pushY;
-                player.setVelocity(player.getVelocity().x, 0, player.getVelocity().z);
+                player.setPos(player.getX(), player.getY() + _pushY, player.getZ());
+                player.yOld += _pushY;
+                player.yo += _pushY;
+                player.setDeltaMovement(player.getDeltaMovement().x, 0, player.getDeltaMovement().z);
                 player.fallDistance = 0;
             }
         }
@@ -198,7 +198,7 @@ public abstract class MixinLivingEntityClient {
         //   tickEssential 의 5-AND 재평가 + handleCrash + standupIfPossible 흐름이 처리 (B-24/B-N).
         //   체크리스트 Phase I 별도 발견 (resetHeightOffset 5-AND 흐름과 중복) 일관 — L149 자체
         //   제거는 dead code 분석 후 별도 사이클로 deferred.
-        if (player.isOnGround() && sm.isHeadJumping && sm.wasHeadJumping) {
+        if (player.onGround() && sm.isHeadJumping && sm.wasHeadJumping) {
             SmartMovingJumper.resetHeightOffset(player, sm);
         }
 
@@ -256,15 +256,15 @@ public abstract class MixinLivingEntityClient {
         // Creative 비행 활성 가능 시점). cfg.sprint && abilities.flying && jumping && sprint 키.
         // 매 tick 적용 — jump 키 hold 중 motionY 가속 (기본 1.5 * 0.185 = 0.2775F).
         if (cfg.sprint && this.jumping
-                && net.minecraft.client.MinecraftClient.getInstance().options.sprintKey.isPressed()
+                && net.minecraft.client.Minecraft.getInstance().options.keySprint.isDown()
                 && player.getAbilities().flying) {
-            net.minecraft.util.math.Vec3d _v = player.getVelocity();
+            net.minecraft.world.phys.Vec3 _v = player.getDeltaMovement();
             double _boost = cfg.sprintFactorLevitate * cfg.sprintFactorLevitateVertical;
-            player.setVelocity(_v.x, _v.y + _boost, _v.z);
+            player.setDeltaMovement(_v.x, _v.y + _boost, _v.z);
         }
 
         // [5-1] 클라이밍 처리
-        World world = player.getWorld();
+        Level world = player.level();
         boolean isSmall = sm.isSmall || sm.isCrawling;
 
         HandsClimbing[] hands = {HandsClimbing.NONE};
@@ -355,16 +355,16 @@ public abstract class MixinLivingEntityClient {
         }
         // damping/rawSpeed 결정.
         float climbDamping;
-        if (player.isOnGround() && (!sm.isJumping || sm.vanilla())) {
-            net.minecraft.block.BlockState below = player.getWorld().getBlockState(player.getSteppingPos());
-            float slip = below.getBlock().getSlipperiness();
+        if (player.onGround() && (!sm.isJumping || sm.vanilla())) {
+            net.minecraft.world.level.block.state.BlockState below = player.level().getBlockState(player.getOnPos());
+            float slip = below.getBlock().getFriction();
             climbDamping = slip > 0F ? slip * 0.91F : 0.546F;
         } else {
             climbDamping = 0.91F;
         }
         float climbF3 = 0.1627714F / (climbDamping * climbDamping * climbDamping);
         float climbRawSpeed;
-        if (player.isOnGround()) {
+        if (player.onGround()) {
             climbRawSpeed = 0.1F * climbF3;
         } else {
             float jumpMovementFactor = 0.02F;
@@ -382,21 +382,21 @@ public abstract class MixinLivingEntityClient {
             climbSpeedFactor *= cfg2.runFactor;
         }
         // !onGround 시 potionFactor 정상화.
-        if (!player.isOnGround()) {
+        if (!player.onGround()) {
             float potion = SmartMovingMover.getPotionSpeedFactor(player);
             if (potion > 0F) climbSpeedFactor /= potion;
         }
-        player.updateVelocity(climbRawSpeed * climbSpeedFactor, movementInput);
+        player.moveRelative(climbRawSpeed * climbSpeedFactor, movementInput);
 
         // c. 원본 L757-775: ladder/vine 시 motion clamp -0.15 ~ 0.15.
         //   onClimbable=true (사다리/덩굴 인접) 시만 적용. free climb 일반 벽엔 미적용.
         if (onClimbable) {
-            Vec3d v = player.getVelocity();
+            Vec3 v = player.getDeltaMovement();
             double clampH = 0.15D;
             double mx = Math.max(-clampH, Math.min(clampH, v.x));
             double mz = Math.max(-clampH, Math.min(clampH, v.z));
             if (mx != v.x || mz != v.z) {
-                player.setVelocity(mx, v.y, mz);
+                player.setDeltaMovement(mx, v.y, mz);
             }
         }
 
@@ -409,9 +409,9 @@ public abstract class MixinLivingEntityClient {
         //   sp.motionY -= 0.08;  sp.motionY *= 0.98;
         //   sp.motionX *= horizontalDamping;  (= 0.91F air damping)
         //   sp.motionZ *= horizontalDamping;
-        Vec3d vel = player.getVelocity();
+        Vec3 vel = player.getDeltaMovement();
         double newY = (vel.y - 0.08D) * 0.98D;
-        player.setVelocity(vel.x * 0.91F, newY, vel.z * 0.91F);
+        player.setDeltaMovement(vel.x * 0.91F, newY, vel.z * 0.91F);
 
         // 🔴 사다리/덩굴 motion 가드 — 원본 L757-794 (landMotion) 1:1.
         //   원본 흐름: landMotion (motion 가드) → move (player.move) → setLandMotions.
@@ -430,14 +430,14 @@ public abstract class MixinLivingEntityClient {
         //   박스 떨어짐 차단. 우리 매핑은 sm_travel_client 가 vanilla travel cancel 하므로
         //   vanilla grip 미작동 → 직접 매핑 필요.
         if (onClimbable || sm.isClimbCrawling) {
-            Vec3d v = player.getVelocity();
+            Vec3 v = player.getDeltaMovement();
             double clampH = 0.15D;
             double mx = Math.max(-clampH, Math.min(clampH, v.x));
             double mz = Math.max(-clampH, Math.min(clampH, v.z));
             double my = v.y;
 
-            boolean sneakKeyPressed = net.minecraft.client.MinecraftClient.getInstance()
-                    .options.sneakKey.isPressed();
+            boolean sneakKeyPressed = net.minecraft.client.Minecraft.getInstance()
+                    .options.keyShift.isDown();
             if (sneakKeyPressed && my < 0) {
                 my = 0;
             } else {
@@ -447,13 +447,13 @@ public abstract class MixinLivingEntityClient {
             }
 
             if (mx != v.x || mz != v.z || my != v.y) {
-                player.setVelocity(mx, my, mz);
+                player.setDeltaMovement(mx, my, mz);
             }
             player.fallDistance = 0;
         }
 
         // g. 원본 L655 등가: vanilla move() 호출로 위치 갱신.
-        player.move(MovementType.SELF, player.getVelocity());
+        player.move(MoverType.SELF, player.getDeltaMovement());
 
         ci.cancel();
     }
@@ -474,9 +474,9 @@ public abstract class MixinLivingEntityClient {
      *
      * LivingEntity.tickMovement() HEAD에서 실행 → travel() 내 jump() 호출 전에 확실히 세팅됨.
      */
-    @Inject(method = "tickMovement", at = @At("HEAD"))
+    @Inject(method = "aiStep", at = @At("HEAD"))
     private void sm_jumpingFilter(CallbackInfo ci) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+        if (!((Object) this instanceof LocalPlayer player)) return;
         // BUG-18 (세션 36): SM disabled 시 jumping 필터 안 함 → vanilla jumping 그대로 보존.
         //   기존: sm.* 자체가 disabled 시 false 라 영향 거의 없으나 명시성 + jumpCharge/
         //   blockJumpTillButtonRelease 잔존 가능성 차단 (resetState 가 reset 하지만 안전망).
@@ -527,7 +527,7 @@ public abstract class MixinLivingEntityClient {
      */
     @Inject(method = "setSprinting", at = @At("HEAD"), cancellable = true)
     private void sm_blockVanillaSprintInSmStates(boolean sprinting, CallbackInfo ci) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+        if (!((Object) this instanceof LocalPlayer player)) return;
         if (!SmartMovingConfig.Config.enabled) return;
         if (!sprinting) return;  // setSprinting(false) 는 항상 통과.
         SmartMovingClientState sm = SmartMovingClientState.get(player);
@@ -537,9 +537,9 @@ public abstract class MixinLivingEntityClient {
         }
     }
 
-    @Inject(method = "jump", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
     private void sm_jump(CallbackInfo ci) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+        if (!((Object) this instanceof LocalPlayer player)) return;
         // 🔴 BUG-17 (세션 36): SM disabled 시 vanilla jump() 차단 안 함 → vanilla 점프 정상 작동.
         //   기존: cfg.enabled 가드 부재 → SM disabled 시에도 ci.cancel() 으로 vanilla 점프
         //   완전 차단 + jumpAvoided/jumpPending 세팅 → 점프 자체 작동 안 함 (사용자 보고 직접 원인).
@@ -569,9 +569,9 @@ public abstract class MixinLivingEntityClient {
      * ClientPlayerEntity 인스턴스 확인 → SmartMovingClientState 상태 기반 판정.
      * 서버 측 동등 로직 → MixinLivingEntity.sm_isClimbing_server()
      */
-    @Inject(method = "isClimbing", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "onClimbable", at = @At("HEAD"), cancellable = true)
     private void sm_isClimbing_client(CallbackInfoReturnable<Boolean> cir) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+        if (!((Object) this instanceof LocalPlayer player)) return;
         // BUG-23 (세션 36): SM disabled 시 vanilla isClimbing 그대로 — sm.* 잔존 timing 차단.
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
@@ -584,12 +584,12 @@ public abstract class MixinLivingEntityClient {
         //   적용 → 비행 속도 제한. 사용자 의도 = 비행 자유.
         //   fix: isFlying + vine block 시 isClimbing()=false 강제 → clamp skip → 비행 정상.
         if (player.getAbilities().flying) {
-            net.minecraft.block.Block blockAtPos = player.getWorld()
-                    .getBlockState(player.getBlockPos()).getBlock();
-            if (blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES
-                    || blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES_PLANT
-                    || blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES
-                    || blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES_PLANT) {
+            net.minecraft.world.level.block.Block blockAtPos = player.level()
+                    .getBlockState(player.blockPosition()).getBlock();
+            if (blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES
+                    || blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES_PLANT
+                    || blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES
+                    || blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT) {
                 cir.setReturnValue(false);
             }
         }
@@ -603,9 +603,9 @@ public abstract class MixinLivingEntityClient {
      * 5-5(isClimbing=false)로 이미 applyClimbingSpeed 내부 클램프가 차단되지만,
      * applyClimbingSpeed가 isClimbing()을 우회해 직접 호출되는 경로 대비 이중 방어.
      */
-    @Inject(method = "applyClimbingSpeed", at = @At("HEAD"), cancellable = true)
-    private void sm_applyClimbingSpeed(Vec3d velocity, CallbackInfoReturnable<Vec3d> cir) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+    @Inject(method = "handleOnClimbable", at = @At("HEAD"), cancellable = true)
+    private void sm_applyClimbingSpeed(Vec3 velocity, CallbackInfoReturnable<Vec3> cir) {
+        if (!((Object) this instanceof LocalPlayer player)) return;
         // BUG-23 (세션 36): SM disabled 시 vanilla applyClimbingSpeed 그대로 — sm.* 잔존 차단.
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
@@ -617,12 +617,12 @@ public abstract class MixinLivingEntityClient {
         //   isFlying + vine block 시 vanilla clamp ±0.15 차단 (= isClimbing mixin 의 우회 경로 대비
         //   이중 방어). velocity 그대로 반환 → 비행 속도 유지.
         if (player.getAbilities().flying) {
-            net.minecraft.block.Block blockAtPos = player.getWorld()
-                    .getBlockState(player.getBlockPos()).getBlock();
-            if (blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES
-                    || blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES_PLANT
-                    || blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES
-                    || blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES_PLANT) {
+            net.minecraft.world.level.block.Block blockAtPos = player.level()
+                    .getBlockState(player.blockPosition()).getBlock();
+            if (blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES
+                    || blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES_PLANT
+                    || blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES
+                    || blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT) {
                 cir.setReturnValue(velocity);
             }
         }
@@ -633,9 +633,9 @@ public abstract class MixinLivingEntityClient {
      * vanilla updateLimbs()는 보행 진행 속도로 LimbAnimator를 갱신하는데,
      * 크롤링/슬라이딩 포즈에서 이를 그대로 실행하면 다리 애니메이션이 비정상 재생된다.
      */
-    @Inject(method = "updateLimbs(Z)V", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "calculateEntityAnimation(Z)V", at = @At("HEAD"), cancellable = true)
     private void sm_updateLimbs_client(boolean serverSide, CallbackInfo ci) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+        if (!((Object) this instanceof LocalPlayer player)) return;
         // BUG-23 (세션 36): SM disabled 시 vanilla updateLimbs 그대로 — sm.* 잔존 차단.
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
@@ -654,7 +654,7 @@ public abstract class MixinLivingEntityClient {
      * correction factor = 0.999F / 0.91F
      */
     @Inject(method = "travel", at = @At("TAIL"))
-    private void sm_aerodynamicDamping(Vec3d movementInput, CallbackInfo ci) {
+    private void sm_aerodynamicDamping(Vec3 movementInput, CallbackInfo ci) {
         // 🔴 (2026-04-28) 임시 비활성. land + 점프 동작 검증 후 head jump 별도 매핑.
     }
 
@@ -680,7 +680,7 @@ public abstract class MixinLivingEntityClient {
      *
      * ClientPlayerEntity 만 대상 — 서버 플레이어는 server-side travel 처리 (클라→서버 동기).
      */
-    @Inject(method = "getMovementSpeed", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getSpeed", at = @At("HEAD"), cancellable = true)
     private void sm_getMovementSpeed(CallbackInfoReturnable<Float> cir) {
         // 🔴 (2026-04-28) 비활성화 — handleLand 가 vanilla travel 을 cancel + 자체 식 적용
         //   하므로 vanilla travel 의 getMovementSpeed 호출 경로 없음.
@@ -701,12 +701,12 @@ public abstract class MixinLivingEntityClient {
      * 서버 측 → MixinLivingEntity.sm_isInSwimmingPose_server()
      * Yarn: isInSwimmingPose (intermediary: method_20232 확인 완료)
      */
-    @Inject(method = "isInSwimmingPose", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isVisuallySwimming", at = @At("HEAD"), cancellable = true)
     private void sm_isInSwimmingPose_client(CallbackInfoReturnable<Boolean> cir) {
         // 🔴 (Phase 2 multi BUG-2/2.5) ClientPlayerEntity 가드 → AbstractClientPlayerEntity.
         //   기존: self only → remote 는 vanilla swimming pose 적용 → 90도 꺾임 + orphan SWIMMING.
         //   변경: 모든 player 처리. sm 인스턴스 = entity uuid 기반.
-        if (!((Object) this instanceof net.minecraft.client.network.AbstractClientPlayerEntity player)) return;
+        if (!((Object) this instanceof net.minecraft.client.player.AbstractClientPlayer player)) return;
         // BUG-23 (세션 36): SM disabled 시 vanilla isInSwimmingPose 그대로 — sm.* 잔존 차단.
         // 🔴 (Phase 2 fix-3-2) cfg.enabled → isSmRenderEnabled 로 self-only 화 (BUG-CONFIG-2 일관).
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
@@ -726,7 +726,7 @@ public abstract class MixinLivingEntityClient {
         //         회전 lerp 적용 → 잠깐 수영 자세 보임.
         //   해결: SM enabled + pose=SWIMMING + SM swim 분기 모두 false = orphan pose.
         //         isInSwimmingPose=false 강제 → leaningPitch +=0.09 차단 → 누적 X.
-        if (player.getPose() == net.minecraft.entity.EntityPose.SWIMMING) {
+        if (player.getPose() == net.minecraft.world.entity.Pose.SWIMMING) {
             cir.setReturnValue(false);
         }
     }
@@ -743,10 +743,10 @@ public abstract class MixinLivingEntityClient {
      *   fix: SM crawl 활성 시 getLeaningPitch HEAD inject 로 0 강제 → setupTransforms
      *     의 R_x(0) → 회전 영향 X. anySmState 모두 적용.
      */
-    @Inject(method = "getLeaningPitch", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getSwimAmount", at = @At("HEAD"), cancellable = true)
     private void sm_getLeaningPitch(float tickDelta, CallbackInfoReturnable<Float> cir) {
         // 🔴 (Phase 2 multi BUG-2/2.5) ClientPlayerEntity 가드 → AbstractClientPlayerEntity.
-        if (!((Object) this instanceof net.minecraft.client.network.AbstractClientPlayerEntity player)) return;
+        if (!((Object) this instanceof net.minecraft.client.player.AbstractClientPlayer player)) return;
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         if (sm.isCrawling || sm.isCrawlClimbing || sm.isSwimming_sm || sm.isDiving
@@ -757,7 +757,7 @@ public abstract class MixinLivingEntityClient {
         // 🔴 orphan SWIMMING pose 가드 (sm_isInSwimmingPose_client 와 동일 가드):
         //   pose=SWIMMING 인데 SM swim 분기 모두 false → leaningPitch field 잔존 가능 →
         //   setupTransforms 의 swim 회전 lerp 적용 차단.
-        if (player.getPose() == net.minecraft.entity.EntityPose.SWIMMING) {
+        if (player.getPose() == net.minecraft.world.entity.Pose.SWIMMING) {
             cir.setReturnValue(0F);
         }
     }

@@ -4,16 +4,16 @@ import choco.ratel.smartmoving.client.input.SmartMovingKeys;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.stat.Stats;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.stats.Stats;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * 클라이언트 측 점프 물리 로직.
@@ -82,9 +82,9 @@ public final class SmartMovingJumper {
      * 1.21.1: getBaseDimensions() Mixin(SLIDING→0.6×0.8) + 포즈 전환으로 대체.
      * pose_strategy.md C-02 최종 결정: EntityPose.SLIDING + getBaseDimensions Mixin.
      */
-    public static void setPoseSmall(ClientPlayerEntity player) {
-        player.setPose(EntityPose.SLIDING);
-        player.calculateDimensions();
+    public static void setPoseSmall(LocalPlayer player) {
+        player.setPose(Pose.SLIDING);
+        player.refreshDimensions();
     }
 
     /**
@@ -96,8 +96,8 @@ public final class SmartMovingJumper {
      * 호출 측(MixinLivingEntityClient)이 isOnGround && isHeadJumping 매 틱 체크하므로
      * 공간 확보될 때까지 isHeadJumping = true 유지하여 updatePose Mixin이 SLIDING 지속 강제.
      */
-    public static void resetHeightOffset(ClientPlayerEntity player, SmartMovingClientState sm) {
-        World world = player.getWorld();
+    public static void resetHeightOffset(LocalPlayer player, SmartMovingClientState sm) {
+        Level world = player.level();
         int px = (int) Math.floor(player.getX());
         int pz = (int) Math.floor(player.getZ());
         int fromY = (int) Math.ceil(player.getY() + 0.8D);
@@ -120,21 +120,21 @@ public final class SmartMovingJumper {
         // headJumping" 조건 — 의미 완전히 다른 간소 매핑 제거.
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         if (cfg.slide && cfg.enabled
-                && (SmartMovingKeys.grab.isPressed() || sm.wasHeadJumping)) {
+                && (SmartMovingKeys.grab.isDown() || sm.wasHeadJumping)) {
             sm.isSliding = true;
         } else {
-            Box standBox = player.getDimensions(EntityPose.STANDING)
-                                 .getBoxAt(player.getPos())
-                                 .contract(1.0E-7);
-            if (!world.isSpaceEmpty(player, standBox)) {
+            AABB standBox = player.getDimensions(Pose.STANDING)
+                                 .makeBoundingBox(player.position())
+                                 .deflate(1.0E-7);
+            if (!world.noCollision(player, standBox)) {
                 // B-45b (세션 45): 원본 toSlidingOrCrawling else 분기 `wasCrawling = toCrawling()`
                 // 대응. 기존 inline (cfg.enabled 누락) → ClientState.toCrawling() 헬퍼 호출.
                 sm.toCrawling();
             }
         }
 
-        player.setPose(EntityPose.STANDING);
-        player.calculateDimensions();
+        player.setPose(Pose.STANDING);
+        player.refreshDimensions();
     }
 
     // ── [10-2] tryJump (Phase D 1:1 재작성, 세션 19) ────────────────────────
@@ -155,7 +155,7 @@ public final class SmartMovingJumper {
      * @param angle            null → 일반 점프 / non-null → 각도 점프 (Wall/Side/Back)
      * @return enabled         isJumpingEnabled(speed, type) 결과. 호출 측 fallback 판단용.
      */
-    public static boolean tryJump(ClientPlayerEntity player, SmartMovingClientState sm,
+    public static boolean tryJump(LocalPlayer player, SmartMovingClientState sm,
                                    int type, Boolean inWaterOrNull, Boolean isRunningOrNull, Float angle) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
@@ -206,7 +206,7 @@ public final class SmartMovingJumper {
 
             // === D-6 (원본 L2029-L2032) — jumpFactor (potion) + horizontal/vertical factor + jumpChargeFactor ===
             float jumpFactor = 1F;
-            StatusEffectInstance jumpBoost = player.getStatusEffect(StatusEffects.JUMP_BOOST);
+            MobEffectInstance jumpBoost = player.getEffect(MobEffects.JUMP_BOOST);
             if (jumpBoost != null)
                 jumpFactor = 1F + (jumpBoost.getAmplifier() + 1) * 0.2F;
             float horizontalJumpFactor = cfg.getJumpHorizontalFactor(speed, type) * jumpFactor;
@@ -235,7 +235,7 @@ public final class SmartMovingJumper {
             //   F-1 감사 정정 (세션 21): 원본은 if(Up && vanilla) {...} else { head/angle/scale }
             //   1.21.1 기존: 4개 if 가 모두 순차 실행 → vanilla Up 점프 시 D-12 스케일 추가
             //   적용 회귀 (sprint 점프 수평 속도 2배 증폭). if/else 구조 복원.
-            Vec3d vel = player.getVelocity();
+            Vec3 vel = player.getDeltaMovement();
             double motionX = vel.x;
             double motionZ = vel.z;
             if (type == SmartMovingConfig.JUMP_TYPE_UP && sm.vanilla()) {
@@ -243,7 +243,7 @@ public final class SmartMovingJumper {
                 verticalMotion = 0.41999998688697815D;
                 if (jumpBoost != null) verticalMotion += (jumpBoost.getAmplifier() + 1) * 0.1F;
                 if (player.isSprinting()) {
-                    float f = player.getYaw() * 0.017453292F;
+                    float f = player.getYRot() * 0.017453292F;
                     motionX -= Math.sin(f) * 0.2F;
                     motionZ += Math.cos(f) * 0.2F;
                 }
@@ -297,7 +297,7 @@ public final class SmartMovingJumper {
             double motionY = vel.y;  // !up 또는 noVertical 시 default 유지
             if (up && !noVertical) {
                 motionY = verticalMotion;
-                player.incrementStat(Stats.JUMP);
+                player.awardStat(Stats.JUMP);
                 sm.isSprintJump = sm.isFast;
             }
 
@@ -329,7 +329,7 @@ public final class SmartMovingJumper {
             }
 
             // === D-16 (원본 L2131-L2134) — setVelocity + isJumping ===
-            player.setVelocity(motionX, noVertical ? vel.y : motionY, motionZ);
+            player.setDeltaMovement(motionX, noVertical ? vel.y : motionY, motionZ);
             // sp.isAirBorne = true — vanilla 자동 (velocityDirty + fallDistance)
             sm.isJumping = true;
             // onLivingJump() — vanilla PlayerEntity 자동 점프 이벤트 처리
@@ -370,7 +370,7 @@ public final class SmartMovingJumper {
      *   8. 일반 점프 (원본 L1915-L1916) — jumpAvoided + !isVineAnyClimbing
      *   9. 더블클릭 방향 점프 (원본 L1918-L1943) — leftJumpCount/rightJumpCount/backJumpCount
      */
-    public static void handleJumping(ClientPlayerEntity player, SmartMovingClientState sm) {
+    public static void handleJumping(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         // BUG-14 (세션 36): SM disabled 시 점프 처리 안 함 → vanilla 점프 정상 작동.
         //   기존: 가드 부재 → SM disabled 시에도 jumpPending 클리어 / jumpAvoided 세팅 등 →
@@ -381,8 +381,8 @@ public final class SmartMovingJumper {
         // B-7 (Phase B 1:1 정정): 원본 esp.movementInput.jump 매핑 — raw KeyBinding 대신
         //   player.input.jumping 사용. `feedback_movementInput_vs_isSneaking` 패턴 적용
         //   (vanilla 측 가공 후 값 — 비행/sleeping 등 시나리오 정합).
-        boolean jumpKeyPressed  = player.input.jumping;
-        boolean grabKeyPressed  = SmartMovingKeys.grab.isPressed();
+        boolean jumpKeyPressed  = player.input.keyPresses.jump();
+        boolean grabKeyPressed  = SmartMovingKeys.grab.isDown();
 
         // 1. jumpPending 클리어 (원본 L1844 — 메서드 시작) ★ B-3 정정
         sm.jumpPending = false;
@@ -398,12 +398,12 @@ public final class SmartMovingJumper {
         // 4. jump = jumpAvoided && isJumpingField && !isInWater && !isInLava (원본 L1852)
         //    + jumpMotionX/Z 저장 (원본 L1853-L1854)
         boolean jump = sm.jumpAvoided && sm.jumpPending  // sm_jump 가로채기 시 둘 다 set
-                && !player.isTouchingWater() && !player.isInLava();
+                && !player.isInWater() && !player.isInLava();
         // 단 sm.jumpPending 은 위 L1 에서 false 로 클리어됨 → 의미 차이.
         // 1.21.1 매핑: jumpAvoided 만 사용 (sm_jump 인터셉트 시 set, 매 tick 시작 false 초기화).
-        jump = sm.jumpAvoided && !player.isTouchingWater() && !player.isInLava();
+        jump = sm.jumpAvoided && !player.isInWater() && !player.isInLava();
         {
-            Vec3d cv = player.getVelocity();
+            Vec3 cv = player.getDeltaMovement();
             sm.jumpMotionX = cv.x;
             sm.jumpMotionZ = cv.z;
         }
@@ -421,7 +421,7 @@ public final class SmartMovingJumper {
         //   else  if (jumpCharge > 0) blockJumpTillButtonRelease = true; jumpCharge = 0;
         boolean isJumpCharging = false;
         if (cfg.jumpCharge) {
-            boolean isJumpChargingPossible = player.isOnGround() && sm.isStanding;
+            boolean isJumpChargingPossible = player.onGround() && sm.isStanding;
             isJumpCharging = isJumpChargingPossible && sm.wouldIsSneaking;
 
             boolean actualJumpCharging = isJumpChargingPossible
@@ -479,7 +479,7 @@ public final class SmartMovingJumper {
             //   회귀 우려: 두 점프 누적 시각 차단. 사용자가 *원하지 않는 동작이면* fix revert 필요.
             isHeadJumpCharging = grabKeyPressed
                     && (sm.isGroundSprinting || sm.isSprintJump
-                        || (sm.isRunning(player) && player.isOnGround()))
+                        || (sm.isRunning(player) && player.onGround()))
                     && !sm.isCrawling
                     && !sm.isSliding;
             if (isHeadJumpCharging) {
@@ -488,7 +488,7 @@ public final class SmartMovingJumper {
                     //   getHeadJumpFactor 안에서만 clamp. set 단계 Math.min 제거.
                     sm.headJumpCharge++;
                 } else {
-                    if (sm.headJumpCharge > 0 && player.isOnGround()) {
+                    if (sm.headJumpCharge > 0 && player.onGround()) {
                         tryJump(player, sm, HEAD_UP, null, null, null);
                     }
                     sm.headJumpCharge = 0;
@@ -508,13 +508,13 @@ public final class SmartMovingJumper {
         //       sp.motionY -= 0.04F
         //       if (!isStillSwimmingJump && sp.onGround && jumpCharge == 0)
         //         tryJump(Up, true, null, null) → splash sound
-        if (jumpKeyPressed && player.isTouchingWater() && sm.isDipping) {
+        if (jumpKeyPressed && player.isInWater() && sm.isDipping) {
             double frac = player.getY() - Math.floor(player.getY());
             double threshold = sm.isSlow ? 0.37D : 0.6D;
             if (frac > threshold) {
-                Vec3d vel = player.getVelocity();
-                player.setVelocity(vel.x, vel.y - 0.04D, vel.z);
-                if (!sm.isStillSwimmingJump && player.isOnGround() && sm.jumpCharge == 0) {
+                Vec3 vel = player.getDeltaMovement();
+                player.setDeltaMovement(vel.x, vel.y - 0.04D, vel.z);
+                if (!sm.isStillSwimmingJump && player.onGround() && sm.jumpCharge == 0) {
                     tryJump(player, sm, UP, Boolean.TRUE, null, null);
                     // 원본 L1910 splash sound 는 1.21.1 미이식 (효과음만, 게임플레이 무관)
                 }
@@ -536,7 +536,7 @@ public final class SmartMovingJumper {
             if (sm.backJumpCount  == -1) back++;
 
             if (left != 0 || back != 0) {
-                boolean canAngleJump = player.isOnGround() && !sm.isCrawling && !sm.isClimbing
+                boolean canAngleJump = player.onGround() && !sm.isCrawling && !sm.isClimbing
                         && !sm.isCrawlClimbing && !sm.isSwimming_sm && !sm.isDiving;
 
                 if (canAngleJump) {
@@ -547,7 +547,7 @@ public final class SmartMovingJumper {
 
                     sm.angleJumpType = ((360 - relAngle) / 45) % 8;
 
-                    float worldAngleDeg = (float) ((player.getYaw() + relAngle) % 360.0);
+                    float worldAngleDeg = (float) ((player.getYRot() + relAngle) % 360.0);
                     if (worldAngleDeg < 0F) worldAngleDeg += 360F;
 
                     tryJump(player, sm, ANGLE, null, null, worldAngleDeg);
@@ -585,7 +585,7 @@ public final class SmartMovingJumper {
      *
      *   if (continue && (onGround || isClimbing || !jumpPressed)) continue=false
      */
-    public static void updateWallJumpState(ClientPlayerEntity player, SmartMovingClientState sm) {
+    public static void updateWallJumpState(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
         // 🔴 fix #157 (2026-05-27): 원본 L2865-L2896 순서 1:1 복원.
@@ -597,14 +597,14 @@ public final class SmartMovingJumper {
         //   "jump 떼도 wall jump 탈출 안 됨").
 
         // 1. (원본 L2865-L2866) continueWallJumping false 전환 — 먼저
-        boolean jumpPressed = MinecraftClient.getInstance().options.jumpKey.isPressed();
-        if (sm.continueWallJumping && (player.isOnGround() || sm.isClimbing || !jumpPressed)) {
+        boolean jumpPressed = Minecraft.getInstance().options.keyJump.isDown();
+        if (sm.continueWallJumping && (player.onGround() || sm.isClimbing || !jumpPressed)) {
             sm.continueWallJumping = false;
         }
 
         // 2. (원본 L2868) canWallJumping
         boolean isWallJumpEnabled = cfg.wallUpJump || cfg.wallHeadJump;
-        boolean canWallJumping = isWallJumpEnabled && !sm.isHeadJumping && !player.isOnGround()
+        boolean canWallJumping = isWallJumpEnabled && !sm.isHeadJumping && !player.onGround()
                 && !sm.isClimbing && !sm.isSwimming_sm && !sm.isDiving
                 && !sm.isLevitating && !sm.isFlying;
 
@@ -647,7 +647,7 @@ public final class SmartMovingJumper {
      * 반사 각도 공식: reflectedAngle = horizontalCollisionAngle * 2 - movementAngle + 180
      * jumpAngle = round(reflectedAngle / 90) * 90  (90° 단위 반올림)
      */
-    public static void handleWallJumping(ClientPlayerEntity player, SmartMovingClientState sm) {
+    public static void handleWallJumping(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
         // 원본 L1948: `if (!wantWallJumping || Double.isNaN(horizontalCollisionAngle)) return;`
@@ -678,7 +678,7 @@ public final class SmartMovingJumper {
         boolean wasCollH = false;
 
         // 원본 L1952-L1963: grab=true → WallHead/WallHeadSlide, grab=false → WallUp/WallUpSlide.
-        boolean grabPressed = SmartMovingKeys.grab.isPressed();
+        boolean grabPressed = SmartMovingKeys.grab.isDown();
         int jumpType;
         if (grabPressed) {
             if (!cfg.wallHeadJump) return;
@@ -723,7 +723,7 @@ public final class SmartMovingJumper {
             double jmMag = Math.abs(sm.jumpMotionX) + Math.abs(sm.jumpMotionZ);
             if (jmMag < 0.05D) {
                 // fallback: 사용자 정면 반대 방향 (= yaw + 180). jumpMotion 미세 영향 차단.
-                jumpAngle = player.getYaw() + 180F;
+                jumpAngle = player.getYRot() + 180F;
             } else {
                 float movementAngle = (float) Math.toDegrees(Math.atan2(-sm.jumpMotionX, sm.jumpMotionZ));
                 if (movementAngle < 0) movementAngle += 360F;
@@ -759,8 +759,8 @@ public final class SmartMovingJumper {
             // 원본 L1993: sp.isCollidedHorizontally = false
             player.horizontalCollision = false;
             // 원본 L1994: sp.rotationYaw = jumpAngle
-            player.setYaw(jumpAngle);
-            player.bodyYaw = jumpAngle;       // (Phase G 차이 4 보류 — 회전 동기화 의도 유지)
+            player.setYRot(jumpAngle);
+            player.yBodyRot = jumpAngle;       // (Phase G 차이 4 보류 — 회전 동기화 의도 유지)
             // 원본 L1995 onStartWallJump(jumpAngle) inline:
             //   - prev rotateAngleY = angle / RadiantToAngle  (Phase G 차이 5 보류 — 애니메이션 사이클)
             sm.isWallJumping = true;          // 원본 onStartWallJump (SmartMoving.java L154)
@@ -774,14 +774,14 @@ public final class SmartMovingJumper {
      *
      * 원본 call site: getHorizontalCollisionangle(posZ, negZ, posX, negX) — X/Z swap 유지.
      */
-    private static float calculateSeparateCollisionAngle(ClientPlayerEntity player) {
-        World world = player.getWorld();
-        Box bb = player.getBoundingBox();
+    private static float calculateSeparateCollisionAngle(LocalPlayer player) {
+        Level world = player.level();
+        AABB bb = player.getBoundingBox();
         double delta = 0.001D;
-        boolean posX = !world.isSpaceEmpty(player, bb.offset( delta, 0, 0));
-        boolean negX = !world.isSpaceEmpty(player, bb.offset(-delta, 0, 0));
-        boolean posZ = !world.isSpaceEmpty(player, bb.offset(0, 0,  delta));
-        boolean negZ = !world.isSpaceEmpty(player, bb.offset(0, 0, -delta));
+        boolean posX = !world.noCollision(player, bb.move( delta, 0, 0));
+        boolean negX = !world.noCollision(player, bb.move(-delta, 0, 0));
+        boolean posZ = !world.noCollision(player, bb.move(0, 0,  delta));
+        boolean negZ = !world.noCollision(player, bb.move(0, 0, -delta));
         // 🔴 fix #165 revert (2026-05-27): corner case NaN skip 제거.
         //   사용자 verbatim (재): "대각선 벽 모서리는 일반적인 벽점프가 되어야되는데 안되고 있음".
         //   원본 헬퍼 spec = corner case 시 corner angle (45/135/225/315) 반환 → 일반 wall jump

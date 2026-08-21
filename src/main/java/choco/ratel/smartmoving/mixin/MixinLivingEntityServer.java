@@ -2,12 +2,12 @@ package choco.ratel.smartmoving.mixin;
 
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import choco.ratel.smartmoving.server.SmartMovingServer;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.MovementType;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -46,8 +46,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MixinLivingEntityServer {
 
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
-    private void sm_iccVelClampServer(Vec3d movementInput, CallbackInfo ci) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+    private void sm_iccVelClampServer(Vec3 movementInput, CallbackInfo ci) {
+        if (!((Object) this instanceof ServerPlayer player)) return;
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
 
@@ -58,20 +58,20 @@ public abstract class MixinLivingEntityServer {
         //   - climbBelow = 발 아래 BlockPos (y-1) ClimbableBlock 검사 (= 사다리 끝 통과 직후 case).
         boolean smBitClimb = sm.isClimbCrawling || sm.isClimbing || sm.isCrawlClimbing
                 || sm.isCeilingClimbing;
-        boolean vanillaClimb = player.isClimbing();
+        boolean vanillaClimb = player.onClimbable();
         boolean climbHead = false;
         boolean climbBelow = false;
         if (!smBitClimb && !vanillaClimb) {
-            BlockPos head = BlockPos.ofFloored(player.getX(), player.getY() + 1.0, player.getZ());
-            BlockPos below = BlockPos.ofFloored(player.getX(), player.getY() - 1.0, player.getZ());
-            climbHead = player.getWorld().getBlockState(head).isIn(BlockTags.CLIMBABLE);
-            climbBelow = player.getWorld().getBlockState(below).isIn(BlockTags.CLIMBABLE);
+            BlockPos head = BlockPos.containing(player.getX(), player.getY() + 1.0, player.getZ());
+            BlockPos below = BlockPos.containing(player.getX(), player.getY() - 1.0, player.getZ());
+            climbHead = player.level().getBlockState(head).is(BlockTags.CLIMBABLE);
+            climbBelow = player.level().getBlockState(below).is(BlockTags.CLIMBABLE);
         }
         if (!(smBitClimb || vanillaClimb || climbHead || climbBelow)) return;
 
         // self side `MixinLivingEntityClient.sm_travel_client` L385-411 1:1.
         // 1) velocity clamp.
-        Vec3d v = player.getVelocity();
+        Vec3 v = player.getDeltaMovement();
         double clampH = 0.15D;
         double mx = Math.max(-clampH, Math.min(clampH, v.x));
         double mz = Math.max(-clampH, Math.min(clampH, v.z));
@@ -82,13 +82,13 @@ public abstract class MixinLivingEntityServer {
             my = -clampH;
         }
         if (mx != v.x || mz != v.z || my != v.y) {
-            player.setVelocity(mx, my, mz);
+            player.setDeltaMovement(mx, my, mz);
         }
         player.fallDistance = 0;
 
         // 2) self side L409 동등: 우리 clamp velocity 로 직접 move (vanilla 의 추가 friction/
         //    gravity 적용 전 위치 갱신). collision 검사 진행.
-        player.move(MovementType.SELF, player.getVelocity());
+        player.move(MoverType.SELF, player.getDeltaMovement());
 
         // 3) self side L411 동등: vanilla travel 자체 cancel — 추가 motion 차단.
         ci.cancel();

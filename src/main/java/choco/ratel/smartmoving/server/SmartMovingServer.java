@@ -3,9 +3,9 @@ package choco.ratel.smartmoving.server;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import choco.ratel.smartmoving.network.SmartMovingNetwork;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -119,13 +119,13 @@ public final class SmartMovingServer {
     private static final Map<UUID, SmartMovingServer> INSTANCES = new HashMap<>();
 
     /** 플레이어의 SmartMovingServer 인스턴스를 반환한다. 없으면 새로 생성한다. */
-    public static SmartMovingServer get(ServerPlayerEntity player) {
-        return INSTANCES.computeIfAbsent(player.getUuid(), id -> new SmartMovingServer());
+    public static SmartMovingServer get(ServerPlayer player) {
+        return INSTANCES.computeIfAbsent(player.getUUID(), id -> new SmartMovingServer());
     }
 
     /** 플레이어 접속 해제 시 인스턴스를 제거한다. */
-    public static void remove(ServerPlayerEntity player) {
-        INSTANCES.remove(player.getUuid());
+    public static void remove(ServerPlayer player) {
+        INSTANCES.remove(player.getUUID());
     }
 
     // ── 3-1 + 3-9: State 패킷 처리 ──────────────────────────────
@@ -152,7 +152,7 @@ public final class SmartMovingServer {
      *   bit 20: isHeadJumping   ★ 신규 (Phase D-1, POSE.SLIDING)
      *   bit 21: isSliding       ★ 신규 (Phase D-1, POSE.SLIDING)
      */
-    public void processStatePacket(ServerPlayerEntity player, long bits) {
+    public void processStatePacket(ServerPlayer player, long bits) {
         // 🔴 fix #90 (2026-05-13, BUG: remote 측 벽 박은 후 slide→crawl 전환 시 모델 1m 잠긴 후 회복):
         //   processStatePacket 시작 시 wasSL/wasCR 저장 — 끝에서 slide→crawl 자동 전환 매치 검사용.
         boolean _wasSL_fix90 = this.isSliding;
@@ -190,7 +190,7 @@ public final class SmartMovingServer {
         //     L246 / isHeadJumping L213 / isSliding L235) 와 동일 패턴.
         //   메모리: feedback_processStatePacket_calculateDimensions, feedback_server_reconcile_box_sync.
         if (_oldCrawl != isCrawling) {
-            player.calculateDimensions();
+            player.refreshDimensions();
         }
         // R-04: setSmall() 경유하여 calculateDimensions() 호출 → 서버 AABB 갱신
         boolean newSmall = ((bits >> 15) & 1) != 0;
@@ -229,7 +229,7 @@ public final class SmartMovingServer {
         boolean newHeadJumping = ((bits >> 20) & 1) != 0;
         if (newHeadJumping != isHeadJumping) {
             isHeadJumping = newHeadJumping;
-            if (newHeadJumping) player.calculateDimensions();   // 진입 시만 호출.
+            if (newHeadJumping) player.refreshDimensions();   // 진입 시만 호출.
         }
         // 🔴 fix #63 (2026-05-10, 사용자 보고 "슬라이딩 시 모델 박스 1m 아래 + 종료 박스 박힘"):
         //   fix #55 의 isSliding 분기 가드 (= 진입 시 skip) 가 *정상 자체 슬라이딩 진입* 시
@@ -251,18 +251,18 @@ public final class SmartMovingServer {
                 // 진입 시: isHeadJumping=false 일 때만 호출 (= 정상 슬라이딩 진입).
                 //   isHeadJumping=true 시 skip (= fix #53 시나리오: 헤드점프+자체슬라이딩 동시).
                 if (!isHeadJumping) {
-                    player.calculateDimensions();
+                    player.refreshDimensions();
                 }
             } else {
                 // 종료 시: 항상 호출 (= STANDING 복원).
-                player.calculateDimensions();
+                player.refreshDimensions();
             }
         }
         // ── X/Z 땡김 fix: 클라/서버 박스 동기화 (bit 34, bit 22 는 angleJumpType 사용) ──
         boolean newClimbCrawling = ((bits >> 34) & 1) != 0;
         if (newClimbCrawling != isClimbCrawling) {
             isClimbCrawling = newClimbCrawling;
-            player.calculateDimensions();
+            player.refreshDimensions();
         }
 
         // 3-9: 낙하 거리 리셋 조건 (벽점프 포함)
@@ -292,7 +292,7 @@ public final class SmartMovingServer {
         //     - 벽 박은 시: setPos(71) 후 박스 위치 = (71, 71.8). self 가 벽 옆 평지 위 → 박스 벽 안
         //       침투 X (= 벽 모서리 위 만 매치). 안전.
         if (_wasSL_fix90 && !this.isSliding && !_wasCR_fix90 && this.isCrawling) {
-            player.setPos(player.getX(), player.getY() + 1.0, player.getZ());
+            player.setPosRaw(player.getX(), player.getY() + 1.0, player.getZ());
         }
 
         // 🔵 fix #99 v3 (2026-05-14): HJ → CR 직접 전환 server side mirror.
@@ -310,7 +310,7 @@ public final class SmartMovingServer {
                 && !_wasCR_fix90 && this.isCrawling
                 && !this.isClimbCrawling && !this.isClimbing && !this.isCeilingClimbing
                 && !this.isSwimming && !this.isDiving && !this.isLevitating) {
-            player.setPos(player.getX(), player.getY() + 1.0, player.getZ());
+            player.setPosRaw(player.getX(), player.getY() + 1.0, player.getZ());
         }
 
         // 🔵 fix #153 v3 (2026-05-22 history flag): swim/dive → crawl mirror push.
@@ -319,17 +319,17 @@ public final class SmartMovingServer {
         boolean _smEndedFix153 = (_wasSwim_fix153 || _wasDive_fix153)
                 && !this.isSwimming && !this.isDiving;
         if (_smEndedFix153) {
-            this.smRecentSwimDiveEndTick_fix153 = player.age;
+            this.smRecentSwimDiveEndTick_fix153 = player.tickCount;
         }
-        boolean _recentSwimEndedFix153 = (player.age - this.smRecentSwimDiveEndTick_fix153) >= 0
-                && (player.age - this.smRecentSwimDiveEndTick_fix153) <= 10;
+        boolean _recentSwimEndedFix153 = (player.tickCount - this.smRecentSwimDiveEndTick_fix153) >= 0
+                && (player.tickCount - this.smRecentSwimDiveEndTick_fix153) <= 10;
         if (_recentSwimEndedFix153
                 && !_wasCR_fix90 && this.isCrawling
                 && !_wasHJ_fix98 && !this.isHeadJumping
                 && !_wasSL_fix90 && !this.isSliding
                 && !this.isClimbCrawling && !this.isClimbing && !this.isCeilingClimbing
                 && !this.isLevitating) {
-            player.setPos(player.getX(), player.getY() + 1.0, player.getZ());
+            player.setPosRaw(player.getX(), player.getY() + 1.0, player.getZ());
             this.smRecentSwimDiveEndTick_fix153 = -9999;
         }
 
@@ -346,7 +346,7 @@ public final class SmartMovingServer {
                 && !this.isSliding && !this.isCrawling && !this.isCrawlClimbing
                 && !this.isClimbing && !this.isCeilingClimbing
                 && !this.isSwimming && !this.isDiving && !this.isLevitating) {
-            player.setPos(player.getX(), player.getY() + 1.0, player.getZ());
+            player.setPosRaw(player.getX(), player.getY() + 1.0, player.getZ());
         }
     }
 
@@ -368,11 +368,11 @@ public final class SmartMovingServer {
      * 클라이밍/크롤클라이밍/천장클라이밍/벽점프 중 낙하 거리 리셋.
      * 원본: fallDistance=0, motionY=0.08 (중력 상쇄 최소 상향 초기 속도).
      */
-    public void applyFallDistanceReset(ServerPlayerEntity player) {
+    public void applyFallDistanceReset(ServerPlayer player) {
         player.fallDistance = 0;
-        double vx = player.getVelocity().x;
-        double vz = player.getVelocity().z;
-        player.setVelocity(vx, player.getAttributeValue(EntityAttributes.GENERIC_GRAVITY), vz);
+        double vx = player.getDeltaMovement().x;
+        double vz = player.getDeltaMovement().z;
+        player.setDeltaMovement(vx, player.getAttributeValue(Attributes.GRAVITY), vz);
     }
 
     // ── 3-3: 소진 배치 시스템 ────────────────────────────────────
@@ -405,9 +405,9 @@ public final class SmartMovingServer {
      * calculateDimensions()가 getBaseDimensions()(MixinPlayerEntity)를 호출하여
      * 서버 bounding box 갱신 + 클라이언트 동기화가 자동으로 이루어진다.
      */
-    public void setSmall(ServerPlayerEntity player, boolean small) {
+    public void setSmall(ServerPlayer player, boolean small) {
         this.isSmall = small;
-        player.calculateDimensions();
+        player.refreshDimensions();
     }
 
     // ── 3-7: 플레이어 접속 초기화 ────────────────────────────────
@@ -422,7 +422,7 @@ public final class SmartMovingServer {
      *
      * serverConfig(개인별 설정) 지원은 미구현 — globalConfig 우선.
      */
-    public static void initialize(ServerPlayerEntity player, MinecraftServer server) {
+    public static void initialize(ServerPlayer player, MinecraftServer server) {
         SmartMovingServer sm = SmartMovingServer.get(player);
         if (sm.initialized) return;
         sm.initialized = true;
@@ -454,11 +454,11 @@ public final class SmartMovingServer {
      *   config.toggle(); saveToOptionsFile; logConfigState(config, username, true);
      * 1.21.1: SmartMovingConfig.INSTANCE.toggle() + save() + log + 전체 재전송.
      */
-    public static void adminToggleConfig(ServerPlayerEntity player) {
+    public static void adminToggleConfig(ServerPlayer player) {
         SmartMovingConfig.INSTANCE.toggle();
         SmartMovingConfig.save();
         logConfigState(SmartMovingConfig.INSTANCE, player.getName().getString(), true);
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server != null) broadcastConfig(server);
     }
 
@@ -469,11 +469,11 @@ public final class SmartMovingServer {
      * 1.21.1: INSTANCE.changeSpeed(diff) + save + log + 전체 재전송.
      * 클라이언트 요청 수락 경로(processSpeedChangePacket=changeSingleSpeed)와 별개 — 전역 변경.
      */
-    public static void adminChangeSpeed(ServerPlayerEntity player, int difference) {
+    public static void adminChangeSpeed(ServerPlayer player, int difference) {
         SmartMovingConfig.INSTANCE.changeSpeed(difference);
         SmartMovingConfig.save();
         logSpeedState(SmartMovingConfig.INSTANCE, player.getName().getString());
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server != null) broadcastConfig(server);
     }
 
@@ -536,7 +536,7 @@ public final class SmartMovingServer {
      * 클라이언트가 서버 설정 토글을 요청했으나 서버 설정이 활성화된 경우 항상 거부.
      * 원본: 서버가 ConfigChange S2C를 전송 → 클라이언트 "no rights" 메시지 표시.
      */
-    public static void processConfigChangePacket(ServerPlayerEntity player) {
+    public static void processConfigChangePacket(ServerPlayer player) {
         ServerPlayNetworking.send(player, new SmartMovingNetwork.ConfigChangePayload());
     }
 
@@ -550,12 +550,12 @@ public final class SmartMovingServer {
      * 원본 setPlayerSpeedExponent 흐름(개인 맵 put + saveToOptionsFile)만 수행, logSpeedState 호출 없음.
      * 관리자 자발적 전역 변경(원본 changeSpeed + logSpeedState)은 별도 서버 커맨드 이식 시 추가.
      */
-    public static void processSpeedChangePacket(ServerPlayerEntity player, int difference) {
+    public static void processSpeedChangePacket(ServerPlayer player, int difference) {
         // B-6 (세션 26): Creative 전용 게이트. 원본 `isUserSpeedEnabled() = enabled &&
         // _speedUser.value` 에서 `_speedUser` 가 Creative 팩토리라 Creative 에서만 true.
         // Creative 아니면 서버가 0 응답 → 클라 "no rights" 메시지 → 기능 거부. 원본 1:1.
-        boolean isCreative = player.interactionManager.getGameMode()
-                == net.minecraft.world.GameMode.CREATIVE;
+        boolean isCreative = player.gameMode.getGameModeForPlayer()
+                == net.minecraft.world.level.GameType.CREATIVE;
         if (!SmartMovingConfig.Config.speedUser || !isCreative) {
             ServerPlayNetworking.send(player, new SmartMovingNetwork.SpeedChangePayload(0, null));
             return;

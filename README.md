@@ -4,11 +4,11 @@
 
 A Minecraft mod that enriches character movement.
 
-Fabric 1.21.1 port of the classic [SmartMoving](https://www.curseforge.com/minecraft/mc-mods/smart-moving) (1.7.10 Forge).
+Fabric 26.2 port of the classic [SmartMoving](https://www.curseforge.com/minecraft/mc-mods/smart-moving) (1.7.10 Forge), using Minecraft's official names.
 
-![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62B47A?style=flat-square)
-![Fabric](https://img.shields.io/badge/Fabric-0.19.2%2B-DBB69B?style=flat-square)
-![Java](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square)
+![Minecraft](https://img.shields.io/badge/Minecraft-26.2-62B47A?style=flat-square)
+![Fabric](https://img.shields.io/badge/Fabric-0.19.3%2B-DBB69B?style=flat-square)
+![Java](https://img.shields.io/badge/Java-25%2B-ED8B00?style=flat-square)
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square)
 
 ## Features
@@ -24,10 +24,10 @@ Fabric 1.21.1 port of the classic [SmartMoving](https://www.curseforge.com/minec
 
 ## Requirements
 
-- Minecraft `1.21.1`
-- [Fabric Loader](https://fabricmc.net/use/installer/) `0.19.2+`
+- Minecraft `26.2`
+- [Fabric Loader](https://fabricmc.net/use/installer/) `0.19.3+`
 - [Fabric API](https://modrinth.com/mod/fabric-api)
-- Java `21`
+- Java `25+`
 
 ## Installation
 
@@ -57,6 +57,7 @@ The built jar will be located in `build/libs/`.
 
 | Version | Loader | Maintainer |
 |---------|--------|------------|
+| 26.2    | Fabric | [View-Studio](https://github.com/View-Studio) |
 | 1.21.1  | Fabric | [View-Studio](https://github.com/View-Studio) |
 | 1.12.2  | Forge  | [doch2](https://github.com/doch2/SmartMovingReboot) |
 | 1.7.10  | Forge  | [Divisor](https://www.curseforge.com/minecraft/mc-mods/smart-moving) *(original)* |

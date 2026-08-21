@@ -4,11 +4,10 @@ import choco.ratel.smartmoving.client.SmartMovingClientState;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -26,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * 서버 측 → MixinPlayerEntity.sm_getBaseDimensions_server(), sm_updatePose_server()
  */
-@Mixin(PlayerEntity.class)
+@Mixin(Player.class)
 @Environment(EnvType.CLIENT)
 public abstract class MixinPlayerEntityClient {
 
@@ -54,14 +53,14 @@ public abstract class MixinPlayerEntityClient {
      * POSE 자체는 `sm_updatePose_client` 에서 SWIMMING/SLIDING 중 적절한 것으로 가로챔.
      * dimensions 는 POSE 와 무관하게 SM 상태만 체크하여 반환 (원본 bbox 시맨틱 1:1).
      */
-    @Inject(method = "getBaseDimensions", at = @At("HEAD"), cancellable = true)
-    private void sm_getBaseDimensions_client(EntityPose pose, CallbackInfoReturnable<EntityDimensions> cir) {
+    @Inject(method = "getDefaultDimensions", at = @At("HEAD"), cancellable = true, require = 0)
+    private void sm_getBaseDimensions_client(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
         // 🔴 (Phase 2 multi BUG-12/14) ClientPlayerEntity 가드 → AbstractClientPlayerEntity.
         //   기존: self only → remote 측 dim 매핑이 vanilla pose 만 의존 → packet timing 차이로
         //         sm.isCrawling=true + pose=STANDING 잔존 frame 발생 → STANDING dim 매핑 → 우리
         //         sm_setupTransforms R_x 회전 적용 → 1.8 height 모델이 회전 → 이상한 자세 (BUG-12).
         //   변경: 모든 player. dim 결정이 sm.* 비트 의존 → packet A (sm relay) 도착 즉시 dim 갱신.
-        if (!((Object) this instanceof net.minecraft.client.network.AbstractClientPlayerEntity player)) return;
+        if (!((Object) this instanceof net.minecraft.client.player.AbstractClientPlayer player)) return;
         // BUG-20 (세션 36): SM disabled 시 vanilla dimensions 그대로 사용.
         // 🔴 (Phase 2 fix-3-2) cfg.enabled → isSmRenderEnabled (BUG-CONFIG-2 일관성).
         //   self → Config.enabled / remote → 항상 true. self disabled 시 자기 dim vanilla,
@@ -107,7 +106,7 @@ public abstract class MixinPlayerEntityClient {
         //   해결: `&& wasClimbCrawling` 가드 추가 → ICC 활성 중 + 해제 엣지 1 tick 만 매치.
         //   isCrawlClimbing 자가유지 중 wasClimbCrawling=false → smSmall 분기로 떨어져 박스 안정.
         if (sm.isClimbCrawling || (sm.isCrawling && sm.isClimbing && sm.wasClimbCrawling)) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
         // 🔴 비행 콜리전 — 사용자 명시 (2026-05-02): "비행은 건드리지 마".
@@ -115,7 +114,7 @@ public abstract class MixinPlayerEntityClient {
         //   가드 (eyeHeight > 1) 통과 → 박스 +1 적용 → 사용자 시점 보존 매핑 그대로.
         //   ICC 와 다른 매핑 (ICC 는 setPos(y+1) + eyeHeight 0.62 원본 1:1).
         if (sm.isFlying || sm.isLevitating) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
         // 🔴 isCrawlClimbing 추가 (사용자 보고 fix — 콜리전 standing 크기 BUG, 2026-05-03):
@@ -162,7 +161,7 @@ public abstract class MixinPlayerEntityClient {
             //   진짜 fix: dim 을 작은 박스 (0.8) + eyeHeight 1.62 로 되돌리고, MixinEntity 의
             //   offset 가드에 POSE=SLIDING 제외 추가 → mixin offset 차단 → 무한 루프 X +
             //   박스 작아짐 + 카메라 STANDING.
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
         // 🔴 fix #59 (2026-05-10, dump 분석 — 사용자 보고 "여우무빙 시 EYEHEIGHT 콜리전 아래"):
@@ -172,7 +171,7 @@ public abstract class MixinPlayerEntityClient {
         //   카메라 정상 위치 = entity.y + 1.62 (= STANDING eyeHeight, 박스 안 정렬).
         //   해결: isSliding 시 dim eyeHeight=1.62 → mixin offset (+1m) 와 정렬.
         if (sm.isSliding) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
         // 🔵 (2026-05-20, Phase 0 검증 fix #102) swim/dive 별도 분기 — isSliding 패턴 1:1 차용.
@@ -184,18 +183,18 @@ public abstract class MixinPlayerEntityClient {
         //   해결: isSliding 처럼 eye=1.62 강제 → mixin offset 가드 통과 (eye>1) → 박스 +1m up 자동
         //     적용 → 박스 발 = entity.y + 1m + 카메라 = entity.y + 1.62 (STANDING 동일).
         if (sm.isSwimming_sm || sm.isDiving) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
         boolean smSmall = sm.isCrawling || sm.isCrawlClimbing;
         if (smSmall) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(0.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(0.62F));
             return;
         }
 
         // SLIDING POSE 가 vanilla 가 아닌 경로로 들어온 경우 (외부 모드 등) 보강 처리
-        if (pose == EntityPose.SLIDING) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(0.62F));
+        if (pose == Pose.SLIDING) {
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(0.62F));
             return;
         }
 
@@ -208,8 +207,8 @@ public abstract class MixinPlayerEntityClient {
         //         애니메이션은 SM 분기 모두 false 라 vanilla setAngles → STANDING 자세.
         //   해결: pose=SWIMMING + smSmall 미매치 = orphan → STANDING dim 강제 (sync 풀리면
         //         정상 standing). 메모리 feedback_smSmall_dim_omission.md 동일 패턴.
-        if (pose == EntityPose.SWIMMING) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 1.8F).withEyeHeight(1.62F));
+        if (pose == Pose.SWIMMING) {
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 1.8F).withEyeHeight(1.62F));
             return;
         }
     }
@@ -230,19 +229,19 @@ public abstract class MixinPlayerEntityClient {
      *   bobbing/footstep/비행 토글 (= fix #83 효과) 는 isSneaking() 만 사용하므로 영향 X.
      *   @Mixin(PlayerEntity.class) 대상 — ClientPlayerEntity 가 inherit.
      */
-    @Inject(method = "clipAtLedge", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isStayingOnGroundSurface", at = @At("HEAD"), cancellable = true)
     private void sm_clipAtLedge_slidingException(CallbackInfoReturnable<Boolean> cir) {
         if (!SmartMovingConfig.Config.enabled) return;
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+        if (!((Object) this instanceof LocalPlayer player)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         if (sm.isSliding) {
             cir.setReturnValue(false);
         }
     }
 
-    @Inject(method = "getOffGroundSpeed", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getFlyingSpeed", at = @At("HEAD"), cancellable = true)
     private void sm_getOffGroundSpeed(CallbackInfoReturnable<Float> cir) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+        if (!((Object) this instanceof LocalPlayer player)) return;
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         if (!cfg.enabled) return;
         if (player.getAbilities().flying && !cfg.fly) {
@@ -271,9 +270,9 @@ public abstract class MixinPlayerEntityClient {
      *
      * dimensions 값 (0.6 × 0.8 + eyeHeight 0.62) 는 sm_getBaseDimensions_client 에서 전수 반영.
      */
-    @Inject(method = "updatePose", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "updatePlayerPose", at = @At("HEAD"), cancellable = true)
     private void sm_updatePose_client(CallbackInfo ci) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+        if (!((Object) this instanceof LocalPlayer player)) return;
         // BUG-22 (세션 36): SM disabled 시 vanilla updatePose 그대로 — sm.* 잔존 timing
         //   영향 차단. 비행 진입 첫 프레임에 SLIDING POSE 강제 잔존 가능 → motion 영향.
         if (!SmartMovingConfig.Config.enabled) return;
@@ -289,15 +288,15 @@ public abstract class MixinPlayerEntityClient {
             // 🔴 !isClimbing 가드: isClimbCrawling 해제 엣지의 toCrawling() 호출 → 1 틱
             //   isCrawling=true → 등반 중 SWIMMING POSE 발동 → STANDING↔SWIMMING 토글 →
             //   사용자 보고 "몸 애니메이션 주기적 요동". 등반 중이면 자세 STANDING 유지.
-            player.setPose(EntityPose.SWIMMING);
+            player.setPose(Pose.SWIMMING);
             ci.cancel();
         } else if (sm.isHeadJumping || sm.isSliding) {
             // 납작 자세 — SLIDING POSE
-            player.setPose(EntityPose.SLIDING);
+            player.setPose(Pose.SLIDING);
             ci.cancel();
         } else if (sm.isSwimming_sm || sm.isDiving) {
             // 수영/잠수 — SWIMMING POSE (vanilla 도 동일, 명시적 고정)
-            player.setPose(EntityPose.SWIMMING);
+            player.setPose(Pose.SWIMMING);
             ci.cancel();
         }
         // 🔴 BUG-29 진짜 원인 정정 (Flying Phase / 세션 45): isFlying/isLevitating 분기 제거.
@@ -337,19 +336,19 @@ public abstract class MixinPlayerEntityClient {
     @Redirect(
         method = "travel",
         at = @At(value = "INVOKE",
-                 target = "Lnet/minecraft/entity/player/PlayerEntity;setVelocity(DDD)V")
+                 target = "Lnet/minecraft/world/entity/player/Player;setDeltaMovement(Lnet/minecraft/world/phys/Vec3;)V")
     )
-    private void sm_travel_setVelocity_flyFix(PlayerEntity self, double x, double y, double z) {
-        if (self instanceof ClientPlayerEntity player
+    private void sm_travel_setVelocity_flyFix(Player self, net.minecraft.world.phys.Vec3 velocity) {
+        if (self instanceof LocalPlayer player
                 && SmartMovingConfig.Config.enabled
                 && SmartMovingClientState.get(player).isFlying) {
             // SM 비행 시 motionY *= 0.6 차단 — handleFlying 가 set 한 motionY 보존.
             // X/Z 는 vanilla 인자 그대로 (handleFlying 결과와 동일).
-            self.setVelocity(x, self.getVelocity().y, z);
+            self.setDeltaMovement(velocity.x, self.getDeltaMovement().y, velocity.z);
             return;
         }
         // 비SM 비행 (vanilla) → 원본 동작 그대로 (motionY *= 0.6).
-        self.setVelocity(x, y, z);
+        self.setDeltaMovement(velocity);
     }
 
     /**
@@ -364,9 +363,9 @@ public abstract class MixinPlayerEntityClient {
         if (!SmartMovingConfig.Config.enabled) return;
         Object self = (Object) this;
         // local (= ClientPlayerEntity) 은 MixinEntityClient 에서 이미 처리.
-        if (self instanceof ClientPlayerEntity) return;
+        if (self instanceof LocalPlayer) return;
         // remote 만 처리 — AbstractClientPlayerEntity (= 다른 player on client side).
-        if (!(self instanceof net.minecraft.client.network.AbstractClientPlayerEntity remote)) return;
+        if (!(self instanceof net.minecraft.client.player.AbstractClientPlayer remote)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(remote);
 
         // 🔴 (Phase 1-B fix-2) stats source: getVelocity() → position delta.
@@ -375,12 +374,12 @@ public abstract class MixinPlayerEntityClient {
         //   다른 player 의 velocity field 를 sync 안 함 → 항상 (0,0,0) → stats 입력 0
         //   → 다른 player 팔다리 swing 안 흔들림 (BUG-D).
         //   fix: 원본대로 prev/cur position delta. interpolation 진동은 stats 자체 EMA 가 평균화.
-        double dx = remote.getX() - remote.prevX;
-        double dy = remote.getY() - remote.prevY;
-        double dz = remote.getZ() - remote.prevZ;
+        double dx = remote.getX() - remote.xo;
+        double dy = remote.getY() - remote.yo;
+        double dz = remote.getZ() - remote.zo;
         sm.stats.calculate(0, 0, 0,
                            dx, dy, dz,
-                           remote.getYaw());
+                           remote.getYRot());
 
         // 🔵 (2026-05-14, Option F fix #97) StatsPayload 동기화 — self → REMOTE.
         //   자체 계산 (= 위 stats.calculate) 결과 중 currentVerticalAngle/HorizontalAngle 만
@@ -432,37 +431,37 @@ public abstract class MixinPlayerEntityClient {
     private void sm_correctOnUpdateRemote(CallbackInfo ci) {
         if (!SmartMovingConfig.Config.enabled) return;
         Object self = (Object) this;
-        if (self instanceof ClientPlayerEntity) return;  // self 는 MixinClientPlayerEntity 가 처리.
-        if (!(self instanceof net.minecraft.client.network.AbstractClientPlayerEntity remote)) return;
+        if (self instanceof LocalPlayer) return;  // self 는 MixinClientPlayerEntity 가 처리.
+        if (!(self instanceof net.minecraft.client.player.AbstractClientPlayer remote)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(remote);
 
         boolean isSmall = sm.isSwimming_sm || sm.isDiving || sm.isDipping || sm.isCrawling;
         if (!isSmall) return;
 
-        double d  = remote.getX() - remote.prevX;
-        double d1 = remote.getZ() - remote.prevZ;
+        double d  = remote.getX() - remote.xo;
+        double d1 = remote.getZ() - remote.zo;
         float f = (float) Math.sqrt(d * d + d1 * d1);
         if (f <= 0.02F || f >= 0.05F) return;
 
         float f1 = (float)(Math.atan2(d1, d) * 180.0 / Math.PI) - 90F;
-        if (remote.handSwingProgress > 0.0F) f1 = remote.getYaw();
+        if (remote.attackAnim > 0.0F) f1 = remote.getYRot();
 
-        float f4 = f1 - remote.bodyYaw;
+        float f4 = f1 - remote.yBodyRot;
         for (; f4 < -180F; f4 += 360F) {}
         for (; f4 >= 180F;  f4 -= 360F) {}
-        float x = remote.bodyYaw + f4 * 0.3F;
+        float x = remote.yBodyRot + f4 * 0.3F;
 
-        float f5 = remote.getYaw() - x;
+        float f5 = remote.getYRot() - x;
         for (; f5 < -180F; f5 += 360F) {}
         for (; f5 >= 180F;  f5 -= 360F) {}
         if (f5 < -75F) f5 = -75F;
         if (f5 >= 75F)  f5 = 75F;
 
-        remote.setBodyYaw(remote.getYaw() - f5);
-        if (f5 * f5 > 2500F) remote.setBodyYaw(remote.bodyYaw + f5 * 0.2F);
+        remote.setYBodyRot(remote.getYRot() - f5);
+        if (f5 * f5 > 2500F) remote.setYBodyRot(remote.yBodyRot + f5 * 0.2F);
 
-        for (; remote.bodyYaw - remote.prevBodyYaw < -180F; remote.prevBodyYaw -= 360F) {}
-        for (; remote.bodyYaw - remote.prevBodyYaw >= 180F; remote.prevBodyYaw += 360F) {}
+        for (; remote.yBodyRot - remote.yBodyRotO < -180F; remote.yBodyRotO -= 360F) {}
+        for (; remote.yBodyRot - remote.yBodyRotO >= 180F; remote.yBodyRotO += 360F) {}
     }
 
     // 🔴 (BUG D fix, 2026-05-13) sm_handleRemoteFlyingExitYSync 제거. SmartMovingClient packet

@@ -1,35 +1,34 @@
 package choco.ratel.smartmoving.climbing;
 
 import choco.ratel.smartmoving.config.SmartMovingConfig;
-import net.minecraft.block.AbstractSignBlock;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.ConnectingBlock;
-import net.minecraft.block.DoorBlock;
-import net.minecraft.block.FenceBlock;
-import net.minecraft.block.FenceGateBlock;
-import net.minecraft.block.LadderBlock;
-import net.minecraft.block.PaneBlock;
-import net.minecraft.block.PressurePlateBlock;
-import net.minecraft.block.SlabBlock;
-import net.minecraft.block.StairsBlock;
-import net.minecraft.block.TrapdoorBlock;
-import net.minecraft.block.VineBlock;
-import net.minecraft.block.WallBlock;
-import net.minecraft.block.WallSignBlock;
-import net.minecraft.block.enums.BlockHalf;
-import net.minecraft.block.enums.DoubleBlockHalf;
-import net.minecraft.block.enums.SlabType;
-import net.minecraft.block.enums.WallShape;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.world.World;
-
 import java.util.HashSet;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.IronBarsBlock;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.PipeBlock;
+import net.minecraft.world.level.block.PressurePlateBlock;
+import net.minecraft.world.level.block.SignBlock;
+import net.minecraft.world.level.block.SlabBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.TrapDoorBlock;
+import net.minecraft.world.level.block.VineBlock;
+import net.minecraft.world.level.block.WallBlock;
+import net.minecraft.world.level.block.WallSignBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.block.state.properties.Half;
+import net.minecraft.world.level.block.state.properties.SlabType;
+import net.minecraft.world.level.block.state.properties.WallSide;
 
 /**
  * 원본 `net.smart.moving.Orientation` (SmartMoving 1.7.10) 1:1 이식.
@@ -303,9 +302,9 @@ public class Orientation {
      *
      * 1.21.1 매핑: `p.rotationYaw` → `player.getYaw()`.
      */
-    public static Orientation getOrientation(PlayerEntity p, float tolerance,
+    public static Orientation getOrientation(Player p, float tolerance,
                                              boolean orthogonals, boolean diagonals) {
-        float rotation = p.getYaw() % 360F;
+        float rotation = p.getYRot() % 360F;
         if (rotation < 0) rotation += 360F;
 
         float minimumRotation = rotation - tolerance;
@@ -342,9 +341,9 @@ public class Orientation {
      * **주의**: 반환 HashSet 은 정적 캐시 재사용 — 호출 간 mutate 주의.
      * 1.21.1 매핑: `p.rotationYaw` → `player.getYaw()`.
      */
-    public static HashSet<Orientation> getClimbingOrientations(PlayerEntity p,
+    public static HashSet<Orientation> getClimbingOrientations(Player p,
                                                                boolean orthogonals, boolean diagonals) {
-        float rotation = p.getYaw() % 360F;
+        float rotation = p.getYRot() % 360F;
         if (rotation < 0) rotation += 360F;
 
         if (_getClimbingOrientationsHashSet == null)
@@ -421,7 +420,7 @@ public class Orientation {
     // `initialize(world, i, id, jhd, k, kd)` 로 전역 상태 설정 후 헬퍼 호출하는 패턴.
 
     /** 원본 L2729 — 현재 처리 중인 World. `initialize` 에서 설정. */
-    protected static World world;
+    protected static Level world;
     /** 원본 L2731 — 플레이어 기준 Y (base_j). `all_offset = local_offset` 의 절대 Y 기준. */
     protected static int all_j;
     /** 원본 L2731 — 현재 탐색 대상 Y 오프셋 누적. `isLadderSubstitute` 진입 시 0 리셋. */
@@ -532,7 +531,7 @@ public class Orientation {
      * 1.21.1 `instanceof TrapdoorBlock` (oak/iron/copper/bamboo 등 모든 trapdoor 포괄).
      */
     public static boolean isTrapDoor(BlockState state) {
-        return state != null && state.getBlock() instanceof TrapdoorBlock;
+        return state != null && state.getBlock() instanceof TrapDoorBlock;
     }
 
     /**
@@ -540,7 +539,7 @@ public class Orientation {
      * 1.21.1 `TrapdoorBlock.OPEN` property.
      */
     public static boolean isClosedTrapDoor(BlockState state) {
-        return isTrapDoor(state) && !state.get(TrapdoorBlock.OPEN);
+        return isTrapDoor(state) && !state.getValue(TrapDoorBlock.OPEN);
     }
 
     /**
@@ -550,10 +549,10 @@ public class Orientation {
      * `BlockTags.CLIMBABLE` 태그 기반 근사 — vanilla ladder/vine + 모드가 태그에 추가한
      * 블록 감지. 원본 의도 (플레이어 기준 등반 가능 여부) 와 거의 등가.
      */
-    public static boolean isClimbable(World world, int i, int j, int k) {
+    public static boolean isClimbable(Level world, int i, int j, int k) {
         // 근사 이식 — 원본과 차이: Forge Block.isLadder(world,x,y,z,player) hook → BlockTags.CLIMBABLE
         BlockState state = world.getBlockState(new BlockPos(i, j, k));
-        return state.isIn(BlockTags.CLIMBABLE);
+        return state.is(BlockTags.CLIMBABLE);
     }
 
     // ── Material / Solid 헬퍼 (원본 L2155-L2175, L2616-L2619) ──────────────
@@ -569,9 +568,9 @@ public class Orientation {
      * glass / ice 등 투명+풀큐브 블록을 누락 → 사용자 보고 "잎 블록 그랩 클라이밍 안 됨".
      * 1.7.10 원본은 Material.leaves / Material.glass 모두 isSolid=true 로 그랩 가능했음.
      */
-    public static boolean isSolid(BlockState state, World world, BlockPos pos) {
+    public static boolean isSolid(BlockState state, Level world, BlockPos pos) {
         // 근사 이식 — 원본과 차이: Material API 제거 → state.isFullCube() (풀큐브 충돌, opacity 무관)
-        return state != null && state.isFullCube(world, pos);
+        return state != null && state.isCollisionShapeFullBlock(world, pos);
     }
 
     /**
@@ -589,12 +588,12 @@ public class Orientation {
      * (3) standing sign / wall sign 은 `AbstractSignBlock`/`WallSignBlock` 로 전수 감지.
      * pressure plate 는 `PressurePlateBlock`.
      */
-    public static boolean isFullEmpty(BlockState state, World world, BlockPos pos) {
+    public static boolean isFullEmpty(BlockState state, Level world, BlockPos pos) {
         if (state == null) return true;
         boolean empty = !isSolid(state, world, pos);
         if (!empty) {
             Block blk = state.getBlock();
-            if (blk instanceof AbstractSignBlock)     empty = true;  // standing_sign + wall_sign 통합
+            if (blk instanceof SignBlock)     empty = true;  // standing_sign + wall_sign 통합
             else if (blk instanceof WallSignBlock)    empty = true;  // 중복 안전
             else if (blk instanceof PressurePlateBlock) empty = true;
             // 근사 이식 — 원본과 차이: hasASGrapplingHook/hasRopesPlus 모드 체크 생략
@@ -689,7 +688,7 @@ public class Orientation {
     private boolean hasLadderOrientation(int i, int j_offset, int k) {
         BlockState state = getBlock(i, j_offset, k);
         if (!isLadder(state)) return false;
-        Direction facing = state.get(LadderBlock.FACING);
+        Direction facing = state.getValue(LadderBlock.FACING);
         if (this == NZ) return facing == Direction.EAST;
         if (this == PZ) return facing == Direction.WEST;
         if (this == ZP) return facing == Direction.NORTH;
@@ -712,13 +711,13 @@ public class Orientation {
      * **인스턴스 메서드** + `world` 파라미터 (static state 의존 없음) — static context
      * 밖에서도 호출 가능.
      */
-    public boolean hasVineOrientation(World world, int i, int j, int k) {
+    public boolean hasVineOrientation(Level world, int i, int j, int k) {
         BlockState state = world.getBlockState(new BlockPos(i, j, k));
         if (!isVine(state)) return false;
-        if (this == NZ) return state.get(VineBlock.WEST);
-        if (this == PZ) return state.get(VineBlock.EAST);
-        if (this == ZP) return state.get(VineBlock.SOUTH);
-        if (this == ZN) return state.get(VineBlock.NORTH);
+        if (this == NZ) return state.getValue(VineBlock.WEST);
+        if (this == PZ) return state.getValue(VineBlock.EAST);
+        if (this == ZP) return state.getValue(VineBlock.SOUTH);
+        if (this == ZN) return state.getValue(VineBlock.NORTH);
         return false;
     }
 
@@ -732,10 +731,10 @@ public class Orientation {
      * **§7 근사** (B-19a1b-approx-1): `_ladderKitLadderTypes` (`metadata & 0x3`) 분기 생략.
      * 순수 vanilla ladder 만 역매핑.
      */
-    public static Orientation getKnownLadderOrientation(World world, int i, int j, int k) {
+    public static Orientation getKnownLadderOrientation(Level world, int i, int j, int k) {
         BlockState state = world.getBlockState(new BlockPos(i, j, k));
         if (!isLadder(state)) return null;
-        Direction facing = state.get(LadderBlock.FACING);
+        Direction facing = state.getValue(LadderBlock.FACING);
         switch (facing) {
             case EAST:  return NZ;
             case WEST:  return PZ;
@@ -831,7 +830,7 @@ public class Orientation {
      */
     private boolean isTrapDoorFront(BlockState state) {
         if (!isTrapDoor(state)) return false;
-        Direction facing = state.get(TrapdoorBlock.FACING);
+        Direction facing = state.getValue(TrapDoorBlock.FACING);
         if (this == NZ) return facing == Direction.WEST;
         if (this == PZ) return facing == Direction.EAST;
         if (this == ZP) return facing == Direction.SOUTH;
@@ -850,10 +849,10 @@ public class Orientation {
      * 원본 매핑:
      *   0 (SOUTH) → ZP, 1 (NORTH) → ZN, 2 (EAST) → PZ, 3 (WEST) → NZ
      */
-    public static Orientation getOpenTrapDoorOrientation(World world, int i, int j, int k) {
+    public static Orientation getOpenTrapDoorOrientation(Level world, int i, int j, int k) {
         BlockState state = world.getBlockState(new BlockPos(i, j, k));
         if (!isTrapDoor(state) || isClosedTrapDoor(state)) return null;
-        Direction facing = state.get(TrapdoorBlock.FACING);
+        Direction facing = state.getValue(TrapDoorBlock.FACING);
         switch (facing) {
             case SOUTH: return ZP;
             case NORTH: return ZN;
@@ -869,7 +868,7 @@ public class Orientation {
      *
      * Material API 제거 근사 (B-19a1a-approx-3 연동 — `isSolidBlock`).
      */
-    public boolean isRemoteSolid(World world, int i, int j, int k) {
+    public boolean isRemoteSolid(Level world, int i, int j, int k) {
         BlockPos pos = new BlockPos(i + _i, j, k + _k);
         BlockState state = world.getBlockState(pos);
         return isSolid(state, world, pos);
@@ -900,7 +899,7 @@ public class Orientation {
      */
     public static boolean isStairCompact(BlockState state) {
         // 근사 이식 — 원본과 차이: _knownCompactStairBlocks (mod stair) 제외
-        return state != null && state.getBlock() instanceof StairsBlock;
+        return state != null && state.getBlock() instanceof StairBlock;
     }
 
     /**
@@ -908,7 +907,7 @@ public class Orientation {
      * 1.21.1: `StairsBlock.HALF == BlockHalf.TOP`.
      */
     public static boolean isTopStairCompact(BlockState state) {
-        return isStairCompact(state) && state.get(StairsBlock.HALF) == BlockHalf.TOP;
+        return isStairCompact(state) && state.getValue(StairBlock.HALF) == Half.TOP;
     }
 
     /**
@@ -926,7 +925,7 @@ public class Orientation {
      */
     public boolean isStairCompactFront(BlockState state) {
         if (!isStairCompact(state)) return false;
-        Direction facing = state.get(StairsBlock.FACING);
+        Direction facing = state.getValue(StairBlock.FACING);
         if (this == NZ) return facing == Direction.WEST;
         if (this == PZ) return facing == Direction.EAST;
         if (this == ZP) return facing == Direction.SOUTH;
@@ -943,7 +942,7 @@ public class Orientation {
      */
     public boolean isStairCompactBack(BlockState state) {
         if (!isStairCompact(state)) return false;
-        Direction facing = state.get(StairsBlock.FACING);
+        Direction facing = state.getValue(StairBlock.FACING);
         if (this == NZ) return facing == Direction.EAST;
         if (this == PZ) return facing == Direction.WEST;
         if (this == ZP) return facing == Direction.NORTH;
@@ -986,7 +985,7 @@ public class Orientation {
     public static boolean isHalfBlock(BlockState state) {
         // 근사 이식 — 원본과 차이: _knownHalfBlocks (mod slab) 제외
         if (state == null || !(state.getBlock() instanceof SlabBlock)) return false;
-        return state.get(SlabBlock.TYPE) != SlabType.DOUBLE;
+        return state.getValue(SlabBlock.TYPE) != SlabType.DOUBLE;
     }
 
     /**
@@ -994,7 +993,7 @@ public class Orientation {
      * 1.21.1: `SlabType.TOP`.
      */
     public static boolean isTopHalfBlock(BlockState state) {
-        return isHalfBlock(state) && state.get(SlabBlock.TYPE) == SlabType.TOP;
+        return isHalfBlock(state) && state.getValue(SlabBlock.TYPE) == SlabType.TOP;
     }
 
     /**
@@ -1008,9 +1007,9 @@ public class Orientation {
      */
     public static boolean isBottomHalfBlock(BlockState state) {
         if (state == null) return false;
-        if (isHalfBlock(state) && state.get(SlabBlock.TYPE) == SlabType.BOTTOM) return true;
+        if (isHalfBlock(state) && state.getValue(SlabBlock.TYPE) == SlabType.BOTTOM) return true;
         // 근사 이식 — 원본과 차이: BetterThanWolves anchor 제외
-        return state.getBlock() instanceof net.minecraft.block.BedBlock;
+        return state.getBlock() instanceof net.minecraft.world.level.block.BedBlock;
     }
 
     // ── Fence / FenceGate (원본 L2177-L2222) ────────────────────────────────
@@ -1032,12 +1031,12 @@ public class Orientation {
 
     /** 원본 L2219-L2222 `isClosedFenceGate(int metadata)` — `(metadata & 4) == 0`. */
     public static boolean isClosedFenceGate(BlockState state) {
-        return isFenceGate(state) && !state.get(FenceGateBlock.OPEN);
+        return isFenceGate(state) && !state.getValue(FenceGateBlock.OPEN);
     }
 
     /** 원본 L2214-L2217 `isOpenFenceGate(Block, int metadata)`. */
     public static boolean isOpenFenceGate(BlockState state) {
-        return isFenceGate(state) && state.get(FenceGateBlock.OPEN);
+        return isFenceGate(state) && state.getValue(FenceGateBlock.OPEN);
     }
 
     /** 원본 L2183-L2187 `isFence(Block, int i, int j_offset, int k)` — base + closed gate. */
@@ -1063,7 +1062,7 @@ public class Orientation {
     public static boolean isWallBlock(BlockState state) {
         // 근사 이식 — 원본과 차이: _knownThinWallBlocks + _blockCarpentersLadder 제외
         if (state == null) return false;
-        return state.getBlock() instanceof PaneBlock || isFence(state);
+        return state.getBlock() instanceof IronBarsBlock || isFence(state);
     }
 
     /**
@@ -1079,7 +1078,7 @@ public class Orientation {
      * 1.21.1: `DoorBlock.HALF == DoubleBlockHalf.UPPER`.
      */
     public static boolean isDoorTop(BlockState state) {
-        return isDoor(state) && state.get(DoorBlock.HALF) == DoubleBlockHalf.UPPER;
+        return isDoor(state) && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER;
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1270,7 +1269,7 @@ public class Orientation {
      */
     private boolean isFenceGateFront(BlockState state) {
         if (!isFenceGate(state)) return false;
-        Direction facing = state.get(FenceGateBlock.FACING);
+        Direction facing = state.getValue(FenceGateBlock.FACING);
         if (this == NZ || this == PZ)
             return facing == Direction.SOUTH || facing == Direction.NORTH;
         if (this == ZP || this == ZN)
@@ -1304,7 +1303,7 @@ public class Orientation {
         //   시 hasHalfHold 통합 분기 L2421 (isEmpty+headedToFrontWall) 미충족 → 다른 분기로
         //   fall through → 다른 grabRemote/위치 → 다른 motion → iron_bars 와 다른 속도.
         //   해결: fence 추가하여 fence 단독 시도 강제 true 적용 → iron_bars 와 같은 분기로 잡힘.
-        return state != null && (state.getBlock() instanceof PaneBlock || isFence(state));
+        return state != null && (state.getBlock() instanceof IronBarsBlock || isFence(state));
     }
 
     /**
@@ -1349,7 +1348,7 @@ public class Orientation {
         Block block = state.getBlock();
 
         // 원본 분기 (1): BlockPane — 1.21.1: ConnectingBlock NORTH/SOUTH/EAST/WEST property
-        if (block instanceof PaneBlock) {
+        if (block instanceof IronBarsBlock) {
             // 근사 이식 — 원본과 차이: canPaneConnectToBlock 동적 → BlockState property 캐시
             return getConnectingFlag(state, d);
         }
@@ -1380,10 +1379,10 @@ public class Orientation {
     /** `ConnectingBlock.NORTH/SOUTH/EAST/WEST` BooleanProperty 기반 방향 연결 조회. */
     private static boolean getConnectingFlag(BlockState state, Direction d) {
         switch (d) {
-            case NORTH: return state.get(ConnectingBlock.NORTH);
-            case SOUTH: return state.get(ConnectingBlock.SOUTH);
-            case EAST:  return state.get(ConnectingBlock.EAST);
-            case WEST:  return state.get(ConnectingBlock.WEST);
+            case NORTH: return state.getValue(PipeBlock.NORTH);
+            case SOUTH: return state.getValue(PipeBlock.SOUTH);
+            case EAST:  return state.getValue(PipeBlock.EAST);
+            case WEST:  return state.getValue(PipeBlock.WEST);
             default:    return false;
         }
     }
@@ -1391,10 +1390,10 @@ public class Orientation {
     /** `WallBlock.NORTH_SHAPE/SOUTH_SHAPE/EAST_SHAPE/WEST_SHAPE` WallShape 기반 연결 조회. */
     private static boolean getWallShapeFlag(BlockState state, Direction d) {
         switch (d) {
-            case NORTH: return state.get(WallBlock.NORTH_SHAPE) != WallShape.NONE;
-            case SOUTH: return state.get(WallBlock.SOUTH_SHAPE) != WallShape.NONE;
-            case EAST:  return state.get(WallBlock.EAST_SHAPE)  != WallShape.NONE;
-            case WEST:  return state.get(WallBlock.WEST_SHAPE)  != WallShape.NONE;
+            case NORTH: return state.getValue(WallBlock.NORTH) != WallSide.NONE;
+            case SOUTH: return state.getValue(WallBlock.SOUTH) != WallSide.NONE;
+            case EAST:  return state.getValue(WallBlock.EAST)  != WallSide.NONE;
+            case WEST:  return state.getValue(WallBlock.WEST)  != WallSide.NONE;
             default:    return false;
         }
     }
@@ -1419,11 +1418,11 @@ public class Orientation {
         if (!isDoor(state)) return true;
 
         // 원본 case 8 — upper half 이면 lower half 재귀 체크
-        if (state.get(DoorBlock.HALF) == DoubleBlockHalf.UPPER)
+        if (state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER)
             return isDoorFrontBlocked(i, j_offset - 1, k);
 
-        Direction facing = state.get(DoorBlock.FACING);
-        boolean open = state.get(DoorBlock.OPEN);
+        Direction facing = state.getValue(DoorBlock.FACING);
+        boolean open = state.getValue(DoorBlock.OPEN);
 
         // 원본 case 4 (EAST open) / case 1 (SOUTH closed): this._k < 0
         if ((facing == Direction.EAST  &&  open) || (facing == Direction.SOUTH && !open))
@@ -2072,7 +2071,7 @@ public class Orientation {
 
         if (solid) {
             Block block = state.getBlock();
-            if (block instanceof AbstractSignBlock) solid = false;   // standing_sign + wall_sign 통합
+            if (block instanceof SignBlock) solid = false;   // standing_sign + wall_sign 통합
             else if (block instanceof WallSignBlock) solid = false;  // 중복 안전
             else if (block instanceof PressurePlateBlock) solid = false;
             else if (isTrapDoor(state)) solid = false;
@@ -2267,7 +2266,7 @@ public class Orientation {
      *   remote_i = base_i + _i
      *   remote_k = base_k + _k
      */
-    protected void initialize(World w, int i, double id, double jhd, int k, double kd) {
+    protected void initialize(Level w, int i, double id, double jhd, int k, double kd) {
         world = w;
 
         base_i = i;
@@ -2300,7 +2299,7 @@ public class Orientation {
         crawl = isClimbCrawling || isCrawlClimbing || isCrawling;
 
         double offset_jhd = base_jhd + offset_halfs;
-        int offset_jh = MathHelper.floor(offset_jhd);
+        int offset_jh = Mth.floor(offset_jhd);
         jh_offset = offset_jhd - offset_jh;
 
         all_j = offset_jh / 2;
@@ -2539,10 +2538,10 @@ public class Orientation {
         if (cfg.isFreeBaseClimb()) {
             int meta = baseVineClimbing(0);
             if (meta > DefaultMeta)
-                return setHalfGrabType(HalfGrab, Blocks.VINE.getDefaultState(), false, meta);
+                return setHalfGrabType(HalfGrab, Blocks.VINE.defaultBlockState(), false, meta);
             meta = remoteVineClimbing(0);
             if (meta > DefaultMeta)
-                return setHalfGrabType(HalfGrab, Blocks.VINE.getDefaultState(), false, meta);
+                return setHalfGrabType(HalfGrab, Blocks.VINE.defaultBlockState(), false, meta);
         }
 
         return setHalfGrabType(NoGrab, null);
@@ -2701,19 +2700,19 @@ public class Orientation {
         if (cfg.isFreeBaseClimb()) {
             int meta = baseVineClimbing(-1);
             if (meta != DefaultMeta)
-                return setHalfGrabType(HalfGrab, Blocks.VINE.getDefaultState(), false, meta);
+                return setHalfGrabType(HalfGrab, Blocks.VINE.defaultBlockState(), false, meta);
 
             meta = baseVineClimbing(0);
             if (meta != DefaultMeta)
-                return setHalfGrabType(HalfGrab, Blocks.VINE.getDefaultState(), false, meta);
+                return setHalfGrabType(HalfGrab, Blocks.VINE.defaultBlockState(), false, meta);
 
             meta = remoteVineClimbing(-1);
             if (meta != DefaultMeta)
-                return setHalfGrabType(HalfGrab, Blocks.VINE.getDefaultState(), false, meta);
+                return setHalfGrabType(HalfGrab, Blocks.VINE.defaultBlockState(), false, meta);
 
             meta = remoteVineClimbing(0);
             if (meta != DefaultMeta)
-                return setHalfGrabType(HalfGrab, Blocks.VINE.getDefaultState(), false, meta);
+                return setHalfGrabType(HalfGrab, Blocks.VINE.defaultBlockState(), false, meta);
         }
 
         return setBottomGrabType(NoGrab, null);
@@ -2732,7 +2731,7 @@ public class Orientation {
      * 원본 L299-L306 `isFeetLadderSubstitute(World world, int bi, int j, int bk)` — 발 레벨
      * ladder 대체 가능 여부. `(bi+_i, j, bk+_k)` 원격 위치에서 middle/base 두 offset gap 체크.
      */
-    public boolean isFeetLadderSubstitute(World w, int bi, int j, int bk) {
+    public boolean isFeetLadderSubstitute(Level w, int bi, int j, int bk) {
         int i = bi + _i;
         int k = bk + _k;
         return isLadderSubstitute(w, i, j, k, middle) > 0
@@ -2743,7 +2742,7 @@ public class Orientation {
      * 원본 L308-L316 `isHandsLadderSubstitute(World world, int bi, int j, int bk)` — 손 레벨
      * ladder 대체 가능. middle/base/sub 3 offset gap 체크.
      */
-    public boolean isHandsLadderSubstitute(World w, int bi, int j, int bk) {
+    public boolean isHandsLadderSubstitute(Level w, int bi, int j, int bk) {
         int i = bi + _i;
         int k = bk + _k;
         return isLadderSubstitute(w, i, j, k, middle) > 0
@@ -2756,7 +2755,7 @@ public class Orientation {
      * 외부 API 래퍼. static 상태 필드 (world/remote_i/all_j/remote_k/all_offset) 를 설정하고
      * 내부 본체 호출.
      */
-    private int isLadderSubstitute(World worldObj, int i, int j, int k, int halfOffset) {
+    private int isLadderSubstitute(Level worldObj, int i, int j, int k, int halfOffset) {
         world = worldObj;
         remote_i = i;
         all_j = j;
@@ -3097,7 +3096,7 @@ public class Orientation {
      * `ClimbGap[]` 배열 래퍼이므로 `out_handsClimbGap` / `out_feetClimbGap` 을 배열
      * 래핑해서 전달.
      */
-    public void seekClimbGap(float rotation, World w, int i, double id,
+    public void seekClimbGap(float rotation, Level w, int i, double id,
                              double jhd, int k, double kd,
                              boolean isClimbCrawling, boolean isCrawlClimbing, boolean isCrawling,
                              HandsClimbing[] inout_handsClimbing, FeetClimbing[] inout_feetClimbing,

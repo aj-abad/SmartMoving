@@ -3,15 +3,14 @@ package choco.ratel.smartmoving.client;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.network.ClientPlayerInteractionManager;
-import net.minecraft.entity.MovementType;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * 클라이언트 측 이동 속도 팩터 계산.
@@ -41,10 +40,10 @@ public final class SmartMovingMover {
      *   cfg.speedUser 는 사용자가 config 파일에서 허용 여부 설정 (기본 false, Easy 1:1).
      *   gameMode 체크는 매 호출 시 런타임 판정.
      */
-    private static boolean isCreative(ClientPlayerEntity player) {
+    private static boolean isCreative(LocalPlayer player) {
         if (player == null) return false;
-        ClientPlayerInteractionManager im = MinecraftClient.getInstance().interactionManager;
-        return im != null && im.getCurrentGameMode() == GameMode.CREATIVE;
+        MultiPlayerGameMode im = Minecraft.getInstance().gameMode;
+        return im != null && im.getPlayerMode() == GameType.CREATIVE;
     }
 
     /**
@@ -73,7 +72,7 @@ public final class SmartMovingMover {
      *    → 본 메서드에서 Creative 게이트는 userSpeedFactor 부분만 차단하는 게 정확.
      *    아래 구현은 speedFactor 는 전역 반영 + userSpeedFactor 는 Creative 게이트.
      */
-    public static float getConfigSpeedFactor(ClientPlayerEntity player, SmartMovingConfig cfg) {
+    public static float getConfigSpeedFactor(LocalPlayer player, SmartMovingConfig cfg) {
         if (!cfg.enabled) return 1F;
         float userFactor = isCreative(player) ? cfg.getUserSpeedFactor() : 1F;
         return cfg.speedFactor * userFactor;
@@ -88,7 +87,7 @@ public final class SmartMovingMover {
      * GENERIC_MOVEMENT_SPEED 속성에 포션 효과가 이미 반영됨 → 이중 적용 주의.
      * 스프린트 modifier(+0.3)도 포함된 상태이므로 스프린팅 시 1.3F로 나눠 제거.
      */
-    public static float getPotionSpeedFactor(ClientPlayerEntity player) {
+    public static float getPotionSpeedFactor(LocalPlayer player) {
         if (!SmartMovingConfig.Config.enabled) return 1F;
         // 🔴 fix #44 (2026-05-09, 사용자 보고 "여우무빙 거리 부족 + Jump Boost 시 극명"):
         //   vanilla 1.21.1 의 ADD_MULTIPLIED_TOTAL operation 은 모든 modifier value 를 합산 후
@@ -99,10 +98,10 @@ public final class SmartMovingMover {
         //   docs/research_fox_movement_distance.md §12 정독.
         float base = 0.1F;
         float sprintMul = player.isSprinting() ? 1.3F : 1F;
-        net.minecraft.entity.effect.StatusEffectInstance speed =
-                player.getStatusEffect(net.minecraft.entity.effect.StatusEffects.SPEED);
-        net.minecraft.entity.effect.StatusEffectInstance slow  =
-                player.getStatusEffect(net.minecraft.entity.effect.StatusEffects.SLOWNESS);
+        net.minecraft.world.effect.MobEffectInstance speed =
+                player.getEffect(net.minecraft.world.effect.MobEffects.SPEED);
+        net.minecraft.world.effect.MobEffectInstance slow  =
+                player.getEffect(net.minecraft.world.effect.MobEffects.SLOWNESS);
         float speedMul = (speed != null) ? 1F + (speed.getAmplifier() + 1) * 0.2F : 1F;
         float slowMul  = (slow  != null) ? 1F + (slow.getAmplifier()  + 1) * (-0.15F) : 1F;
         float landMovementFactor = base * sprintMul * speedMul * slowMul;
@@ -115,7 +114,7 @@ public final class SmartMovingMover {
      * B-1 (세션 25) 신설 — Climber/Jumper 등 6곳에서 인라인 곱셈 대체.
      * B-6 (세션 26): getConfigSpeedFactor 시그니처 변경에 따른 player 전달.
      */
-    public static float getCombinedSpeedFactor(ClientPlayerEntity player, SmartMovingConfig cfg) {
+    public static float getCombinedSpeedFactor(LocalPlayer player, SmartMovingConfig cfg) {
         return getConfigSpeedFactor(player, cfg) * getPotionSpeedFactor(player);
     }
 
@@ -126,7 +125,7 @@ public final class SmartMovingMover {
      * isRunning = isSprinting() && !isFast (A-21 확인값).
      * iceSpeedFactor: 원본 config에 없음 — 1.5F 고정 (A-25 확인).
      */
-    public static float getNonSlowInputSpeedFactor(ClientPlayerEntity player, SmartMovingClientState sm,
+    public static float getNonSlowInputSpeedFactor(LocalPlayer player, SmartMovingClientState sm,
                                                     SmartMovingConfig cfg) {
         // 🔴 (2026-04-28) 원본 SmartMovingSelf L197-227 1:1 정밀 매핑.
         //   원본: isFast 시 sprintFactor (1.5). !isFast 시 1.0.
@@ -151,12 +150,12 @@ public final class SmartMovingMover {
      * 감속 입력 배율 (크롤링/스니킹/아이템사용/천장클라이밍).
      * 팩터들은 순서대로 누적 곱셈 적용.
      */
-    public static float getSlowInputSpeedFactor(ClientPlayerEntity player, SmartMovingClientState sm,
+    public static float getSlowInputSpeedFactor(LocalPlayer player, SmartMovingClientState sm,
                                                  SmartMovingConfig cfg) {
         float f = 1.0F;
         if (player.isUsingItem()) f *= 0.2F;
         if (sm.isCrawling) f *= cfg.crawlFactor;
-        else if (player.isSneaking()) f *= cfg.sneakFactor;
+        else if (player.isShiftKeyDown()) f *= cfg.sneakFactor;
         if (sm.isCeilingClimbing) f *= cfg.ceilingClimbingSpeedFactor;
         return f;
     }
@@ -166,7 +165,7 @@ public final class SmartMovingMover {
      * 호출 위치: travel() SM 파이프라인 내 각 handle*() 메서드에서 speedFactor 계산 시.
      * B-6 (세션 26): getConfigSpeedFactor 시그니처 변경에 따른 player 전달.
      */
-    public static float getSpeedFactor(ClientPlayerEntity player, SmartMovingClientState sm,
+    public static float getSpeedFactor(LocalPlayer player, SmartMovingClientState sm,
                                         SmartMovingConfig cfg) {
         return getConfigSpeedFactor(player, cfg)
              * getPotionSpeedFactor(player)
@@ -186,9 +185,9 @@ public final class SmartMovingMover {
      *
      * cfg.run 체크는 호출 측 (handleLand L712) 에서 별도로 수행 — 원본과 동일.
      */
-    public static boolean isRunning(ClientPlayerEntity player, SmartMovingClientState sm,
+    public static boolean isRunning(LocalPlayer player, SmartMovingClientState sm,
                                      SmartMovingConfig cfg) {
-        return player.isSprinting() && !sm.isFast && (player.isOnGround() || sm.vanilla());
+        return player.isSprinting() && !sm.isFast && (player.onGround() || sm.vanilla());
     }
 
     // ── 11-2: handleLand (원본 superMoveEntityWithHeading + landMotion + setLandMotions) ──
@@ -206,8 +205,8 @@ public final class SmartMovingMover {
      * 비행과 동일 패턴 — vanilla travel 통째로 cancel + SM 자체 식 적용.
      * @return true = SM 처리 완료 (호출 측 ci.cancel 대상).
      */
-    public static boolean handleLand(ClientPlayerEntity player, SmartMovingClientState sm,
-                                      Vec3d movementInput) {
+    public static boolean handleLand(LocalPlayer player, SmartMovingClientState sm,
+                                      Vec3 movementInput) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         if (!cfg.enabled) return false;
 
@@ -228,13 +227,13 @@ public final class SmartMovingMover {
 
         // 원본 landMotion L677-690: horizontalDamping 결정 + L686-687 sprintJumpVertical.
         float horizontalDamping;
-        if (player.isOnGround() && (!sm.isJumping || sm.vanilla())) {
-            BlockState below = player.getWorld().getBlockState(player.getSteppingPos());
-            float slip = below.getBlock().getSlipperiness();
+        if (player.onGround() && (!sm.isJumping || sm.vanilla())) {
+            BlockState below = player.level().getBlockState(player.getOnPos());
+            float slip = below.getBlock().getFriction();
             horizontalDamping = slip > 0F ? slip * HORIZONTAL_AIR_DAMPING
                                           : HORIZONTAL_GROUND_DAMPING;
             // 원본 L686-687: jump 키 hold + isFast 시 sprintJumpVerticalFactor 적용.
-            boolean jumpKeyPressed = MinecraftClient.getInstance().options.jumpKey.isPressed();
+            boolean jumpKeyPressed = Minecraft.getInstance().options.keyJump.isDown();
             if (jumpKeyPressed && sm.isFast) {
                 speedFactor *= cfg.sprintJumpVerticalFactor;
             }
@@ -257,7 +256,7 @@ public final class SmartMovingMover {
         //   `if (!cfg.enabled) return false` 로 이미 함수 단위 가드, 동작 동일).
         if (sm.isHeadJumping) {
             speedFactor *= cfg.headJumpControlFactor;
-        } else if (cfg.enabled && !player.isOnGround()
+        } else if (cfg.enabled && !player.onGround()
                 && !player.getAbilities().flying && !sm.isFlying) {
             speedFactor *= cfg.jumpControlFactor;
         }
@@ -265,7 +264,7 @@ public final class SmartMovingMover {
         // 원본 landMotion L708-709: rawSpeed.
         float f3 = 0.1627714F / (horizontalDamping * horizontalDamping * horizontalDamping);
         float rawSpeed;
-        if (player.isOnGround()) {
+        if (player.onGround()) {
             // 🔴 fix #50 (2026-05-10, 사용자 100m 정확 측정 + 1.12.2 SMReboot 코드 line-by-line 비교):
             //   sm_original 1.7.10 SmartMovingSelf L709: rawSpeed = 0.1F × f3 (base hardcode).
             //   1.12.2 SMReboot SMSelf.java L682:        rawSpeed = getLandMovementFactor() × f3.
@@ -282,7 +281,7 @@ public final class SmartMovingMover {
             //   rawSpeed 와 speedFactor (getPotionSpeedFactor) 양쪽 반영 (= double-apply 의도).
             //
             //   변경: 0.1F → player.getMovementSpeed() (= vanilla 1.21.1 attribute = 0.208).
-            rawSpeed = player.getMovementSpeed() * f3;
+            rawSpeed = player.getSpeed() * f3;
             // 🔴 fix #50: 1.12.2 SMReboot L683 sprint 약분 추가 (ground 분기만).
             //   원본: float rawSpeed = sp.isSprinting() ? f4 / 1.3F : f4;
             //   air 분기는 fix #45 의 0.02F hardcode 유지 (= 1.7.10 vanilla sprint 결과식 1:1).
@@ -325,10 +324,10 @@ public final class SmartMovingMover {
         applyLandMoveFlying(player, moveStrafing, moveForward, rawSpeed * speedFactor);
 
         // 원본 L655: vanilla move() — 위치 갱신.
-        player.move(MovementType.SELF, player.getVelocity());
+        player.move(MoverType.SELF, player.getDeltaMovement());
 
         // 원본 setLandMotions L1176-1182: motionY -= 0.08, *= 0.98, motionX/Z *= damping.
-        Vec3d vel = player.getVelocity();
+        Vec3 vel = player.getDeltaMovement();
         double newY = (vel.y - 0.08D) * 0.98D;
         double newX = vel.x * horizontalDamping;
         double newZ = vel.z * horizontalDamping;
@@ -338,7 +337,7 @@ public final class SmartMovingMover {
         if (Math.abs(newY) < 0.003D) newY = 0.0D;
         if (Math.abs(newZ) < 0.003D) newZ = 0.0D;
 
-        player.setVelocity(newX, newY, newZ);
+        player.setDeltaMovement(newX, newY, newZ);
 
         return true;
     }
@@ -364,22 +363,22 @@ public final class SmartMovingMover {
      *   motion ADD = `speed × 0.98 / sqrt(0.98) ≈ speed × 0.99` (= 1% 더 큼). 매 tick 누적
      *   → 사용자 보고 "신속 sprint 속도 다름". Fix #49 = 단순 ADD 로 정정.
      */
-    private static void applyLandMoveFlying(ClientPlayerEntity player,
+    private static void applyLandMoveFlying(LocalPlayer player,
                                              float moveStrafing, float moveForward, float speed) {
         float f3 = moveStrafing * moveStrafing + moveForward * moveForward;
         if (f3 < 0.0001F) return;
-        f3 = MathHelper.sqrt(f3);
+        f3 = Mth.sqrt(f3);
         if (f3 < 1.0F) f3 = 1.0F;
         f3 = speed / f3;
         moveStrafing *= f3;
         moveForward  *= f3;
 
-        float yawRad = player.getYaw() * (float) Math.PI / 180F;
-        float sin = MathHelper.sin(yawRad);
-        float cos = MathHelper.cos(yawRad);
+        float yawRad = player.getYRot() * (float) Math.PI / 180F;
+        float sin = Mth.sin(yawRad);
+        float cos = Mth.cos(yawRad);
 
-        Vec3d vel = player.getVelocity();
-        player.setVelocity(
+        Vec3 vel = player.getDeltaMovement();
+        player.setDeltaMovement(
                 vel.x + moveStrafing * cos - moveForward * sin,
                 vel.y,
                 vel.z + moveForward * cos + moveStrafing * sin);

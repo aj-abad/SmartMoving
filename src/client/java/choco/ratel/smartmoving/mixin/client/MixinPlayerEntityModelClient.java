@@ -1,28 +1,26 @@
 package choco.ratel.smartmoving.mixin.client;
 
 import choco.ratel.smartmoving.client.SmModelPartOverride;
+import choco.ratel.smartmoving.client.SmartMovingAvatarRenderState;
 import choco.ratel.smartmoving.client.SmartMovingClientState;
 import choco.ratel.smartmoving.client.SmartMovingRenderContext;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.render.entity.model.BipedEntityModel;
-import net.minecraft.client.render.entity.model.PlayerEntityModel;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.Arm;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.World;
+import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -52,7 +50,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *       원본 ZXY GL 순서 → JOML qZ*qX*qY → 동일 변환.
  */
 @Environment(EnvType.CLIENT)
-@Mixin(BipedEntityModel.class)
+@Mixin(HumanoidModel.class)
 public abstract class MixinPlayerEntityModelClient {
 
     // ── 각도 상수 (SmartRenderContext/SmartRenderUtilities 기준) ─────────────
@@ -74,9 +72,6 @@ public abstract class MixinPlayerEntityModelClient {
     @Shadow public ModelPart rightLeg;
     @Shadow public ModelPart leftLeg;
 
-    /** BipedEntityModel.leaningPitch — animateModel()에서 entity.getLeaningPitch()로 세팅됨 */
-    @Shadow protected float leaningPitch;
-
     // 🔴 (Phase 2 multi BUG-4) ModelPart pivot leak 차단 — single-instance 모델의 player 간 leak 방지.
     //   원인: PlayerEntityModel 은 모든 player render 가 공유하는 single instance.
     //   한 player 의 SM 분기 (= sm_animateCrawling 등) 가 head.pivotZ/body.pivotZ/leg.pivotX 등 변경 →
@@ -94,28 +89,28 @@ public abstract class MixinPlayerEntityModelClient {
     @Unique
     private void sm_cachePivotDefaultsIfNeeded() {
         if (sm_pivotDefaultsCached) return;
-        sm_headPivotX = head.pivotX; sm_headPivotY = head.pivotY; sm_headPivotZ = head.pivotZ;
-        sm_bodyPivotX = body.pivotX; sm_bodyPivotY = body.pivotY; sm_bodyPivotZ = body.pivotZ;
-        sm_rArmPivotX = rightArm.pivotX; sm_rArmPivotY = rightArm.pivotY; sm_rArmPivotZ = rightArm.pivotZ;
-        sm_lArmPivotX = leftArm.pivotX;  sm_lArmPivotY = leftArm.pivotY;  sm_lArmPivotZ = leftArm.pivotZ;
-        sm_rLegPivotX = rightLeg.pivotX; sm_rLegPivotY = rightLeg.pivotY; sm_rLegPivotZ = rightLeg.pivotZ;
-        sm_lLegPivotX = leftLeg.pivotX;  sm_lLegPivotY = leftLeg.pivotY;  sm_lLegPivotZ = leftLeg.pivotZ;
+        sm_headPivotX = head.x; sm_headPivotY = head.y; sm_headPivotZ = head.z;
+        sm_bodyPivotX = body.x; sm_bodyPivotY = body.y; sm_bodyPivotZ = body.z;
+        sm_rArmPivotX = rightArm.x; sm_rArmPivotY = rightArm.y; sm_rArmPivotZ = rightArm.z;
+        sm_lArmPivotX = leftArm.x;  sm_lArmPivotY = leftArm.y;  sm_lArmPivotZ = leftArm.z;
+        sm_rLegPivotX = rightLeg.x; sm_rLegPivotY = rightLeg.y; sm_rLegPivotZ = rightLeg.z;
+        sm_lLegPivotX = leftLeg.x;  sm_lLegPivotY = leftLeg.y;  sm_lLegPivotZ = leftLeg.z;
         sm_pivotDefaultsCached = true;
     }
 
     @Unique
     private void sm_restorePivotDefaults() {
-        head.pivotX = sm_headPivotX; head.pivotY = sm_headPivotY; head.pivotZ = sm_headPivotZ;
-        body.pivotX = sm_bodyPivotX; body.pivotY = sm_bodyPivotY; body.pivotZ = sm_bodyPivotZ;
-        rightArm.pivotX = sm_rArmPivotX; rightArm.pivotY = sm_rArmPivotY; rightArm.pivotZ = sm_rArmPivotZ;
-        leftArm.pivotX  = sm_lArmPivotX; leftArm.pivotY  = sm_lArmPivotY; leftArm.pivotZ  = sm_lArmPivotZ;
-        rightLeg.pivotX = sm_rLegPivotX; rightLeg.pivotY = sm_rLegPivotY; rightLeg.pivotZ = sm_rLegPivotZ;
-        leftLeg.pivotX  = sm_lLegPivotX; leftLeg.pivotY  = sm_lLegPivotY; leftLeg.pivotZ  = sm_lLegPivotZ;
+        head.x = sm_headPivotX; head.y = sm_headPivotY; head.z = sm_headPivotZ;
+        body.x = sm_bodyPivotX; body.y = sm_bodyPivotY; body.z = sm_bodyPivotZ;
+        rightArm.x = sm_rArmPivotX; rightArm.y = sm_rArmPivotY; rightArm.z = sm_rArmPivotZ;
+        leftArm.x  = sm_lArmPivotX; leftArm.y  = sm_lArmPivotY; leftArm.z  = sm_lArmPivotZ;
+        rightLeg.x = sm_rLegPivotX; rightLeg.y = sm_rLegPivotY; rightLeg.z = sm_rLegPivotZ;
+        leftLeg.x  = sm_lLegPivotX; leftLeg.y  = sm_lLegPivotY; leftLeg.z  = sm_lLegPivotZ;
         // vanilla setAngles 가 reset 안 하는 회전 field 도 복원 (= roll/yaw 일부) — leak 차단.
-        head.roll = 0f;
-        body.roll = 0f;
-        rightArm.roll = 0f; leftArm.roll = 0f;
-        rightLeg.roll = 0f; leftLeg.roll = 0f;
+        head.zRot = 0f;
+        body.zRot = 0f;
+        rightArm.zRot = 0f; leftArm.zRot = 0f;
+        rightLeg.zRot = 0f; leftLeg.zRot = 0f;
     }
 
     /**
@@ -124,8 +119,6 @@ public abstract class MixinPlayerEntityModelClient {
      * (body.pitch=0.5, leg.pivotZ=4, head.pivotY=4.2, body.pivotY=3.2, arm.pivotY=5.2 등)
      * 가 이 필드를 본다.
      */
-    @Shadow public boolean sneaking;
-
     /**
      * 낙하 중 vanilla sneak pose 차단을 위해 setAngles HEAD 진입 시 원본 sneaking 값을
      * 보관. TAIL 시작부에서 원복하여 layer renderer 등 외부 참조와의 일관성 유지.
@@ -150,12 +143,10 @@ public abstract class MixinPlayerEntityModelClient {
     //
     // 조건: cfgEnabled && !onGround && fallDistance > fallAnimationDistanceMinimum
     //       && !climbing 계열 && !touchingWater (= isFallingForReset 와 동일).
-    @Inject(method = "setAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V",
+    @Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/HumanoidRenderState;)V",
             at = @At("HEAD"))
     private void sm_setAnglesHead(
-            LivingEntity entity,
-            float limbSwing, float limbSwingAmount,
-            float animationProgress, float headYaw, float headPitch,
+            HumanoidRenderState renderState,
             CallbackInfo ci) {
         // 🔴 (BUG A fix, 2026-05-13) ModelPart override clear — firstPersonArmRender 가드 *전* 위치.
         //   PlayerEntityModel 은 single instance — 모든 player 공유. sm_animateSliding 이 직전 frame
@@ -168,7 +159,10 @@ public abstract class MixinPlayerEntityModelClient {
 
         // 🔴 (2026-05-05 Phase 1-A) 다른 player render 시 SM 자세 적용 위해 가드 변경:
         //   AbstractClientPlayerEntity = local + remote player 모두 포함.
-        if (!(entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity player)) return;
+        if (!(renderState instanceof AvatarRenderState avatarState)
+                || !((Object) avatarState instanceof SmartMovingAvatarRenderState smartState)) return;
+        AbstractClientPlayer player = smartState.sm_getPlayer();
+        if (player == null) return;
 
         // 1인칭 손 렌더 컨텍스트 (PlayerEntityRenderer.renderArm 진입 중) — SM 후킹 일체 skip.
         //   사용자 의도: 1인칭 시점의 손은 항상 vanilla 기본 자세 유지.
@@ -181,7 +175,7 @@ public abstract class MixinPlayerEntityModelClient {
         //   대안: 가드 제거된 reset chunk 패턴 (L301 / cleanup 분기) — BUG-8 재처리 항목.
 
         // 항상 원본 저장 (cfgEnabled=false 분기에서도 TAIL 원복 안전 보장)
-        smOriginalSneakingForFalling = sneaking;
+        smOriginalSneakingForFalling = renderState.isCrouching;
 
         // 🔴 (2026-05-05) self → Config.enabled / remote → 항상 true.
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
@@ -201,14 +195,23 @@ public abstract class MixinPlayerEntityModelClient {
         //     vanilla sneak 자세 + 사다리 자세 결합 시각.
         //   해결: 자세만 분리 — vanilla setAngles 의 sneak 분기만 skip 위해 sneaking=false 임시 set.
         //     motion 은 vanilla 그대로 (사용자 의도 — 기능 안 건드림).
-        Block blockAtPos = player.getWorld().getBlockState(player.getBlockPos()).getBlock();
+        Block blockAtPos = player.level().getBlockState(player.blockPosition()).getBlock();
         boolean isWeepingTwistingVines = (blockAtPos == Blocks.WEEPING_VINES
                 || blockAtPos == Blocks.WEEPING_VINES_PLANT
                 || blockAtPos == Blocks.TWISTING_VINES
                 || blockAtPos == Blocks.TWISTING_VINES_PLANT);
 
         if (isFallingForReset || isWeepingTwistingVines) {
-            sneaking = false;
+            renderState.isCrouching = false;
+        }
+
+        boolean anySmState = sm.isRopeSliding || sm.isClimbing || sm.isCrawlClimbing
+                || sm.isCeilingClimbing || sm.isClimbJumping || sm.isSwimming_sm
+                || sm.isDiving || sm.isCrawling || sm.isSliding || sm.isHeadJumping
+                || sm.isFlying || sm.doFallingAnimation || isWeepingTwistingVines
+                || sm.isAngleJumping();
+        if (anySmState) {
+            renderState.swimAmount = 0F;
         }
     }
 
@@ -233,16 +236,19 @@ public abstract class MixinPlayerEntityModelClient {
     //   - AbstractClientPlayerEntity 가드 (self + remote).
     //   - SmartMovingRenderContext.firstPersonArmRender 시 vanilla 유지 (1인칭 hand leak 차단 패턴).
     //   - SmartMovingClient.isSmRenderEnabled false 시 vanilla 유지 (SM 비활성 토글).
-    @Inject(method = "animateArms",
+    @Inject(method = "setupAttackAnimation",
             at = @At("HEAD"),
             cancellable = true)
-    private void sm_animateArmsOverride(LivingEntity entity, float animationProgress, CallbackInfo ci) {
+    private void sm_animateArmsOverride(HumanoidRenderState renderState, CallbackInfo ci) {
         // vanilla early return path 등가
-        float swing = ((BipedEntityModel<?>)(Object)this).handSwingProgress;
+        float swing = renderState.attackTime;
         if (swing <= 0F) return;
 
         // self + remote 가드
-        if (!(entity instanceof AbstractClientPlayerEntity player)) return;
+        if (!(renderState instanceof AvatarRenderState avatarState)
+                || !((Object) avatarState instanceof SmartMovingAvatarRenderState smartState)) return;
+        AbstractClientPlayer player = smartState.sm_getPlayer();
+        if (player == null) return;
 
         // 1인칭 hand 가드 — vanilla 유지 (BUG A 패턴: firstPersonArmRender 영역 SM 후킹 skip)
         if (SmartMovingRenderContext.firstPersonArmRender) return;
@@ -252,8 +258,8 @@ public abstract class MixinPlayerEntityModelClient {
 
         // 원본 1.7.10/1.12.2 SR.animateWorkingBody + animateWorkingArms 1:1 복원.
         // Arm 결정: 원본 1.7.10 은 mainArm 기준 (preferredHand 개념 없음).
-        Arm mainArm = player.getMainArm();
-        ModelPart arm = (mainArm == Arm.LEFT) ? this.leftArm : this.rightArm;
+        HumanoidArm mainArm = player.getMainArm();
+        ModelPart arm = (mainArm == HumanoidArm.LEFT) ? this.leftArm : this.rightArm;
 
         // 🔴 fix #190 (2026-05-28): 원본 SmartMovingModel.animateWorkingBody (L667-673) 의
         //   `if(isStandard)` 가드 1:1 매핑. SM phase 시 vanilla body sway 식 SKIP.
@@ -275,9 +281,9 @@ public abstract class MixinPlayerEntityModelClient {
         //   body.yaw += angle
         //   leftArm.pitch += angle
         if (!anySmState) {
-            float angle = MathHelper.sin(MathHelper.sqrt(swing) * WHOLE) * 0.2F;
-            this.body.yaw += angle;
-            this.leftArm.pitch += angle;
+            float angle = Mth.sin(Mth.sqrt(swing) * WHOLE) * 0.2F;
+            this.body.yRot += angle;
+            this.leftArm.xRot += angle;
         }
 
         // animateWorkingArms (1.7.10 SR L306-315, 1.12.2 SR L408-416):
@@ -290,27 +296,34 @@ public abstract class MixinPlayerEntityModelClient {
         //   preferredArm.roll -= sin(swing * π) * 0.4
         float f6 = 1.0F - swing;
         f6 = 1.0F - f6 * f6 * f6;
-        float f7 = MathHelper.sin(f6 * HALF);
-        float f8 = MathHelper.sin(swing * HALF) * -(this.head.pitch - 0.7F) * 0.75F;
-        arm.pitch -= f7 * 1.2F + f8;
-        arm.yaw  += MathHelper.sin(MathHelper.sqrt(swing) * WHOLE) * 0.4F;
-        arm.roll -= MathHelper.sin(swing * HALF) * 0.4F;
+        float f7 = Mth.sin(f6 * HALF);
+        float f8 = Mth.sin(swing * HALF) * -(this.head.xRot - 0.7F) * 0.75F;
+        arm.xRot -= f7 * 1.2F + f8;
+        arm.yRot  += Mth.sin(Mth.sqrt(swing) * WHOLE) * 0.4F;
+        arm.zRot -= Mth.sin(swing * HALF) * 0.4F;
 
         ci.cancel(); // vanilla quartic 식 + arm.pivot 어깨 sway + arm.yaw 일괄 += body.yaw 차단
     }
 
     // ── [12-1] setAngles Mixin (TAIL — vanilla 애니메이션 완료 후 SM이 덮어씀) ──
 
-    @Inject(method = "setAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V",
+    @Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/HumanoidRenderState;)V",
             at = @At("TAIL"))
     private void sm_setAngles(
-            LivingEntity entity,
-            float limbSwing, float limbSwingAmount,
-            float animationProgress, float headYaw, float headPitch,
+            HumanoidRenderState renderState,
             CallbackInfo ci) {
         // 🔴 (2026-05-05 Phase 1-A) AbstractClientPlayerEntity = local + remote.
         //   다른 player render 시 SM 자세 적용을 위해 가드 확장.
-        if (!(entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity player)) return;
+        if (!(renderState instanceof AvatarRenderState avatarState)
+                || !((Object) avatarState instanceof SmartMovingAvatarRenderState smartState)) return;
+        AbstractClientPlayer player = smartState.sm_getPlayer();
+        if (player == null) return;
+
+        float limbSwing = renderState.walkAnimationPos;
+        float limbSwingAmount = renderState.walkAnimationSpeed;
+        float animationProgress = renderState.ageInTicks;
+        float headYaw = renderState.yRot;
+        float headPitch = renderState.xRot;
 
         // 🔴 (Phase 2 multi BUG-13) firstPersonArmRender 가드를 reset chunk 후로 이동.
         //   기존: 진입 즉시 return → reset chunk skip → 다른 player 의 ModelPart 변경
@@ -322,7 +335,7 @@ public abstract class MixinPlayerEntityModelClient {
         //   복구. 같은 프레임 내 layer renderer (cape/armor) 가 copyBipedStateTo 등으로
         //   sneaking 을 참조해도 entity 의 실제 pose 와 일관 유지.
         //   (조건 무관 무조건 set — HEAD 에서 항상 원본 저장하므로 안전.)
-        sneaking = smOriginalSneakingForFalling;
+        renderState.isCrouching = smOriginalSneakingForFalling;
 
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
@@ -352,7 +365,7 @@ public abstract class MixinPlayerEntityModelClient {
         //   매 frame block 검사 (player 위치).
         boolean isWeepingTwistingVines = false;
         if (cfgEnabled) {
-            Block blockAtPos = player.getWorld().getBlockState(player.getBlockPos()).getBlock();
+            Block blockAtPos = player.level().getBlockState(player.blockPosition()).getBlock();
             isWeepingTwistingVines = (blockAtPos == Blocks.WEEPING_VINES
                     || blockAtPos == Blocks.WEEPING_VINES_PLANT
                     || blockAtPos == Blocks.TWISTING_VINES
@@ -372,9 +385,7 @@ public abstract class MixinPlayerEntityModelClient {
                 || sm.isAngleJumping();   // 🔴 (2026-04-27) angle jump 시 reset 인프라 활성화 —
                                           // head.pivotZ/body.yaw/head.roll/arm.pivot 0 reset →
                                           // 이전 SM 분기 잔존 + vanilla animateArms swing body.yaw 흔들림 cancel.
-        if (anySmState) {
-            this.leaningPitch = 0f;
-        }
+        if (anySmState) renderState.swimAmount = 0f;
 
         // 🔴 D-4 종료 엣지 cleanup (사용자 보고 — 등반 종료 후 standing 시 몸통 앞으로 빠진 잔존):
         //   D-4 분기 진입 시 set 한 모든 노드 pivotZ=-6 가 등반 종료 시 reset 안 됨.
@@ -385,17 +396,17 @@ public abstract class MixinPlayerEntityModelClient {
         boolean smIsClimbingNow = sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || isWeepingTwistingVines;
         if (sm.smWasClimbingForCleanup && !smIsClimbingNow) {
-            body.pivotZ     = 0f;
-            head.pivotZ     = 0f;
-            rightArm.pivotZ = 0f;
-            leftArm.pivotZ  = 0f;
-            rightLeg.pivotZ = 0f;
-            leftLeg.pivotZ  = 0f;
-            rightLeg.pivotX = -1.9f;
-            leftLeg.pivotX  =  1.9f;
+            body.z     = 0f;
+            head.z     = 0f;
+            rightArm.z = 0f;
+            leftArm.z  = 0f;
+            rightLeg.z = 0f;
+            leftLeg.z  = 0f;
+            rightLeg.x = -1.9f;
+            leftLeg.x  =  1.9f;
             // D-4 leg.pivotY 정정 매핑 (12*cos(0.5)≈10.529) → vanilla default 12 reset.
-            rightLeg.pivotY = 12f;
-            leftLeg.pivotY  = 12f;
+            rightLeg.y = 12f;
+            leftLeg.y  = 12f;
             // 🔴 사용자 보고 fix (2026-05-04 — "사다리/덩굴 sneak+s 후 다시 붙으면 가끔 팔 짧아짐"):
             //   sm_animateClimbing 의 isHandsVineClimbing 분기 (L591) = setArmScales(abs(cos), abs(cos)) →
             //   arm yScale 변경. vine 종료 시 vanilla setAngles 가 yScale reset 안 함 → 잔존.
@@ -413,16 +424,16 @@ public abstract class MixinPlayerEntityModelClient {
         //   회피 — sneaking 시 vanilla 가 set 하는 값 (pivotY 3.2 등) 안 건드림.
         //   D-4 cleanup 패턴 그대로 따름 (= 종료 엣지 한 번만 적용).
         if (sm.smWasCrawlingForCleanup && !sm.isCrawling) {
-            head.pivotZ = 0f;
-            head.roll   = 0f;
-            body.yaw    = 0f;
-            body.roll   = 0f;
-            rightLeg.roll = 0f;
-            leftLeg.roll  = 0f;
-            rightArm.yaw  = 0f;
-            leftArm.yaw   = 0f;
-            rightArm.roll = 0f;
-            leftArm.roll  = 0f;
+            head.z = 0f;
+            head.zRot   = 0f;
+            body.yRot    = 0f;
+            body.zRot   = 0f;
+            rightLeg.zRot = 0f;
+            leftLeg.zRot  = 0f;
+            rightArm.yRot  = 0f;
+            leftArm.yRot   = 0f;
+            rightArm.zRot = 0f;
+            leftArm.zRot  = 0f;
             // scales = 1.0 (default) 복원 — sm_animateCrawling 의 setLegScales/setArmScales cancel
             setLegScales(rightLeg, leftLeg, 1f, 1f);
             setArmScales(rightArm, leftArm, 1f, 1f);
@@ -442,11 +453,11 @@ public abstract class MixinPlayerEntityModelClient {
         //   해결: 가드 제거. SM 분기 진입 안 한 player 의 setAngles 도 매번 reset → leak 차단.
         //         vanilla standing 자세에서도 head.pivotZ=0/body.pivotZ=0/body.yaw=0/head.roll=0 default 유지 →
         //         vanilla 영향 없음. arm.pivot 기본값 ±5/0 도 vanilla setAngles Step 4 의 default.
-        head.pivotZ = 0f;
-        body.pivotZ = 0f;
-        head.roll   = 0f;
-        rightLeg.roll = 0f;
-        leftLeg.roll  = 0f;
+        head.z = 0f;
+        body.z = 0f;
+        head.zRot   = 0f;
+        rightLeg.zRot = 0f;
+        leftLeg.zRot  = 0f;
         setLegScales(rightLeg, leftLeg, 1f, 1f);
         setArmScales(rightArm, leftArm, 1f, 1f);
         // 🔴 fix #180 v2 (2026-05-27, dump 분석 + 사용자 의문 (4) 반영):
@@ -458,24 +469,16 @@ public abstract class MixinPlayerEntityModelClient {
         //   사용자 verbatim "STAND swing 도 좀 이상" + "그냥 vanilla 기본으로 두자" → reset 인프라가
         //     vanilla 정상 swing 깨뜨림. 해결: self + swing 시 swing 영향 항목만 reset skip.
         //   multi leak 방어 — swing X frame 에서 자연 reset.
-        boolean preserveSwing = player.handSwingProgress > 0F
-                && net.minecraft.client.MinecraftClient.getInstance().player == player;
+        boolean preserveSwing = player.attackAnim > 0F
+                && net.minecraft.client.Minecraft.getInstance().player == player;
         if (!preserveSwing) {
-            body.yaw    = 0f;
-            leftArm.pivotX  =  5f;
-            leftArm.pivotZ  =  0f;
-            rightArm.pivotX = -5f;
-            rightArm.pivotZ =  0f;
-            rightArm.roll = 0f;
-            leftArm.roll  = 0f;
-        }
-
-        // ── cloak.pitch 처리 (cfgEnabled 분기) — disabled 시 0 reset 작동 보장 ──
-        // BUG-7 (세션 36): cfgEnabled 무관 매 호출 적용. cfgEnabled true → SIXTYFOURTH /
-        //   false → 0 reset (vanilla 미reset 필드 — disabled 진입 시 잔존 정리).
-        // 위치: 아래 cfgEnabled return 가드 위에 두어 disabled 시에도 적용 보장.
-        if ((Object) this instanceof PlayerEntityModel<?> playerModel) {
-            ((PlayerEntityModelAccessor) playerModel).sm_getCloak().pitch = cfgEnabled ? SIXTYFOURTH : 0f;
+            body.yRot    = 0f;
+            leftArm.x  =  5f;
+            leftArm.z  =  0f;
+            rightArm.x = -5f;
+            rightArm.z =  0f;
+            rightArm.zRot = 0f;
+            leftArm.zRot  = 0f;
         }
 
         // BUG-13/16 (세션 36): SM disabled 시 모든 SM 분기 + isFalling + isAngleJumping 한 번에 skip.
@@ -501,7 +504,7 @@ public abstract class MixinPlayerEntityModelClient {
             //   client-side world 로 remote 도 정확 계산 가능.
             //   기존: self only → remote 의 smallOverGroundHeight=0 → height=0.25 → bodyAngleX 큰 값 →
             //         isCrawlClimbing 자세 시각상 잘못 (사용자 보고 "엎드려서 앞으로 가는 애니메이션만").
-            sm.smallOverGroundHeight = computeSmallOverGroundHeight(player, player.getWorld());
+            sm.smallOverGroundHeight = computeSmallOverGroundHeight(player, player.level());
         }
 
         // ── SM 11-state if-else 체인 (SmartMovingModel.setRotationAngles 우선순위) ──
@@ -534,14 +537,14 @@ public abstract class MixinPlayerEntityModelClient {
             sm.actualFeetClimbType  = origFeetType;
         } else if (sm.isClimbJumping) {
             // [isClimbJump] 클라이밍 점프 — 팔을 위로 뻗은 자세
-            rightArm.pitch = HALF + SIXTEENTH;
-            leftArm.pitch  = HALF + SIXTEENTH;
-            rightArm.roll  = -THIRTYTWOTH;
-            leftArm.roll   =  THIRTYTWOTH;
+            rightArm.xRot = HALF + SIXTEENTH;
+            leftArm.xRot  = HALF + SIXTEENTH;
+            rightArm.zRot  = -THIRTYTWOTH;
+            leftArm.zRot   =  THIRTYTWOTH;
         } else if (sm.isSwimming_sm) {
-            sm_animateSwimming(sm, player, limbSwing, limbSwingAmount, animationProgress);
+            sm_animateSwimming(sm, player, limbSwing, limbSwingAmount, animationProgress, renderState.attackTime);
         } else if (sm.isDiving) {
-            sm_animateDiving(sm, player, limbSwing, limbSwingAmount, animationProgress);
+            sm_animateDiving(sm, player, limbSwing, limbSwingAmount, animationProgress, renderState.attackTime);
         } else if (sm.isCrawling) {
             sm_animateCrawling(sm, player, headYaw);
         } else if (sm.isSliding) {
@@ -574,23 +577,8 @@ public abstract class MixinPlayerEntityModelClient {
         // [B-16 / §16-24 / BUG-7] cloak.pitch 처리는 위로 이동 (BUG-13/16 cfgEnabled return 가드 위).
         //   원본 SmartRenderModel L251 = SM 상태 무관 항상 적용. cfgEnabled false 시에도 0 reset 보장.
 
-        // ── outer layer 재동기화 (hat / jacket / sleeves / pants) ──────────────
-        // 1.21.1 PlayerEntityModel 의 outer layer 6개는 root 의 직접 자식 — 부모
-        //   transform 자동 상속 X. vanilla 는 super.setAngles 의 마지막에서 한 번만
-        //   copyTransform 으로 동기화 (BipedEntityModel 끝의 hat ← head, PlayerEntityModel
-        //   super 직후의 jacket/sleeves/pants ← body/arms/legs).
-        // SM 의 sm_setAngles 는 @At("TAIL") 진입 → super 동기화가 끝난 뒤 head/body/arm/leg
-        //   를 광범위 변경 → outer layer 가 super 종료 시점의 vanilla 값으로 정지 → 분리.
-        // 해결: SM 의 모든 변경을 마친 직후 outer layer 6개 동기화를 다시 한번 실행.
-        //   cfgEnabled=false 분기는 위에서 return 했으므로 여기는 SM 활성 분기 한정.
-        hat.copyTransform(head);
-        if ((Object) this instanceof PlayerEntityModel<?> playerModel) {
-            playerModel.leftPants.copyTransform(leftLeg);
-            playerModel.rightPants.copyTransform(rightLeg);
-            playerModel.leftSleeve.copyTransform(leftArm);
-            playerModel.rightSleeve.copyTransform(rightArm);
-            playerModel.jacket.copyTransform(body);
-        }
+        // In 26.2 sleeves, pants, jacket, and hat are child parts. They inherit the
+        // parent transforms directly, so the old sibling copyFrom synchronization is gone.
 
     }
 
@@ -607,42 +595,42 @@ public abstract class MixinPlayerEntityModelClient {
      *   명시적 할당하므로 TAIL inject 에서 덮어쓰기 안전 (다음 프레임 자동 reset).
      *   원본 SR 어깨 노드(pivotY=2) 부재로 1.21.1 arm pivotY 기본=2 → -2 차감 = 0 (어깨 절대 위치 0 등가).
      */
-    private void sm_animateRopeSliding(float animationProgress, net.minecraft.client.network.AbstractClientPlayerEntity player) {
+    private void sm_animateRopeSliding(float animationProgress, net.minecraft.client.player.AbstractClientPlayer player) {
         float time = animationProgress * 0.15f;
 
         // 머리 X/Z
-        head.pitch = EIGHTH;
-        Vec3d vel = player.getVelocity();
+        head.xRot = EIGHTH;
+        Vec3 vel = player.getDeltaMovement();
         if (vel.x * vel.x + vel.z * vel.z >= 1e-4) {
             // 카메라-이동 방향 차이를 [-Sixteenth, Sixteenth] 범위로 클램프
-            float diff = MathHelper.wrapDegrees(
-                    player.getYaw() - (float) Math.toDegrees(Math.atan2(-vel.x, vel.z))
+            float diff = Mth.wrapDegrees(
+                    player.getYRot() - (float) Math.toDegrees(Math.atan2(-vel.x, vel.z))
             ) * DEG_TO_RAD;
-            head.roll = MathHelper.clamp(diff, -SIXTEENTH, SIXTEENTH);
+            head.zRot = Mth.clamp(diff, -SIXTEENTH, SIXTEENTH);
         } else {
-            head.roll = 0f;
+            head.zRot = 0f;
         }
 
         // 몸통 X (주기적 미세 흔들림)
-        float torsoX = SIXTEENTH + SIXTYFOURTH * MathHelper.cos(time);
-        body.pitch = torsoX;
+        float torsoX = SIXTEENTH + SIXTYFOURTH * Mth.cos(time);
+        body.xRot = torsoX;
 
         // 팔 X = Half - torsoX (매달린 자세), Z (좌우 고정)
-        rightArm.pitch = HALF - torsoX;
-        leftArm.pitch  = HALF - torsoX;
-        rightArm.roll  =  SIXTEENTH + THIRTYTWOTH;
-        leftArm.roll   = -(SIXTEENTH + THIRTYTWOTH);
+        rightArm.xRot = HALF - torsoX;
+        leftArm.xRot  = HALF - torsoX;
+        rightArm.zRot  =  SIXTEENTH + THIRTYTWOTH;
+        leftArm.zRot   = -(SIXTEENTH + THIRTYTWOTH);
 
         // 다리 Z (고정), X (흔들림)
-        rightLeg.roll  =  THIRTYTWOTH;
-        leftLeg.roll   = -THIRTYTWOTH;
-        rightLeg.pitch =  SIXTYFOURTH * MathHelper.cos(time - QUARTER);
-        leftLeg.pitch  =  SIXTYFOURTH * MathHelper.cos(time + QUARTER);
+        rightLeg.zRot  =  THIRTYTWOTH;
+        leftLeg.zRot   = -THIRTYTWOTH;
+        rightLeg.xRot =  SIXTYFOURTH * Mth.cos(time - QUARTER);
+        leftLeg.xRot  =  SIXTYFOURTH * Mth.cos(time + QUARTER);
 
         // 매달린 자세 pivotY 보정 (원본 SmartMovingModel L106/L117)
-        head.pivotY     =  2f;   // 원본 bipedHead.rotationPointY = 2F
-        rightArm.pivotY =  0f;   // 원본 bipedRightArm.rotationPointY = -2F (어깨 노드 부재로 vanilla 기본 2F - 2 = 0)
-        leftArm.pivotY  =  0f;   // 원본 bipedLeftArm.rotationPointY = -2F
+        head.y     =  2f;   // 원본 bipedHead.rotationPointY = 2F
+        rightArm.y =  0f;   // 원본 bipedRightArm.rotationPointY = -2F (어깨 노드 부재로 vanilla 기본 2F - 2 = 0)
+        leftArm.y  =  0f;   // 원본 bipedLeftArm.rotationPointY = -2F
     }
 
     /**
@@ -651,7 +639,7 @@ public abstract class MixinPlayerEntityModelClient {
      * handsClimbType/feetClimbType ordinal로 손/발 포즈 분기 (R-10/R-10b).
      * isCrawlClimbing 시 legAngleZ(roll) 보정 (R-10c).
      */
-    private void sm_animateClimbing(SmartMovingClientState sm, net.minecraft.client.network.AbstractClientPlayerEntity player, float limbSwing, float limbSwingAmount, float headPitch, float animationProgress) {
+    private void sm_animateClimbing(SmartMovingClientState sm, net.minecraft.client.player.AbstractClientPlayer player, float limbSwing, float limbSwingAmount, float headPitch, float animationProgress) {
         // B-4 / §16-10 + 부드러움 1:1 (사용자 보고 후, 그랩 클라이밍 진자운동 부드러움 정정):
         //   원본 SmartRenderModel 은 매 frame `getCurrentSpeed(partialTicks)` lerp getter 로
         //   prev/current EMA 사이를 partial tick 비율로 보간 = 60Hz 부드러움.
@@ -666,8 +654,8 @@ public abstract class MixinPlayerEntityModelClient {
 
         // leg.pivotZ reset — D-4 분기 빠진 frame 에서 -6 누적 차단.
         //   (head/body/arm pivotZ 는 sm_setAngles TAIL 의 reset 인프라가 0 으로 reset.)
-        rightLeg.pivotZ = 0f;
-        leftLeg.pivotZ  = 0f;
+        rightLeg.z = 0f;
+        leftLeg.z  = 0f;
 
         // 🔴 사용자 보고 fix (2026-05-04 — "사다리/덩굴 sneak+s 후 다시 붙으면 가끔 팔 짧아짐"):
         //   isHandsVineClimbing/isFeetVineClimbing 분기 (L591/L631) 의 setArmScales/setLegScales 가
@@ -688,16 +676,16 @@ public abstract class MixinPlayerEntityModelClient {
         //     → 절대 leg pivot = (±1.9, 12, 0)
         //   차이 0.1 픽셀 — 사용자 시각 미세 영향 가능. 원본 1:1 매핑 위해 ±2.0 명시 set.
         //   (sm_setAngles TAIL 의 종료 엣지 cleanup 에서 vanilla default ±1.9 로 reset.)
-        rightLeg.pivotX = -2f;
-        leftLeg.pivotX  =  2f;
+        rightLeg.x = -2f;
+        leftLeg.x  =  2f;
 
         // 🔴 (사용자 보고 8회차 — 기본 블록 그랩 클라이밍 완전 1:1 매핑):
         //   원본 SmartMovingModel.setRotationAngles L127-L237 의 isClimb 분기를 라인별 1:1 풀어씀.
         //   변수명 / 식 / 분기 모두 원본 그대로 (수학적 단순화 제거).
 
         // 원본 L131-L132: 머리 yaw=0, pitch=mouse.
-        head.yaw   = 0f;
-        head.pitch = headPitch * DEG_TO_RAD;
+        head.yRot   = 0f;
+        head.xRot = headPitch * DEG_TO_RAD;
 
         // 원본 L137-L138: hands/feet Frequence/Distance Up/Side Factor/Offset 변수 선언.
         float handsFrequenceUpFactor, handsDistanceUpFactor, handsDistanceUpOffset;
@@ -770,32 +758,32 @@ public abstract class MixinPlayerEntityModelClient {
         }
 
         // 원본 L200-L204: 팔 X(pitch)/Y(yaw) — 변수 풀어쓰기.
-        float rArmPitch = MathHelper.cos(totalVerticalDistance * handsFrequenceUpFactor + HALF) * verticalSpeed * handsDistanceUpFactor + handsDistanceUpOffset;
-        float lArmPitch = MathHelper.cos(totalVerticalDistance * handsFrequenceUpFactor)        * verticalSpeed * handsDistanceUpFactor + handsDistanceUpOffset;
-        float rArmYaw   = MathHelper.cos(totalHorizontalDistance * handsFrequenceSideFactor + QUARTER) * horizontalSpeed * handsDistanceSideFactor + handsDistanceSideOffset;
-        float lArmYaw   = MathHelper.cos(totalHorizontalDistance * handsFrequenceSideFactor)            * horizontalSpeed * handsDistanceSideFactor + handsDistanceSideOffset;
+        float rArmPitch = Mth.cos(totalVerticalDistance * handsFrequenceUpFactor + HALF) * verticalSpeed * handsDistanceUpFactor + handsDistanceUpOffset;
+        float lArmPitch = Mth.cos(totalVerticalDistance * handsFrequenceUpFactor)        * verticalSpeed * handsDistanceUpFactor + handsDistanceUpOffset;
+        float rArmYaw   = Mth.cos(totalHorizontalDistance * handsFrequenceSideFactor + QUARTER) * horizontalSpeed * handsDistanceSideFactor + handsDistanceSideOffset;
+        float lArmYaw   = Mth.cos(totalHorizontalDistance * handsFrequenceSideFactor)            * horizontalSpeed * handsDistanceSideFactor + handsDistanceSideOffset;
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #177 패러다임 복원 (메모리 검증 패턴).
         //   feedback_animateArms_cancel 메모리 명시: preferred arm preserve 가드.
         //   클라이밍 분기는 setupTransforms 부모 R_x 회전 없음 → preCancelParentX 불필요 (메모리 명시).
-        float swingClimb = player.handSwingProgress;
-        Arm preferredArmClimb = player.getMainArm();
-        boolean preserveRightClimb = swingClimb > 0F && preferredArmClimb == Arm.RIGHT;
-        boolean preserveLeftClimb  = swingClimb > 0F && preferredArmClimb == Arm.LEFT;
+        float swingClimb = player.attackAnim;
+        HumanoidArm preferredArmClimb = player.getMainArm();
+        boolean preserveRightClimb = swingClimb > 0F && preferredArmClimb == HumanoidArm.RIGHT;
+        boolean preserveLeftClimb  = swingClimb > 0F && preferredArmClimb == HumanoidArm.LEFT;
         if (!preserveRightClimb) setAnglesYZX(rightArm, rArmPitch, rArmYaw, 0f);
         if (!preserveLeftClimb)  setAnglesYZX(leftArm,  lArmPitch, lArmYaw, 0f);
 
         // 원본 L206-L215: isHandsVineClimbing 추가 보정.
         if (sm.isHandsVineClimbing) {
             // 원본 L208-L209: arm.Y *= 1F + handsFrequenceSideFactor.
-            leftArm.yaw  *= 1f + handsFrequenceSideFactor;
-            rightArm.yaw *= 1f + handsFrequenceSideFactor;
+            leftArm.yRot  *= 1f + handsFrequenceSideFactor;
+            rightArm.yRot *= 1f + handsFrequenceSideFactor;
             // 원본 L211-L212: leftArm.Y += Eighth, rightArm.Y -= Eighth.
-            leftArm.yaw  += EIGHTH;
-            rightArm.yaw -= EIGHTH;
+            leftArm.yRot  += EIGHTH;
+            rightArm.yRot -= EIGHTH;
             // 원본 L214: setArmScales(abs(cos(rightArm.X)), abs(cos(leftArm.X))).
             setArmScales(rightArm, leftArm,
-                    Math.abs(MathHelper.cos(rightArm.pitch)),
-                    Math.abs(MathHelper.cos(leftArm.pitch)));
+                    Math.abs(Mth.cos(rightArm.xRot)),
+                    Math.abs(Mth.cos(leftArm.xRot)));
         }
 
         // 원본 L217-L221: 다리 X(pitch) — `if(!isFeetVineClimbing)` 가드. 무조건 식 적용.
@@ -816,18 +804,18 @@ public abstract class MixinPlayerEntityModelClient {
         //   사용자 시나리오 = weeping/twisting vines + sneak (정지 상태). 우리 sm_isSneaking fix #75
         //   후 sm.stats.currentVerticalSpeed 가 작은 underflow 양수로 갱신되는 것이 직접 원인.
         if (!sm.isFeetVineClimbing) {
-            rightLeg.pitch = MathHelper.cos(totalVerticalDistance * feetFrequenceUpFactor)        * feetDistanceUpFactor * verticalSpeed + feetDistanceUpOffset;
-            leftLeg.pitch  = MathHelper.cos(totalVerticalDistance * feetFrequenceUpFactor + HALF) * feetDistanceUpFactor * verticalSpeed + feetDistanceUpOffset;
-            if (!Float.isFinite(rightLeg.pitch)) rightLeg.pitch = 0f;
-            if (!Float.isFinite(leftLeg.pitch))  leftLeg.pitch  = 0f;
+            rightLeg.xRot = Mth.cos(totalVerticalDistance * feetFrequenceUpFactor)        * feetDistanceUpFactor * verticalSpeed + feetDistanceUpOffset;
+            leftLeg.xRot  = Mth.cos(totalVerticalDistance * feetFrequenceUpFactor + HALF) * feetDistanceUpFactor * verticalSpeed + feetDistanceUpOffset;
+            if (!Float.isFinite(rightLeg.xRot)) rightLeg.xRot = 0f;
+            if (!Float.isFinite(leftLeg.xRot))  leftLeg.xRot  = 0f;
         }
 
         // 원본 L223-L224: 다리 Z(roll) — 무조건 식 적용.
-        rightLeg.roll = -(MathHelper.cos(totalHorizontalDistance * feetFrequenceSideFactor) - 1.0f)          * horizontalSpeed * feetDistanceSideFactor + feetDistanceSideOffset;
-        leftLeg.roll  = -(MathHelper.cos(totalHorizontalDistance * feetFrequenceSideFactor + QUARTER) + 1.0f) * horizontalSpeed * feetDistanceSideFactor + feetDistanceSideOffset;
+        rightLeg.zRot = -(Mth.cos(totalHorizontalDistance * feetFrequenceSideFactor) - 1.0f)          * horizontalSpeed * feetDistanceSideFactor + feetDistanceSideOffset;
+        leftLeg.zRot  = -(Mth.cos(totalHorizontalDistance * feetFrequenceSideFactor + QUARTER) + 1.0f) * horizontalSpeed * feetDistanceSideFactor + feetDistanceSideOffset;
         // fix #76 일관성: roll 도 isFinite 가드.
-        if (!Float.isFinite(rightLeg.roll)) rightLeg.roll = 0f;
-        if (!Float.isFinite(leftLeg.roll))  leftLeg.roll  = 0f;
+        if (!Float.isFinite(rightLeg.zRot)) rightLeg.zRot = 0f;
+        if (!Float.isFinite(leftLeg.zRot))  leftLeg.zRot  = 0f;
 
         // vine 전용 — 원본 L228-L239.
         // B-5 / §16-12: 원본 L228/L232 cos 입력은 totalDistance (3D 누적). 이전 limbSwing
@@ -836,25 +824,25 @@ public abstract class MixinPlayerEntityModelClient {
         if (sm.isFeetVineClimbing) {
             // 부드러움: totalDistance 도 partial tick lerp getter 로 교체.
             float totalDistanceLerped = sm.stats.getTotalDistance(partialTicks);
-            float total = (MathHelper.cos(totalDistanceLerped + HALF) + 1f) * THIRTYTWOTH + SIXTEENTH;
-            rightLeg.pitch = -total;   // pitch 덮어쓰기
-            leftLeg.pitch  = -total;
+            float total = (Mth.cos(totalDistanceLerped + HALF) + 1f) * THIRTYTWOTH + SIXTEENTH;
+            rightLeg.xRot = -total;   // pitch 덮어쓰기
+            leftLeg.xRot  = -total;
 
-            float diff = Math.max(0f, MathHelper.cos(totalDistanceLerped - QUARTER)) * SIXTYFOURTH;
-            leftLeg.roll  += -diff;    // roll 누적 (원본 `+=`)
-            rightLeg.roll +=  diff;
+            float diff = Math.max(0f, Mth.cos(totalDistanceLerped - QUARTER)) * SIXTYFOURTH;
+            leftLeg.zRot  += -diff;    // roll 누적 (원본 `+=`)
+            rightLeg.zRot +=  diff;
 
             // 원본 SmartMovingModel.java L391: setLegScales(abs(cos(rightLeg.X)), abs(cos(leftLeg.X)))
             setLegScales(rightLeg, leftLeg,
-                    Math.abs(MathHelper.cos(rightLeg.pitch)),
-                    Math.abs(MathHelper.cos(leftLeg.pitch)));
+                    Math.abs(Mth.cos(rightLeg.xRot)),
+                    Math.abs(Mth.cos(leftLeg.xRot)));
         }
 
         // (D-2) 원본 SmartMovingModel L134-L135: bipedLeft/RightLeg.rotationOrder = YZX.
         //   ModelPart 기본 회전 순서는 ZYX. 다리 yaw 가 0 으로 명시되어 X/Z 회전 순서 차이는
         //   결과에 영향 없음 (Y=0 이면 Y 위치 무관) → 헬퍼 미사용 OK.
-        rightLeg.yaw = 0f;
-        leftLeg.yaw  = 0f;
+        rightLeg.yRot = 0f;
+        leftLeg.yRot  = 0f;
 
         // isCrawlClimbing 추가 보정: 몸통 X 기울기 + 다리 roll (R-10c)
         if (sm.isCrawlClimbing) {
@@ -890,14 +878,14 @@ public abstract class MixinPlayerEntityModelClient {
             //   L272-L273 bipedLeg.X = legAngleX → leg.pitch 직접 set (= 부모 R_x 효과 setupTransforms).
             //   L275-L276 bipedLeg.Z = ±legAngleZ → leg.roll 직접 set.
 
-            body.pitch     =  0f;                     // L265 부모 매핑 (setupTransforms)
-            head.pitch     = -bodyAngleX;             // L270 head cancel = 무회전
-            rightLeg.pitch =  legAngleX;              // L272 leg local
-            leftLeg.pitch  =  legAngleX;              // L273
-            rightLeg.roll  =  legAngleZ;              // L275
-            leftLeg.roll   = -legAngleZ;              // L276
-            rightArm.pitch += -bodyAngleX;            // L267 shoulder cancel
-            leftArm.pitch  += -bodyAngleX;            // L268
+            body.xRot     =  0f;                     // L265 부모 매핑 (setupTransforms)
+            head.xRot     = -bodyAngleX;             // L270 head cancel = 무회전
+            rightLeg.xRot =  legAngleX;              // L272 leg local
+            leftLeg.xRot  =  legAngleX;              // L273
+            rightLeg.zRot  =  legAngleZ;              // L275
+            leftLeg.zRot   = -legAngleZ;              // L276
+            rightArm.xRot += -bodyAngleX;            // L267 shoulder cancel
+            leftArm.xRot  += -bodyAngleX;            // L268
             // leg/arm pivot = vanilla default (= setupTransforms 부모 회전이 자동 적용).
             //   sm_animateClimbing L494-L495 의 leg.pivotX = ±2.0 그대로.
             //   leg.pivotY/Z, arm.pivotY/Z 는 vanilla default (= 12, 0) / (2, 0).
@@ -935,11 +923,11 @@ public abstract class MixinPlayerEntityModelClient {
             //
             //   등반 종료 후 standing 시 잔존 (사용자 명시) 은 위 reset 인프라 영역의 종료 엣지
             //   cleanup (smWasClimbingForCleanup 추적) 에서 처리.
-            body.pitch  = 0.5f;
-            body.pivotZ     = -6f;
-            head.pivotZ     = -6f;
-            rightArm.pivotZ = -6f;
-            leftArm.pivotZ  = -6f;
+            body.xRot  = 0.5f;
+            body.z     = -6f;
+            head.z     = -6f;
+            rightArm.z = -6f;
+            leftArm.z  = -6f;
             // 🔴 leg pivot 정확 매핑 (사용자 보고 — 다리 벽 안 뚫림 fix):
             //   원본 매트릭스: T(0,0,-6) * R_x(0.5) * T(0,12,0) * T(±2,0,0).
             //   bipedTorso 회전 (R_x 0.5) 가 자식 (leg) 위치에 적용 → leg 절대 위치 =
@@ -947,12 +935,12 @@ public abstract class MixinPlayerEntityModelClient {
             //   1.21.1 parallel 구조라 R_x(0.5) 자동 누적 안 됨. leg.pivotZ=-6 만 적용 시 leg
             //     절대 = (±2, 12, -6). Z 차이 -5.75 픽셀 = 사용자 보고 "다리 벽 안 5.75 뚫림".
             //   해결: leg.pivotY/Z 를 원본 매트릭스 결과 위치로 명시 set.
-            rightLeg.pivotY = 12f * MathHelper.cos(0.5f);  // ≈ 10.529
-            leftLeg.pivotY  = 12f * MathHelper.cos(0.5f);
-            rightLeg.pivotZ = -6f + 12f * MathHelper.sin(0.5f);  // ≈ -0.247
-            leftLeg.pivotZ  = -6f + 12f * MathHelper.sin(0.5f);
-            rightArm.pitch += 0.5f;
-            leftArm.pitch  += 0.5f;
+            rightLeg.y = 12f * Mth.cos(0.5f);  // ≈ 10.529
+            leftLeg.y  = 12f * Mth.cos(0.5f);
+            rightLeg.z = -6f + 12f * Mth.sin(0.5f);  // ≈ -0.247
+            leftLeg.z  = -6f + 12f * Mth.sin(0.5f);
+            rightArm.xRot += 0.5f;
+            leftArm.xRot  += 0.5f;
         }
     }
 
@@ -980,15 +968,15 @@ public abstract class MixinPlayerEntityModelClient {
         float standFactor = smFactor(horizontalSpeedLerped, 0.12951545f, 0f);
 
         // 팔: 천장을 향해 위로 (XYZ 근사)
-        leftArm.pitch  = (MathHelper.cos(distance) * 0.52f + HALF) * walkFactor + HALF * standFactor;
-        rightArm.pitch = (MathHelper.cos(distance + HALF) * 0.52f - HALF) * walkFactor - HALF * standFactor;
-        leftLeg.pitch  = -MathHelper.cos(distance) * 0.12f * walkFactor;
-        rightLeg.pitch = -MathHelper.cos(distance + HALF) * 0.32f * walkFactor;
+        leftArm.xRot  = (Mth.cos(distance) * 0.52f + HALF) * walkFactor + HALF * standFactor;
+        rightArm.xRot = (Mth.cos(distance + HALF) * 0.52f - HALF) * walkFactor - HALF * standFactor;
+        leftLeg.xRot  = -Mth.cos(distance) * 0.12f * walkFactor;
+        rightLeg.xRot = -Mth.cos(distance + HALF) * 0.32f * walkFactor;
 
-        float rotateY = MathHelper.cos(distance) * 0.44f * walkFactor;
-        rightArm.yaw = leftArm.yaw = -rotateY;
-        rightLeg.yaw = leftLeg.yaw = -rotateY;
-        head.yaw     = -rotateY;
+        float rotateY = Mth.cos(distance) * 0.44f * walkFactor;
+        rightArm.yRot = leftArm.yRot = -rotateY;
+        rightLeg.yRot = leftLeg.yRot = -rotateY;
+        head.yRot     = -rotateY;
     }
 
     /**
@@ -996,7 +984,9 @@ public abstract class MixinPlayerEntityModelClient {
      * 원본: SmartMovingModel.setRotationAngles() 5번 분기 (isSwim).
      * bipedOuter X 기울기는 setupTransforms Mixin에서 처리 (standSneakFactor 경유).
      */
-    private void sm_animateSwimming(SmartMovingClientState sm, AbstractClientPlayerEntity player, float limbSwing, float limbSwingAmount, float totalTime) {
+    private void sm_animateSwimming(SmartMovingClientState sm, AbstractClientPlayer player,
+                                    float limbSwing, float limbSwingAmount, float totalTime,
+                                    float attackTime) {
         // 🔵 (2026-05-20, BUG-Swim-Anim-6 fix #113) limbSwing/Amount → sm.stats 입력 교체.
         //   원본 SmartMovingModel L319-322: `distance = totalHorizontalDistance`, walkFactor/sneakFactor/
         //     standFactor 는 `currentHorizontalSpeed` 기준.
@@ -1035,7 +1025,7 @@ public abstract class MixinPlayerEntityModelClient {
         //   = bipedNeck 의 parent transform 적용 → head 의 합성 = breast(sway) + head(sway) = 2×sway.
         //   = bipedBody 는 bipedTorso 자식 (= breast 와 sibling) → body 의 합성 = 1×sway.
         //   사용자 verbatim "body 변경 전이 원본과 동일" 정확 매치 — body 만 revert.
-        float bodySway = MathHelper.cos(distance / 2f - QUARTER) * walkFactor;
+        float bodySway = Mth.cos(distance / 2f - QUARTER) * walkFactor;
 
         // 🔴 fix #193 (2026-05-28): ZYX 분해 singular 회피 — head 직접 set.
         //
@@ -1064,13 +1054,13 @@ public abstract class MixinPlayerEntityModelClient {
         //   head.yaw = 2*bodySway, head.pitch = -EIGHTH*sSF, head.roll = 0 직접 set.
         //   = R_y(2s) × R_x(p) (vanilla 적용). 원본 R_y(s) × R_x(p) × R_y(s) 와 p=0 시 정확
         //   일치. p≠0 시 sneak swim 인데 walkFactor 작음 → 시각 미세 차이만.
-        head.pitch = -EIGHTH * standSneakFactor;
-        head.yaw   = 2f * bodySway;
-        head.roll  = 0f;
-        head.pivotZ = -2f;   // 원본 bipedHead.rotationPointZ = -2F
+        head.xRot = -EIGHTH * standSneakFactor;
+        head.yRot   = 2f * bodySway;
+        head.zRot  = 0f;
+        head.z = -2f;   // 원본 bipedHead.rotationPointZ = -2F
 
         // 몸통 yaw — bipedBody 의 합성 = 1×sway (= torso 자식, breast 와 sibling, breast 영향 X).
-        body.yaw = bodySway;
+        body.yRot = bodySway;
 
         // 🔴 (2026-05-21, fix #129) 사용자 verbatim "팔 회전 이상함" + 메모리 가이드 적용.
         //   원본 SmartMovingModel L337-L344 (isSwim 분기 arm):
@@ -1106,8 +1096,8 @@ public abstract class MixinPlayerEntityModelClient {
         //   backward jump (= partial=0.000 frame 시 prev_total stale). fix #149 monotonic guard 로 해결.
         float rightPitch = ((dist2 % WHOLE) - HALF) * walkFactor + SIXTEENTH * standSneakFactor;
         float leftPitch  = (((dist2 + HALF) % WHOLE) - HALF) * walkFactor + SIXTEENTH * standSneakFactor;
-        float rightRoll  =  (QUARTER + EIGHTH) + MathHelper.cos(totalTime * 0.1f) * standSneakFactor * 0.8f;
-        float leftRoll   = -(QUARTER + EIGHTH) - MathHelper.cos(totalTime * 0.1f) * standSneakFactor * 0.8f;
+        float rightRoll  =  (QUARTER + EIGHTH) + Mth.cos(totalTime * 0.1f) * standSneakFactor * 0.8f;
+        float leftRoll   = -(QUARTER + EIGHTH) - Mth.cos(totalTime * 0.1f) * standSneakFactor * 0.8f;
         // 🔴 fix #191 (2026-05-28): preferred arm preserve 가드 (= fix #177 패러다임).
         //
         // 사용자 보고 (fix #188~#190 후): "수영 시 팔 휘두르는게 안 고쳐졌다".
@@ -1121,10 +1111,10 @@ public abstract class MixinPlayerEntityModelClient {
         //   호출 → arm 식 새로 set → cubic 결과 덮어씀 → swing visual 사라짐.
         // 해결: preferred arm preserve (= fix #186/#177 패러다임). swing 시 preferred arm
         //   식 SKIP + pivot default → vanilla cubic 식 결과 보존 (= 원본 reset 후 cubic 등가).
-        float swingSwim = ((BipedEntityModel<?>)(Object)this).handSwingProgress;
-        Arm preferredArmSwim = player.getMainArm();
-        boolean preserveRightSwim = swingSwim > 0F && preferredArmSwim == Arm.RIGHT;
-        boolean preserveLeftSwim  = swingSwim > 0F && preferredArmSwim == Arm.LEFT;
+        float swingSwim = attackTime;
+        HumanoidArm preferredArmSwim = player.getMainArm();
+        boolean preserveRightSwim = swingSwim > 0F && preferredArmSwim == HumanoidArm.RIGHT;
+        boolean preserveLeftSwim  = swingSwim > 0F && preferredArmSwim == HumanoidArm.LEFT;
         // 🔴 (2026-05-21, fix #140) 원본 visual 정확 매핑.
         //   원본 합성 = R_y(sway) × R_x(pitch) × R_z(roll) (= breast 자식 + arm YZX rotation order).
         //   vanilla ModelPart 식 R_z × R_y × R_x 와 다른 합성 → setAnglesYXZ_breastSwim helper 사용.
@@ -1180,28 +1170,28 @@ public abstract class MixinPlayerEntityModelClient {
         //   preCancelParentXPivot(theta=swimTilt≈π/2) 가 추가로 pivot Y/Z 변환 → 최종
         //   pivot = (-5*cos, 5*sin (after R_y), -2 (after R_x cancel)). breast.R + outer.R cancel
         //   결합. dump 검증 (정지 시 sin=0 → pivot=(-5,0,-2)) 정상.
-        float swayCos = MathHelper.cos(bodySway);
-        float swaySin = MathHelper.sin(bodySway);
-        rightArm.pivotX = -5f * swayCos;
-        rightArm.pivotZ =  5f * swaySin;
-        leftArm.pivotX  =  5f * swayCos;
-        leftArm.pivotZ  = -5f * swaySin;
+        float swayCos = Mth.cos(bodySway);
+        float swaySin = Mth.sin(bodySway);
+        rightArm.x = -5f * swayCos;
+        rightArm.z =  5f * swaySin;
+        leftArm.x  =  5f * swayCos;
+        leftArm.z  = -5f * swaySin;
         // pivotY = 2 (= R_y 의 Y axis invariant, 변경 X).
 
         // 다리 X (앞뒤 발차기) — distance = sm.stats.totalHorizontalDistance.
-        rightLeg.pitch = MathHelper.cos(distance) * 0.52264464f * walkFactor;
-        leftLeg.pitch  = MathHelper.cos(distance + HALF) * 0.52264464f * walkFactor;
+        rightLeg.xRot = Mth.cos(distance) * 0.52264464f * walkFactor;
+        leftLeg.xRot  = Mth.cos(distance + HALF) * 0.52264464f * walkFactor;
 
         float feetZ = SIXTEENTH * standSneakFactor
-                + MathHelper.cos(totalTime * 0.1f) * 0.4f * (standFactor - sneakFactor);
-        rightLeg.roll =  feetZ;
-        leftLeg.roll  = -feetZ;
+                + Mth.cos(totalTime * 0.1f) * 0.4f * (standFactor - sneakFactor);
+        rightLeg.zRot =  feetZ;
+        leftLeg.zRot  = -feetZ;
 
         // 원본 SmartMovingModel.java L532-L542: 다리/팔 yScale 호흡 패턴 (sneakFactor 기반).
         // 원본 가드 `if (scaleLegType != NoScaleStart)` — 메인 모델 = Scale 이므로 항상 true.
-        float legSc = 1f + (MathHelper.cos(totalTime * 0.1f + QUARTER) - 1f) * 0.15f * sneakFactor;
+        float legSc = 1f + (Mth.cos(totalTime * 0.1f + QUARTER) - 1f) * 0.15f * sneakFactor;
         setLegScales(rightLeg, leftLeg, legSc, legSc);
-        float armSc = 1f + (MathHelper.cos(totalTime * 0.1f - QUARTER) - 1f) * 0.15f * sneakFactor;
+        float armSc = 1f + (Mth.cos(totalTime * 0.1f - QUARTER) - 1f) * 0.15f * sneakFactor;
         // 🔴 fix #191: preserve 시 scale 도 default (= vanilla cubic swing 식과 호환).
         float rightArmSc = preserveRightSwim ? 1f : armSc;
         float leftArmSc  = preserveLeftSwim  ? 1f : armSc;
@@ -1258,7 +1248,9 @@ public abstract class MixinPlayerEntityModelClient {
      *   - head.pivotZ = -2F (원본 L371): 머리 앞으로 2px 이동
      *   vanilla 가 매 프레임 head.pitch (j*PI/180) 와 head.pivotZ (B-9 reset 인프라) 모두 reset → 안전.
      */
-    private void sm_animateDiving(SmartMovingClientState sm, AbstractClientPlayerEntity player, float limbSwing, float limbSwingAmount, float totalTime) {
+    private void sm_animateDiving(SmartMovingClientState sm, AbstractClientPlayer player,
+                                  float limbSwing, float limbSwingAmount, float totalTime,
+                                  float attackTime) {
         // B-6 / §16-13: 원본 SmartMovingModel L365-L367 = totalDistance (3D 누적) +
         //   currentSpeed (3D 속도). 이전 limbSwing/limbSwingAmount (수평) 잘못 매핑 →
         //   sm.stats.totalDistance/currentSpeed 로 교체. 다이빙은 수직+수평 운동 모두 강한
@@ -1273,13 +1265,13 @@ public abstract class MixinPlayerEntityModelClient {
         float standFactor = smFactor(interpCurrentSpeed, 0.15679921f, 0f);
 
         // 머리 자세 (원본 L370-L371)
-        head.pitch  = -EIGHTH;   // 원본 bipedHead.rotateAngleX = -Eighth
-        head.pivotZ = -2f;       // 원본 bipedHead.rotationPointZ = -2F
+        head.xRot  = -EIGHTH;   // 원본 bipedHead.rotateAngleX = -Eighth
+        head.z = -2f;       // 원본 bipedHead.rotationPointZ = -2F
         // 🔵 (2026-05-21, fix #118-C) head.yaw=0 강제 — 원본 L370-L371 head.rotateAngleY 미설정 (= 0 유지).
         //   vanilla setAngles 의 head.yaw = netHeadYaw * π/180 잔존 차단 → 머리 mouse 추적 X.
         //   memory [[feedback_smbody_yaw_force_head_yaw_zero]]: bodyYaw force 시 sm_animate* 에 head.yaw=0
         //   강제 패턴. swim 분기는 setAnglesYXZ 가 head.yaw=cos sway 명시 set (= 잔존 cancel), dive 만 누락.
-        head.yaw = 0f;
+        head.yRot = 0f;
 
         // 🔵 (2026-05-20, BUG-Swim-Anim-WASD fix #117) vanilla swing pitch cancel.
         //   로그 실측 cause: pre-arms[rP=0.486] (vanilla setAngles 끝, 우리 inject 진입 시) →
@@ -1303,34 +1295,34 @@ public abstract class MixinPlayerEntityModelClient {
         //   우리 매핑 누락: arm.pitch=0 명시 cancel + arm.roll=식 set 이 vanilla cubic 식 결과
         //     덮어씀 → swing 시 visual 사라짐.
         //   해결: preserve 가드. swing 시 preferred arm 식 SKIP → vanilla cubic (= fix #188) 보존.
-        float swingDive = ((BipedEntityModel<?>)(Object)this).handSwingProgress;
-        Arm preferredArmDive = player.getMainArm();
-        boolean preserveRightDive = swingDive > 0F && preferredArmDive == Arm.RIGHT;
-        boolean preserveLeftDive  = swingDive > 0F && preferredArmDive == Arm.LEFT;
+        float swingDive = attackTime;
+        HumanoidArm preferredArmDive = player.getMainArm();
+        boolean preserveRightDive = swingDive > 0F && preferredArmDive == HumanoidArm.RIGHT;
+        boolean preserveLeftDive  = swingDive > 0F && preferredArmDive == HumanoidArm.LEFT;
 
-        if (!preserveRightDive) rightArm.pitch = 0f;
-        if (!preserveLeftDive)  leftArm.pitch  = 0f;
-        rightLeg.pitch = 0f;
-        leftLeg.pitch  = 0f;
+        if (!preserveRightDive) rightArm.xRot = 0f;
+        if (!preserveLeftDive)  leftArm.xRot  = 0f;
+        rightLeg.xRot = 0f;
+        leftLeg.xRot  = 0f;
 
         // 🔴 fix #123 reverted (2026-05-21, 사용자 보고 진폭 축소): fade 제거, 원본 instant 식 복원.
-        rightLeg.roll = (MathHelper.cos(distance) + 1f) * 0.52264464f * walkFactor + SIXTEENTH * standFactor;
-        leftLeg.roll  = (MathHelper.cos(distance + HALF) - 1f) * 0.52264464f * walkFactor - SIXTEENTH * standFactor;
+        rightLeg.zRot = (Mth.cos(distance) + 1f) * 0.52264464f * walkFactor + SIXTEENTH * standFactor;
+        leftLeg.zRot  = (Mth.cos(distance + HALF) - 1f) * 0.52264464f * walkFactor - SIXTEENTH * standFactor;
         if (!preserveRightDive) {
-            rightArm.roll = (MathHelper.cos(distance + HALF) * 0.52264464f * 2.5f + QUARTER) * walkFactor
+            rightArm.zRot = (Mth.cos(distance + HALF) * 0.52264464f * 2.5f + QUARTER) * walkFactor
                     + (QUARTER + EIGHTH) * standFactor;
         }
         if (!preserveLeftDive) {
-            leftArm.roll  = (MathHelper.cos(distance) * 0.52264464f * 2.5f - QUARTER) * walkFactor
+            leftArm.zRot  = (Mth.cos(distance) * 0.52264464f * 2.5f - QUARTER) * walkFactor
                     - (QUARTER + EIGHTH) * standFactor;
         }
 
         // 원본 SmartMovingModel.java L572-L583: 다리/팔 yScale (walkFactor 기반).
         // 원본 가드 `if (scaleLegType != NoScaleStart)` — 메인 모델 = Scale.
         // 다리: 0.25F * walkFactor / 팔: 0.15F * walkFactor (계수 다름).
-        float legSc = 1f + (MathHelper.cos(distance - QUARTER) - 1f) * 0.25f * walkFactor;
+        float legSc = 1f + (Mth.cos(distance - QUARTER) - 1f) * 0.25f * walkFactor;
         setLegScales(rightLeg, leftLeg, legSc, legSc);
-        float armSc = 1f + (MathHelper.cos(distance + QUARTER) - 1f) * 0.15f * walkFactor;
+        float armSc = 1f + (Mth.cos(distance + QUARTER) - 1f) * 0.15f * walkFactor;
         // fix #191: preserve 시 scale 도 default.
         float rightArmScDive = preserveRightDive ? 1f : armSc;
         float leftArmScDive  = preserveLeftDive  ? 1f : armSc;
@@ -1360,7 +1352,7 @@ public abstract class MixinPlayerEntityModelClient {
      *   - head.pivotZ = -2F (원본 L401): 몸이 수평이므로 머리 앞쪽 2 픽셀 이동
      *   - body.pivotY = +3F (원본 L405): 수평 자세에서 몸통 위치 보정 (SR bipedTorso 단일 노드 근사)
      */
-    private void sm_animateCrawling(SmartMovingClientState sm, net.minecraft.client.network.AbstractClientPlayerEntity player, float headYaw) {
+    private void sm_animateCrawling(SmartMovingClientState sm, net.minecraft.client.player.AbstractClientPlayer player, float headYaw) {
         // 🔴 (Phase 1, Crawl 애니메이션 1:1):
         //   원본 SmartMovingModel L395-L397 입력 = totalHorizontalDistance + currentHorizontalSpeedFlattened.
         //   이전 매핑 limbSwing/limbSwingAmount (vanilla limbAnimator) 잘못. 그랩 클라이밍 패턴 동일.
@@ -1385,10 +1377,10 @@ public abstract class MixinPlayerEntityModelClient {
         //     head.yaw = headYaw * π/180 설정. cancel 안 하면 살아있음 → 마우스 좌우 회전이
         //     head.roll (= -headYaw 매핑) + head.yaw (= vanilla 잔존) 양쪽 적용 → 어긋남.
         //   fix: head.yaw = 0 명시.
-        head.roll  = -headYaw * DEG_TO_RAD;
-        head.pitch = -EIGHTH;
-        head.yaw   = 0f;
-        head.pivotZ = -2f;   // 원본 bipedHead.rotationPointZ = -2F (B-12 / §16-18)
+        head.zRot  = -headYaw * DEG_TO_RAD;
+        head.xRot = -EIGHTH;
+        head.yRot   = 0f;
+        head.z = -2f;   // 원본 bipedHead.rotationPointZ = -2F (B-12 / §16-18)
 
         // 🔴 (Phase 1, Crawl 애니메이션 1:1): 몸통 회전 순서 YZX 매핑.
         //   원본 L403 `bipedTorso.rotationOrder = ModelRotationRenderer.YZX` 명시.
@@ -1402,32 +1394,32 @@ public abstract class MixinPlayerEntityModelClient {
         //   body 의 yaw/roll 작은 cos 라 영향 미세하지만 1:1 정확.
         setAnglesYZX_v2(body,
                 0f,                                                              // ← entity 회전이 대신 적용
-                MathHelper.cos(distance + HALF) * SIXTYFOURTH * walkFactor,    // 원본 L407 bipedBody.Y
+                Mth.cos(distance + HALF) * SIXTYFOURTH * walkFactor,    // 원본 L407 bipedBody.Y
                 0f);                                                             // L406 bipedTorso.Z 는 sm_setupTransforms 의 matrices.rotate(R_z) 에서 매핑 (= 부모 효과 1:1)
         // body.pivotY = 3f 제거 — entity translate 가 대신 적용
 
         // 다리
-        rightLeg.pitch = (MathHelper.cos(distance - QUARTER) * SIXTYFOURTH + THIRTYTWOTH) * walkFactor
+        rightLeg.xRot = (Mth.cos(distance - QUARTER) * SIXTYFOURTH + THIRTYTWOTH) * walkFactor
                 + THIRTYTWOTH * standFactor;
-        leftLeg.pitch  = (MathHelper.cos(distance - HALF - QUARTER) * SIXTYFOURTH + THIRTYTWOTH) * walkFactor
+        leftLeg.xRot  = (Mth.cos(distance - HALF - QUARTER) * SIXTYFOURTH + THIRTYTWOTH) * walkFactor
                 + THIRTYTWOTH * standFactor;
-        rightLeg.roll  = (MathHelper.cos(distance - QUARTER) + 1f) * 0.25f * walkFactor + THIRTYTWOTH * standFactor;
-        leftLeg.roll   = (MathHelper.cos(distance - QUARTER) - 1f) * 0.25f * walkFactor - THIRTYTWOTH * standFactor;
+        rightLeg.zRot  = (Mth.cos(distance - QUARTER) + 1f) * 0.25f * walkFactor + THIRTYTWOTH * standFactor;
+        leftLeg.zRot   = (Mth.cos(distance - QUARTER) - 1f) * 0.25f * walkFactor - THIRTYTWOTH * standFactor;
 
         // 팔 (YZX 순서): pitch=X(앞뒤), yaw=Y(±Quarter), roll=Z(좌우)
-        float rRoll = (MathHelper.cos(distance + HALF) * SIXTYFOURTH + THIRTYTWOTH) * walkFactor
+        float rRoll = (Mth.cos(distance + HALF) * SIXTYFOURTH + THIRTYTWOTH) * walkFactor
                 + SIXTEENTH * standFactor;
-        float lRoll = (MathHelper.cos(distance + HALF) * SIXTYFOURTH - THIRTYTWOTH) * walkFactor
+        float lRoll = (Mth.cos(distance + HALF) * SIXTYFOURTH - THIRTYTWOTH) * walkFactor
                 - SIXTEENTH * standFactor;
         // 🔴 setAnglesYZX_v2 사용 (2026-05-03 사용자 보고 fix — "팔이 하늘로 들림"):
         //   원본 YZX vertex 적용 = Y → Z → X. arm yaw=±90° 큰 회전 + pitch=225° 큰 회전 →
         //   회전 순서 차이가 팔 위치에 큰 visual 영향. v2 = 원본 1:1.
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #177 패러다임 복원 (메모리 검증 패턴).
         //   preserve 가드 + preCancelParentX 복원. CR 분기 setupTransforms R_x(-78.75°) 부모 회전 있음.
-        float swingCrawl = player.handSwingProgress;
-        Arm preferredArmCrawl = player.getMainArm();
-        boolean preserveRightCrawl = swingCrawl > 0F && preferredArmCrawl == Arm.RIGHT;
-        boolean preserveLeftCrawl  = swingCrawl > 0F && preferredArmCrawl == Arm.LEFT;
+        float swingCrawl = player.attackAnim;
+        HumanoidArm preferredArmCrawl = player.getMainArm();
+        boolean preserveRightCrawl = swingCrawl > 0F && preferredArmCrawl == HumanoidArm.RIGHT;
+        boolean preserveLeftCrawl  = swingCrawl > 0F && preferredArmCrawl == HumanoidArm.LEFT;
         if (!preserveRightCrawl) setAnglesYZX_v2(rightArm, HALF + EIGHTH, -QUARTER, rRoll);
         if (!preserveLeftCrawl)  setAnglesYZX_v2(leftArm,  HALF + EIGHTH,  QUARTER, lRoll);
         if (swingCrawl > 0F) {
@@ -1447,11 +1439,11 @@ public abstract class MixinPlayerEntityModelClient {
         // 원본 가드 `if (scaleLegType != NoScaleStart)` / `scaleArmType != NoScaleStart` — 메인 모델 = Scale.
         // 좌우 위상 다름 — 원본 표기 그대로 보존 (cos(distance + Quarter - Quarter) = cos(distance) 등 단순화 안 함).
         setLegScales(rightLeg, leftLeg,
-                1f + (MathHelper.cos(distance + QUARTER - QUARTER) - 1f) * 0.25f * walkFactor,
-                1f + (MathHelper.cos(distance - QUARTER - QUARTER) - 1f) * 0.25f * walkFactor);
+                1f + (Mth.cos(distance + QUARTER - QUARTER) - 1f) * 0.25f * walkFactor,
+                1f + (Mth.cos(distance - QUARTER - QUARTER) - 1f) * 0.25f * walkFactor);
         setArmScales(rightArm, leftArm,
-                1f + (MathHelper.cos(distance + QUARTER) - 1f) * 0.15f * walkFactor,
-                1f + (MathHelper.cos(distance - QUARTER) - 1f) * 0.15f * walkFactor);
+                1f + (Mth.cos(distance + QUARTER) - 1f) * 0.15f * walkFactor,
+                1f + (Mth.cos(distance - QUARTER) - 1f) * 0.15f * walkFactor);
 
         // 🔴 (Phase 2 multi BUG-12) vanilla setAngles 의 sneak 분기 set field cancel.
         //   진입 edge frame 에 server-sync pose 가 CROUCHING 잔존 (= 직전 sneak 키 누름) +
@@ -1460,14 +1452,14 @@ public abstract class MixinPlayerEntityModelClient {
         //   sm_animateCrawling 가 회전만 set → vanilla sneak pivotY 잔존 → 자세 부분별 어긋남.
         //   해결: sneak 분기 set field 를 standing default 값 으로 강제 cancel.
         //   self 측은 pose=SWIMMING 즉시 → vanilla sneak 분기 미진입 → 영향 없음.
-        body.pivotY = 0f;
-        head.pivotY = 0f;
-        rightArm.pivotY = 2f;
-        leftArm.pivotY = 2f;
-        rightLeg.pivotY = 12f;
-        leftLeg.pivotY = 12f;
-        rightLeg.pivotZ = 0f;
-        leftLeg.pivotZ = 0f;
+        body.y = 0f;
+        head.y = 0f;
+        rightArm.y = 2f;
+        leftArm.y = 2f;
+        rightLeg.y = 12f;
+        leftLeg.y = 12f;
+        rightLeg.z = 0f;
+        leftLeg.z = 0f;
     }
 
     /**
@@ -1482,7 +1474,7 @@ public abstract class MixinPlayerEntityModelClient {
      *   - body.offsetY = -0.4F (원본 L452): ModelPart 에 offsetY 필드 부재로 sm_setupTransforms 의
      *     matrices.translate(0, -0.4F/16F, 0) 로 보정 (slide 분기 안에 통합)
      */
-    private void sm_animateSliding(SmartMovingClientState sm, net.minecraft.client.network.AbstractClientPlayerEntity player, float headYaw) {
+    private void sm_animateSliding(SmartMovingClientState sm, net.minecraft.client.player.AbstractClientPlayer player, float headYaw) {
         // 🔴 BUG-Slide-Anim-6 fix (2026-05-04 사용자 보고 — "디테일 값 다름"):
         //   원본 SmartMovingModel.java L439-L440 입력 = totalHorizontalDistance + currentHorizontalSpeed.
         //   SmartMovingModel L62/L84: `currentHorizontalSpeedFlattened` 가 NaN 아닐 때
@@ -1507,10 +1499,10 @@ public abstract class MixinPlayerEntityModelClient {
         //   메모리 feedback_smbody_yaw_force_head_yaw_zero.md: smBodyYawOverride force +
         //     head.yaw=0 force 동시 적용 패턴.
         //   sm_animateCrawling (L928) 동일 패턴 차용 — head.yaw=0 명시.
-        head.pitch  = -EIGHTH - SIXTEENTH;
-        head.roll   = -headYaw * DEG_TO_RAD;   // 원본 bipedHead.rotateAngleZ = -viewHorizontalAngelOffset/RadiantToAngle (B-13)
-        head.yaw    = 0f;                      // ★ vanilla netHeadYaw cancel
-        head.pivotZ = -2f;                     // 원본 bipedHead.rotationPointZ = -2F (B-13)
+        head.xRot  = -EIGHTH - SIXTEENTH;
+        head.zRot   = -headYaw * DEG_TO_RAD;   // 원본 bipedHead.rotateAngleZ = -viewHorizontalAngelOffset/RadiantToAngle (B-13)
+        head.yRot    = 0f;                      // ★ vanilla netHeadYaw cancel
+        head.z = -2f;                     // 원본 bipedHead.rotationPointZ = -2F (B-13)
 
         // 몸통 (YXZ 순서) — 원본 SmartMovingModel.java L672-L676:
         //   bipedBody.rotationOrder = YXZ
@@ -1518,8 +1510,8 @@ public abstract class MixinPlayerEntityModelClient {
         //   bipedBody.rotateAngleY = cos(distance + Eighth) * Sixtyfourth * walkFactor
         // R-17: YXZ → GL call Z, X, Y → setAnglesYXZ 헬퍼.
         setAnglesYXZ(body,
-                MathHelper.cos(distance - EIGHTH) * SIXTYFOURTH * walkFactor,
-                MathHelper.cos(distance + EIGHTH) * SIXTYFOURTH * walkFactor,
+                Mth.cos(distance - EIGHTH) * SIXTYFOURTH * walkFactor,
+                Mth.cos(distance + EIGHTH) * SIXTYFOURTH * walkFactor,
                 0f);
         // 🔴 사용자 보고 fix (2026-05-04 — "몸통 자체가 다리쪽으로 내려감"):
         //   원본 `bipedBody.rotationPointY = +6.5F` (L453) 직접 매핑은 body cuboid 를 modelpart Y
@@ -1530,13 +1522,13 @@ public abstract class MixinPlayerEntityModelClient {
         //   회전 origin 변경 (sm_setupTransforms pivotY) 이 이미 모든 노드 +5 효과 내포 →
         //   body.pivotY 추가 적용 = 누적 효과 + 6.5 = body 만 다리쪽 너무 많이.
         //   fix: body.pivotY = 0 (default, body 자체 추가 이동 제거) → 어깨 부근 정상 위치.
-        body.pivotY = 0f;
+        body.y = 0f;
 
         // 다리
-        rightLeg.pitch = MathHelper.cos(distance + HALF) * SIXTYFOURTH * walkFactor + SIXTYFOURTH;
-        leftLeg.pitch  = MathHelper.cos(distance + QUARTER) * SIXTYFOURTH * walkFactor + SIXTYFOURTH;
-        rightLeg.roll  =  THIRTYTWOTH;
-        leftLeg.roll   = -THIRTYTWOTH;
+        rightLeg.xRot = Mth.cos(distance + HALF) * SIXTYFOURTH * walkFactor + SIXTYFOURTH;
+        leftLeg.xRot  = Mth.cos(distance + QUARTER) * SIXTYFOURTH * walkFactor + SIXTYFOURTH;
+        rightLeg.zRot  =  THIRTYTWOTH;
+        leftLeg.zRot   = -THIRTYTWOTH;
 
         // ★★ 원본 SmartMovingModel.java L463-L473 원자 단위 1:1 번역 ★★
         //   bipedRightArm.rotationOrder = ModelRotationRenderer.YZX  ← R_x * R_z * R_y (vertex Y→Z→X)
@@ -1556,17 +1548,17 @@ public abstract class MixinPlayerEntityModelClient {
         //   해결: MixinModelPart 으로 ModelPart.rotate 의 rotationZYX 우회 → 의도 q 직접 적용.
         //         메모리 feedback_zxy_zyx_rotation_order.md 가이드라인 (큰 yaw 헬퍼 금지) 준수.
         float armYaw = -QUARTER;
-        float rPitch = MathHelper.cos(distance + QUARTER) * SIXTYFOURTH * walkFactor + HALF - SIXTYFOURTH;
-        float lPitch = MathHelper.cos(distance - HALF)    * SIXTYFOURTH * walkFactor + HALF - SIXTYFOURTH;
+        float rPitch = Mth.cos(distance + QUARTER) * SIXTYFOURTH * walkFactor + HALF - SIXTYFOURTH;
+        float lPitch = Mth.cos(distance - HALF)    * SIXTYFOURTH * walkFactor + HALF - SIXTYFOURTH;
 
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #177 패러다임 복원 (메모리 검증 패턴).
         //   preserve 가드 + preCancelParentX 복원. SLD setupTransforms R_x(-π/2) 부모 회전 있음.
         //   preferred arm 의 sm_setOverrideQuat skip → vanilla animateArms swing 효과 보존 +
         //   MixinModelPart override quat clear path (= 비-override frame vanilla path).
-        float swingSlide = player.handSwingProgress;
-        Arm preferredArmSlide = player.getMainArm();
-        boolean preserveRightSlide = swingSlide > 0F && preferredArmSlide == Arm.RIGHT;
-        boolean preserveLeftSlide  = swingSlide > 0F && preferredArmSlide == Arm.LEFT;
+        float swingSlide = player.attackAnim;
+        HumanoidArm preferredArmSlide = player.getMainArm();
+        boolean preserveRightSlide = swingSlide > 0F && preferredArmSlide == HumanoidArm.RIGHT;
+        boolean preserveLeftSlide  = swingSlide > 0F && preferredArmSlide == HumanoidArm.LEFT;
 
         // 의도 q = q_x(pitch) * q_z(roll) * q_y(yaw) — 원본 1.7.10 YZX 매트릭스.
         if (!preserveRightSlide) {
@@ -1609,7 +1601,7 @@ public abstract class MixinPlayerEntityModelClient {
      * 원본: bipedHead.X = -bipedOuter.X / 2 = -θ/2 → world-space head X = θ/2
      * 1.21.1 등가: head.pitch = -θ/2 (전역 θ 상쇄 후 최종 θ/2)
      */
-    private void sm_animateFlying(SmartMovingClientState sm, net.minecraft.client.network.AbstractClientPlayerEntity player, float limbSwing, float limbSwingAmount, float totalTime) {
+    private void sm_animateFlying(SmartMovingClientState sm, net.minecraft.client.player.AbstractClientPlayer player, float limbSwing, float limbSwingAmount, float totalTime) {
         // 🔴 (세션 65g): preferred arm 만 vanilla swing 처리. 다른 모델 (몸/다리/다른 팔/head)
         //   은 sm 비행 자세 그대로 유지.
         //   사용자 요구: "오른팔 (휘두르는 팔만 그런거야). 모든 에니메이션을 갑자기 초기화하지
@@ -1642,27 +1634,27 @@ public abstract class MixinPlayerEntityModelClient {
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #177 패러다임 복원 (메모리 검증 13단계 시행착오 정착).
         //   project_flying_complete 메모리 명시: 비행 swing arm 매핑 함부로 수정 금지.
         //   preserve 가드 + preCancelParentX 복원. FLY setupTransforms R_x(-θ) 부모 회전 있음.
-        float swing = player.handSwingProgress;
-        Arm preferredArm = player.getMainArm();
-        boolean preserveRight = swing > 0F && preferredArm == Arm.RIGHT;
-        boolean preserveLeft  = swing > 0F && preferredArm == Arm.LEFT;
+        float swing = player.attackAnim;
+        HumanoidArm preferredArm = player.getMainArm();
+        boolean preserveRight = swing > 0F && preferredArm == HumanoidArm.RIGHT;
+        boolean preserveLeft  = swing > 0F && preferredArm == HumanoidArm.LEFT;
 
-        float rYaw  = MathHelper.cos(totalTime * 0.15f) * SIXTEENTH * standFactor;
-        float lYaw  = MathHelper.cos(totalTime * 0.15f) * SIXTEENTH * standFactor;
-        float rRoll = (MathHelper.cos(distance + HALF) * SIXTYFOURTH + HALF - SIXTEENTH) * walkFactor
+        float rYaw  = Mth.cos(totalTime * 0.15f) * SIXTEENTH * standFactor;
+        float lYaw  = Mth.cos(totalTime * 0.15f) * SIXTEENTH * standFactor;
+        float rRoll = (Mth.cos(distance + HALF) * SIXTYFOURTH + HALF - SIXTEENTH) * walkFactor
                 + QUARTER * standFactor;
-        float lRoll = (MathHelper.cos(distance) * SIXTYFOURTH - HALF + SIXTEENTH) * walkFactor
+        float lRoll = (Mth.cos(distance) * SIXTYFOURTH - HALF + SIXTEENTH) * walkFactor
                 - QUARTER * standFactor;
         if (!preserveRight) setAnglesXZY(rightArm, 0f, rYaw, rRoll);
         if (!preserveLeft)  setAnglesXZY(leftArm,  0f, lYaw, lRoll);
 
         // 다리
-        rightLeg.pitch = MathHelper.cos(distance) * SIXTYFOURTH * walkFactor
-                + MathHelper.cos(totalTime * 0.15f + HALF) * SIXTYFOURTH * standFactor;
-        leftLeg.pitch  = MathHelper.cos(distance + HALF) * SIXTYFOURTH * walkFactor
-                + MathHelper.cos(totalTime * 0.15f) * SIXTYFOURTH * standFactor;
-        rightLeg.roll  =  SIXTYFOURTH;
-        leftLeg.roll   = -SIXTYFOURTH;
+        rightLeg.xRot = Mth.cos(distance) * SIXTYFOURTH * walkFactor
+                + Mth.cos(totalTime * 0.15f + HALF) * SIXTYFOURTH * standFactor;
+        leftLeg.xRot  = Mth.cos(distance + HALF) * SIXTYFOURTH * walkFactor
+                + Mth.cos(totalTime * 0.15f) * SIXTYFOURTH * standFactor;
+        rightLeg.zRot  =  SIXTYFOURTH;
+        leftLeg.zRot   = -SIXTYFOURTH;
 
         // ANIM-01: head pitch 보정 — setupTransforms theta의 절반 역보정
         // 🔴 1:1 정정 (세션 47b): 원본 SmartMovingModel L481 isJump 분기 추가.
@@ -1675,7 +1667,7 @@ public abstract class MixinPlayerEntityModelClient {
                 ? Math.abs(sm.stats.currentVerticalAngle)
                 : sm.stats.currentVerticalAngle;
         float theta = (QUARTER - verticalAngle) * currentSpeedLerped;
-        head.pitch = -theta / 2f;
+        head.xRot = -theta / 2f;
 
         // 🔴 (세션 60): 원본 reset() 효과 매핑 — bipedHead.Y/Z = 0 강제.
         //   원본 SmartRenderModel.setRotationAngles L166: `reset()` 호출 → 모든 ModelPart 의
@@ -1684,8 +1676,8 @@ public abstract class MixinPlayerEntityModelClient {
         //   1.21.1 vanilla setAngles 가 매 프레임 head.yaw = (headYaw - bodyYaw) * π/180 set →
         //   우리 entity.bodyYaw = lerpedYaw 강제 후 head.yaw ≈ 0 이지만 미묘한 차이 (lerping 등).
         //   원본 reset 효과 1:1 매핑 = 명시적 0 강제.
-        head.yaw  = 0f;
-        head.roll = 0f;
+        head.yRot  = 0f;
+        head.zRot = 0f;
 
         // 🔴 fix #186 (2026-05-28): fix #177 패러다임 복원 — preCancelParentXRotation/Pivot.
         //   feedback_animateArms_cancel 메모리 명시: 부모 X 회전 있는 분기에 preCancel 필수.
@@ -1705,12 +1697,12 @@ public abstract class MixinPlayerEntityModelClient {
             // 비-preferred arm 만 vanilla setAngles Step 4 기본값 복원
             // (preferred arm 은 vanilla swing 효과 그대로 보존).
             if (!preserveRight) {
-                rightArm.pivotX = -5f;
-                rightArm.pivotZ =  0f;
+                rightArm.x = -5f;
+                rightArm.z =  0f;
             }
             if (!preserveLeft) {
-                leftArm.pivotX  =  5f;
-                leftArm.pivotZ  =  0f;
+                leftArm.x  =  5f;
+                leftArm.z  =  0f;
             }
         }
     }
@@ -1721,7 +1713,7 @@ public abstract class MixinPlayerEntityModelClient {
      * bipedOuter X/Y 기울기는 setupTransforms에서 처리.
      * smallOverGroundHeight로 팔 Z 각도 클램프.
      */
-    private void sm_animateHeadJumping(SmartMovingClientState sm, AbstractClientPlayerEntity player) {
+    private void sm_animateHeadJumping(SmartMovingClientState sm, AbstractClientPlayer player) {
         float angle = sm.stats.currentVerticalAngle;
 
         // bendFactor: Factor(angle, Quarter, 0) ∩ Factor(angle, -Quarter, 0)
@@ -1729,18 +1721,18 @@ public abstract class MixinPlayerEntityModelClient {
         float bendFactor = Math.min(smFactor(angle, QUARTER, 0f), smFactor(angle, -QUARTER, 0f));
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #182 패러다임 복원 (메모리 검증).
         //   preserve 가드 + preCancelParentX 복원. HJ setupTransforms R_x(QUARTER - angle) 부모 회전 있음.
-        float swingHJ = player.handSwingProgress;
-        Arm preferredArmHJ = player.getMainArm();
-        boolean preserveRightHJ = swingHJ > 0F && preferredArmHJ == Arm.RIGHT;
-        boolean preserveLeftHJ  = swingHJ > 0F && preferredArmHJ == Arm.LEFT;
-        if (!preserveRightHJ) rightArm.pitch = bendFactor * -EIGHTH;
-        if (!preserveLeftHJ)  leftArm.pitch  = bendFactor * -EIGHTH;
-        rightLeg.pitch = bendFactor * -EIGHTH;
-        leftLeg.pitch  = bendFactor * -EIGHTH;
+        float swingHJ = player.attackAnim;
+        HumanoidArm preferredArmHJ = player.getMainArm();
+        boolean preserveRightHJ = swingHJ > 0F && preferredArmHJ == HumanoidArm.RIGHT;
+        boolean preserveLeftHJ  = swingHJ > 0F && preferredArmHJ == HumanoidArm.LEFT;
+        if (!preserveRightHJ) rightArm.xRot = bendFactor * -EIGHTH;
+        if (!preserveLeftHJ)  leftArm.xRot  = bendFactor * -EIGHTH;
+        rightLeg.xRot = bendFactor * -EIGHTH;
+        leftLeg.xRot  = bendFactor * -EIGHTH;
 
         // 머리 X 보정: setupTransforms에서 θ=Quarter-angle이 전역 적용됨.
         // 원본 head world-X = θ/2 → head.pitch = -θ/2 (C-09-2 등가 증명)
-        head.pitch = -(QUARTER - angle) / 2f;
+        head.xRot = -(QUARTER - angle) / 2f;
 
         // 🔴 head.yaw=0 강제 (2026-05-11, 사용자 보고 "헤드점프 시 머리가 마우스 따라 움직임"):
         //   feedback_smbody_yaw_force_head_yaw_zero.md 패턴 1:1 적용.
@@ -1752,7 +1744,7 @@ public abstract class MixinPlayerEntityModelClient {
         //   head.yaw=0 강제로 vanilla netHeadYaw 효과 cancel → head world yaw = force bodyYaw
         //   (= 이동 방향) → 마우스 무관 고정. 다른 SM 분기 (sliding/flying/crawling/angleJump)
         //   와 동일 패턴.
-        head.yaw = 0f;
+        head.yRot = 0f;
 
         // 팔 Z: Factor(angle, Quarter, -Quarter). 원본 SmartMovingModel L520-522:
         //   armFactorZ = Factor(currentVerticalAngle, Quarter, -Quarter);
@@ -1768,13 +1760,13 @@ public abstract class MixinPlayerEntityModelClient {
         if (sm.smallOverGroundHeight < 5f && isOverGroundBlockSolid(player)) {
             armFactorZ = Math.min(armFactorZ, sm.smallOverGroundHeight / 5f);
         }
-        if (!preserveRightHJ) rightArm.roll =  HALF - SIXTEENTH + armFactorZ * EIGHTH;
-        if (!preserveLeftHJ)  leftArm.roll  = -(HALF - SIXTEENTH) - armFactorZ * EIGHTH;
+        if (!preserveRightHJ) rightArm.zRot =  HALF - SIXTEENTH + armFactorZ * EIGHTH;
+        if (!preserveLeftHJ)  leftArm.zRot  = -(HALF - SIXTEENTH) - armFactorZ * EIGHTH;
 
         // 다리 Z: Factor(angle, -Quarter, Quarter)
         float legFactorZ = smFactor(angle, -QUARTER, QUARTER);
-        rightLeg.roll =  SIXTYFOURTH * legFactorZ;
-        leftLeg.roll  = -SIXTYFOURTH * legFactorZ;
+        rightLeg.zRot =  SIXTYFOURTH * legFactorZ;
+        leftLeg.zRot  = -SIXTYFOURTH * legFactorZ;
 
         // 🔴 fix #187 (2026-05-28): preCancelParentX θ 를 setupTransforms 의 fade lerped 값으로 변경.
         //   기존: thetaCancelHJ = QUARTER - angle (= raw target). setupTransforms 는 fade lerp 결과
@@ -1819,14 +1811,14 @@ public abstract class MixinPlayerEntityModelClient {
      *   박스 발 위치 self/remote 모두 entity.y + 1m (mixin offset 활성, POSE=SLIDING).
      *   원본 1.7.10 의 esp==null 보정 (y++) 은 우리 매핑에서 박스 발 위치 동일이라 불필요.
      */
-    private static boolean isOverGroundBlockSolid(AbstractClientPlayerEntity player) {
-        World world = player.getWorld();
+    private static boolean isOverGroundBlockSolid(AbstractClientPlayer player) {
+        Level world = player.level();
         if (world == null) return false;
-        Box bb = player.getBoundingBox();
-        int x = MathHelper.floor(player.getX());
-        int z = MathHelper.floor(player.getZ());
-        int y = MathHelper.floor(bb.minY);
-        BlockPos.Mutable pos = new BlockPos.Mutable();
+        AABB bb = player.getBoundingBox();
+        int x = Mth.floor(player.getX());
+        int z = Mth.floor(player.getZ());
+        int y = Mth.floor(bb.minY);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         pos.set(x, y, z);
         BlockState state = world.getBlockState(pos);
         // 1.21.1 isSolid 등가 (feedback_isFullCube_partial_solid_pattern.md):
@@ -1863,9 +1855,9 @@ public abstract class MixinPlayerEntityModelClient {
      *   - preferred arm 의 setAnglesXZY skip → vanilla swing pitch/yaw/roll 그대로 보존.
      *   - falling 은 setupTransforms X 회전 없음 → preCancelParentX* 불필요.
      */
-    private void sm_animateFalling(SmartMovingClientState sm, net.minecraft.client.network.AbstractClientPlayerEntity player) {
-        float partialTicks = net.minecraft.client.MinecraftClient.getInstance()
-                .getRenderTickCounter().getTickDelta(false);
+    private void sm_animateFalling(SmartMovingClientState sm, net.minecraft.client.player.AbstractClientPlayer player) {
+        float partialTicks = net.minecraft.client.Minecraft.getInstance()
+                .getDeltaTracker().getGameTimeDeltaPartialTick(false);
         float totalDistance = sm.stats.getTotalDistance(partialTicks);
         float distance = totalDistance * 0.1f;
 
@@ -1876,32 +1868,32 @@ public abstract class MixinPlayerEntityModelClient {
         //   사용자 요청 (2026-04-27): "낙하일 때는 비행일때랑 같게 처리" + "마우스 위아래 끄덕임 고정".
         //   비행 분기 (sm_animateFlying) 는 setupTransforms X tilt 보정 위해 head.pitch=-theta/2 set,
         //   낙하는 X tilt 없음 → 단순 0 force.
-        head.yaw = 0f;
-        head.pitch = 0f;
-        head.roll = 0f;
+        head.yRot = 0f;
+        head.xRot = 0f;
+        head.zRot = 0f;
 
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #177 패러다임 복원.
         //   메모리: falling 은 setupTransforms 부모 R_x 회전 없음 → preCancelParentX 불필요.
         //   preferred arm 만 vanilla swing 보존. swing > 0 시에만 활성.
-        float swing = player.handSwingProgress;
-        Arm preferredArm = player.getMainArm();
-        boolean preserveRight = swing > 0F && preferredArm == Arm.RIGHT;
-        boolean preserveLeft  = swing > 0F && preferredArm == Arm.LEFT;
+        float swing = player.attackAnim;
+        HumanoidArm preferredArm = player.getMainArm();
+        boolean preserveRight = swing > 0F && preferredArm == HumanoidArm.RIGHT;
+        boolean preserveLeft  = swing > 0F && preferredArm == HumanoidArm.LEFT;
 
         // 팔 (XZY 순서) — 원본 L535-542.
-        float rYaw  = MathHelper.cos(distance + QUARTER) * EIGHTH;
-        float lYaw  = MathHelper.cos(distance + QUARTER) * EIGHTH;
-        float rRoll = MathHelper.cos(distance) * EIGHTH + QUARTER;
-        float lRoll = MathHelper.cos(distance) * EIGHTH - QUARTER;
+        float rYaw  = Mth.cos(distance + QUARTER) * EIGHTH;
+        float lYaw  = Mth.cos(distance + QUARTER) * EIGHTH;
+        float rRoll = Mth.cos(distance) * EIGHTH + QUARTER;
+        float lRoll = Mth.cos(distance) * EIGHTH - QUARTER;
         if (!preserveRight) setAnglesXZY(rightArm, 0f, rYaw, rRoll);
         if (!preserveLeft)  setAnglesXZY(leftArm,  0f, lYaw, lRoll);
 
         // 다리 X (앞뒤 흔들림) — 원본 L544-545.
-        rightLeg.pitch = MathHelper.cos(distance + HALF + QUARTER) * SIXTEENTH + THIRTYTWOTH;
-        leftLeg.pitch  = MathHelper.cos(distance + QUARTER)        * SIXTEENTH + THIRTYTWOTH;
+        rightLeg.xRot = Mth.cos(distance + HALF + QUARTER) * SIXTEENTH + THIRTYTWOTH;
+        leftLeg.xRot  = Mth.cos(distance + QUARTER)        * SIXTEENTH + THIRTYTWOTH;
         // 다리 Z (좌우 흔들림) — 원본 L547-548.
-        rightLeg.roll  = MathHelper.cos(distance) * SIXTEENTH + THIRTYTWOTH;
-        leftLeg.roll   = MathHelper.cos(distance) * SIXTEENTH - THIRTYTWOTH;
+        rightLeg.zRot  = Mth.cos(distance) * SIXTEENTH + THIRTYTWOTH;
+        leftLeg.zRot   = Mth.cos(distance) * SIXTEENTH - THIRTYTWOTH;
     }
 
     /**
@@ -1938,19 +1930,19 @@ public abstract class MixinPlayerEntityModelClient {
         //   반대 방향으로 회전 (사용자 보고 "좌 점프 시 고개 우로 돌아감"). 비행 매핑 패턴
         //   (sm_animateFlying head.yaw=0) 차용 — head.yaw 강제로 0 → setupTransforms force
         //   결과만 살아남아 head 가 cameraYaw 향함 (1.7.10 원본 효과 1:1).
-        head.yaw = 0f;
+        head.yRot = 0f;
 
         // 다리 — 팔과 동일한 LOCAL 매핑 (원본 L569-574 1:1).
         // 🔴 leg.roll 부호 반전 (2026-04-27 fix): 원본 ZXY (vertex 적용 R_z→R_x→R_y) 와
         //   ModelPart ZYX (R_x→R_y→R_z) 의 회전 순서 차이가 back jump (leg.yaw=-π) 시
         //   R_y(-π) 의 X 부호 반전으로 인해 R_z 적용 결과 정반대 → 다리가 가운데로 모임
         //   (사용자 보고). 부호 반전으로 1.7.10 원본과 동일한 "바깥쪽 기울임" 효과 복원.
-        leftLeg.pitch  = THIRTYTWOTH * (1f + rightness);
-        leftLeg.yaw    = -angle;
-        leftLeg.roll   = -THIRTYTWOTH * backness;
-        rightLeg.pitch = THIRTYTWOTH * (1f + leftness);
-        rightLeg.yaw   = -angle;
-        rightLeg.roll  =  THIRTYTWOTH * backness;
+        leftLeg.xRot  = THIRTYTWOTH * (1f + rightness);
+        leftLeg.yRot    = -angle;
+        leftLeg.zRot   = -THIRTYTWOTH * backness;
+        rightLeg.xRot = THIRTYTWOTH * (1f + leftness);
+        rightLeg.yRot   = -angle;
+        rightLeg.zRot  =  THIRTYTWOTH * backness;
 
         // 팔 (원본 L579-583 1:1) + idle 진동 누적 (원본 SmartRenderModel.animateArms L334-339).
         // 🔴 idle 진동 (2026-04-27 fix): 원본 1.7.10 흐름 = animateAngleJumping 가 X/Z set
@@ -1960,13 +1952,13 @@ public abstract class MixinPlayerEntityModelClient {
         //   해결: 우리 식에 idle 진동 += 누적해 1.7.10 의 `+=` 효과 1:1 재현.
         //   ageInTicks = animationProgress (vanilla CrossbowPosing 입력과 동일).
         float ageInTicks = animationProgress;
-        float idleZ = MathHelper.cos(ageInTicks * 0.09f)  * 0.05f + 0.05f;
-        float idleX = MathHelper.sin(ageInTicks * 0.067f) * 0.05f;
+        float idleZ = Mth.cos(ageInTicks * 0.09f)  * 0.05f + 0.05f;
+        float idleX = Mth.sin(ageInTicks * 0.067f) * 0.05f;
 
-        leftArm.roll   = -SIXTEENTH * rightness - idleZ;     // 원본 leftArm.Z -= cos*0.05+0.05
-        rightArm.roll  =  SIXTEENTH * leftness  + idleZ;     // 원본 rightArm.Z += cos*0.05+0.05
-        leftArm.pitch  = -EIGHTH * backness - idleX;          // 원본 leftArm.X -= sin*0.067
-        rightArm.pitch = -EIGHTH * backness + idleX;          // 원본 rightArm.X += sin*0.067
+        leftArm.zRot   = -SIXTEENTH * rightness - idleZ;     // 원본 leftArm.Z -= cos*0.05+0.05
+        rightArm.zRot  =  SIXTEENTH * leftness  + idleZ;     // 원본 rightArm.Z += cos*0.05+0.05
+        leftArm.xRot  = -EIGHTH * backness - idleX;          // 원본 leftArm.X -= sin*0.067
+        rightArm.xRot = -EIGHTH * backness + idleX;          // 원본 rightArm.X += sin*0.067
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1983,13 +1975,13 @@ public abstract class MixinPlayerEntityModelClient {
      *         첫 고체 블록의 top surface Y를 구하고, playerY와의 차를 반환한다.
      * 반환값 범위: 0.0F (지면 위) ~ 5.0F (5블록 아래까지 고체 없음).
      */
-    private static float computeSmallOverGroundHeight(net.minecraft.client.network.AbstractClientPlayerEntity player, World world) {
+    private static float computeSmallOverGroundHeight(net.minecraft.client.player.AbstractClientPlayer player, Level world) {
         // 🔴 사용자 보고 fix (2026-05-04 — "다리가 처음부터 모임"):
         //   원본 SmartMovingBase.getOverGroundHeight: bb.minY - getMaxPlayerSolidBetween(minY-5, minY, 0).
         //   getMaxPlayerSolidBetween = 박스 horizontal area (= 0.6 x 0.6) 안 max solid Y.
         //   이전 매핑은 single column (player.x/z floor) 만 → 등반 블록이 column 밖이면 측정 못 함.
         //   fix: SmartMovingClientState.getMaxPlayerSolidBetween 사용 (= horizontal area 정확).
-        net.minecraft.util.math.Box bb = player.getBoundingBox();
+        net.minecraft.world.phys.AABB bb = player.getBoundingBox();
         double minY = bb.minY;
         double solidTop = SmartMovingClientState.getMaxPlayerSolidBetween(player, minY - 5D, minY, 0);
         return (float) Math.max(0D, minY - solidTop);
@@ -2041,9 +2033,9 @@ public abstract class MixinPlayerEntityModelClient {
                 .mul(new Quaternionf().rotationZ(roll))
                 .mul(new Quaternionf().rotationX(pitch));
         Vector3f e = q.getEulerAnglesZYX(new Vector3f());
-        part.pitch = e.x;
-        part.yaw   = e.y;
-        part.roll  = e.z;
+        part.xRot = e.x;
+        part.yRot   = e.y;
+        part.zRot  = e.z;
     }
 
     /**
@@ -2064,9 +2056,9 @@ public abstract class MixinPlayerEntityModelClient {
                 .mul(new Quaternionf().rotationZ(roll))
                 .mul(new Quaternionf().rotationY(yaw));
         Vector3f e = q.getEulerAnglesZYX(new Vector3f());
-        part.pitch = e.x;
-        part.yaw   = e.y;
-        part.roll  = e.z;
+        part.xRot = e.x;
+        part.yRot   = e.y;
+        part.zRot  = e.z;
     }
 
     /**
@@ -2102,9 +2094,9 @@ public abstract class MixinPlayerEntityModelClient {
         float alpha = (float) Math.atan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y));
         float beta  = (float) Math.asin(Math.max(-1.0, Math.min(1.0, 2.0 * (w * y - x * z))));
         float gamma = (float) Math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z));
-        part.pitch = alpha;
-        part.yaw   = beta;
-        part.roll  = gamma;
+        part.xRot = alpha;
+        part.yRot   = beta;
+        part.zRot  = gamma;
     }
 
     /**
@@ -2132,9 +2124,9 @@ public abstract class MixinPlayerEntityModelClient {
         float alpha = (float) Math.atan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y));
         float beta  = (float) Math.asin(Math.max(-1.0, Math.min(1.0, 2.0 * (w * y - x * z))));
         float gamma = (float) Math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z));
-        part.pitch = alpha;
-        part.yaw   = beta;
-        part.roll  = gamma;
+        part.xRot = alpha;
+        part.yRot   = beta;
+        part.zRot  = gamma;
     }
 
     /**
@@ -2185,9 +2177,9 @@ public abstract class MixinPlayerEntityModelClient {
         float alpha = (float) Math.atan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y));
         float beta  = (float) Math.asin(Math.max(-1.0, Math.min(1.0, 2.0 * (w * y - x * z))));
         float gamma = (float) Math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z));
-        part.pitch = alpha;
-        part.yaw   = beta;
-        part.roll  = gamma;
+        part.xRot = alpha;
+        part.yRot   = beta;
+        part.zRot  = gamma;
     }
 
     private static void setAnglesRyRxRy_standard(ModelPart part, float swayBreast, float pitch, float swayHead) {
@@ -2199,9 +2191,9 @@ public abstract class MixinPlayerEntityModelClient {
         float alpha = (float) Math.atan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y));
         float beta  = (float) Math.asin(Math.max(-1.0, Math.min(1.0, 2.0 * (w * y - x * z))));
         float gamma = (float) Math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z));
-        part.pitch = alpha;
-        part.yaw   = beta;
-        part.roll  = gamma;
+        part.xRot = alpha;
+        part.yRot   = beta;
+        part.zRot  = gamma;
     }
 
     /**
@@ -2227,9 +2219,9 @@ public abstract class MixinPlayerEntityModelClient {
                 .mul(new Quaternionf().rotationX(pitch))
                 .mul(new Quaternionf().rotationY(yaw));
         Vector3f e = q.getEulerAnglesZYX(new Vector3f());
-        part.pitch = e.x;
-        part.yaw   = e.y;
-        part.roll  = e.z;
+        part.xRot = e.x;
+        part.yRot   = e.y;
+        part.zRot  = e.z;
     }
 
     /**
@@ -2255,9 +2247,9 @@ public abstract class MixinPlayerEntityModelClient {
                 .mul(new Quaternionf().rotationZ(roll))
                 .mul(new Quaternionf().rotationX(pitch));
         Vector3f e = q.getEulerAnglesZYX(new Vector3f());
-        part.pitch = e.x;
-        part.yaw   = e.y;
-        part.roll  = e.z;
+        part.xRot = e.x;
+        part.yRot   = e.y;
+        part.zRot  = e.z;
     }
 
     /**
@@ -2279,12 +2271,12 @@ public abstract class MixinPlayerEntityModelClient {
         //   vanilla render: setupTransforms → scale(-1,-1,1) → ModelPart.rotate.
         //   scale Y 부호 반전 → ModelPart R_x(theta) = world R_x(-theta).
         //   부모 world R_x(-θ) cancel 위해 ModelPart R_x(-theta) 적용 (= world R_x(+θ)).
-        Quaternionf qOrig = new Quaternionf().rotationZYX(part.roll, part.yaw, part.pitch);
+        Quaternionf qOrig = new Quaternionf().rotationZYX(part.zRot, part.yRot, part.xRot);
         Quaternionf qNew = new Quaternionf().rotationX(-theta).mul(qOrig);
         Vector3f e = qNew.getEulerAnglesZYX(new Vector3f());
-        part.pitch = e.x;
-        part.yaw   = e.y;
-        part.roll  = e.z;
+        part.xRot = e.x;
+        part.yRot   = e.y;
+        part.zRot  = e.z;
     }
 
     /**
@@ -2296,12 +2288,12 @@ public abstract class MixinPlayerEntityModelClient {
      * scale Y 부호 반전 → ModelPart R_x(-theta) = world R_x(+theta) → 부모 cancel.
      */
     private static void preCancelParentXPivot(ModelPart part, float theta) {
-        float py = part.pivotY;
-        float pz = part.pivotZ;
-        float cos = MathHelper.cos(theta);
-        float sin = MathHelper.sin(theta);
-        part.pivotY = py * cos + pz * sin;
-        part.pivotZ = -py * sin + pz * cos;
+        float py = part.y;
+        float pz = part.z;
+        float cos = Mth.cos(theta);
+        float sin = Mth.sin(theta);
+        part.y = py * cos + pz * sin;
+        part.z = -py * sin + pz * cos;
     }
 
     /**
@@ -2351,9 +2343,9 @@ public abstract class MixinPlayerEntityModelClient {
                 .mul(new Quaternionf().rotationX(pitch))
                 .mul(new Quaternionf().rotationZ(roll));
         Vector3f e = q.getEulerAnglesZYX(new Vector3f());
-        part.pitch = e.x;
-        part.yaw   = e.y;
-        part.roll  = e.z;
+        part.xRot = e.x;
+        part.yRot   = e.y;
+        part.zRot  = e.z;
     }
 
     /**

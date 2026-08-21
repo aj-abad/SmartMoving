@@ -1282,7 +1282,7 @@ public class SmartMovingConfig {
      *
      * 인자 없는 method `isLavaLikeWaterEnabled()` 는 호환 유지 (외부 호출 가능성).
      */
-    public boolean isLavaLikeWaterEnabled(net.minecraft.entity.player.PlayerEntity player) {
+    public boolean isLavaLikeWaterEnabled(net.minecraft.world.entity.player.Player player) {
         return enabled;
     }
 

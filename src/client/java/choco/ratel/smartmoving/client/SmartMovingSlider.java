@@ -3,13 +3,13 @@ package choco.ratel.smartmoving.client;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.MovementType;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.particle.BlockStateParticleEffect;
-import net.minecraft.particle.ParticleTypes;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * 클라이언트 측 슬라이딩 물리 로직.
@@ -43,7 +43,7 @@ public final class SmartMovingSlider {
      *
      * @return true if SM이 처리 (travel() cancel 대상)
      */
-    public static boolean handleSliding(ClientPlayerEntity player, SmartMovingClientState sm) {
+    public static boolean handleSliding(LocalPlayer player, SmartMovingClientState sm) {
         if (!sm.isSliding) return false;
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         if (!cfg.slide) {
@@ -51,10 +51,10 @@ public final class SmartMovingSlider {
             return false;
         }
 
-        Vec3d vel = player.getVelocity();
+        Vec3 vel = player.getDeltaMovement();
         // 발 아래 블록 slipperiness
-        BlockState below = player.getWorld().getBlockState(player.getSteppingPos());
-        float slip = below.getBlock().getSlipperiness();
+        BlockState below = player.level().getBlockState(player.getOnPos());
+        float slip = below.getBlock().getFriction();
 
         // 원본 감쇠 공식
         float damping = 1F / (((1F / slip - 1F) / 25F) * cfg.slideSlipperinessFactor + 1F) * 0.98F;
@@ -62,7 +62,7 @@ public final class SmartMovingSlider {
         double newVx = vel.x * damping;
         double newVz = vel.z * damping;
         // 수직: 중력 적용 (슬라이딩 중 공중에 있으면 낙하)
-        double newVy = vel.y - player.getAttributeValue(EntityAttributes.GENERIC_GRAVITY);
+        double newVy = vel.y - player.getAttributeValue(Attributes.GRAVITY);
         newVy *= 0.98D;
 
         // 원본 L730-L744: strafe 강제 회전 (좌우 키로 슬라이딩 방향 컨트롤).
@@ -71,7 +71,7 @@ public final class SmartMovingSlider {
         //   moveStrafing 부호 = Math.signum() → 좌/우 회전 방향 결정.
         //   원본 RadiantToAngle = 180/π → Math.toRadians 로 1:1.
         //   damping 적용 후 newVx/newVz 에 회전 (스칼라 damping × 단위 보존 회전 = commute → 결과 동일).
-        float moveStrafing = player.input.movementSideways;
+        float moveStrafing = player.input.getMoveVector().x;
         if (moveStrafing != 0F && cfg.slideControlDegrees > 0F) {
             double angle = -Math.atan(newVx / newVz);
             if (!Double.isNaN(angle)) {
@@ -83,8 +83,8 @@ public final class SmartMovingSlider {
             }
         }
 
-        player.setVelocity(newVx, newVy, newVz);
-        player.move(MovementType.SELF, player.getVelocity());
+        player.setDeltaMovement(newVx, newVy, newVz);
+        player.move(MoverType.SELF, player.getDeltaMovement());
 
         // 🔴 BUG fix (2026-05-08, 사용자 보고 "슬라이딩 → 절벽 → 자동 헤드점프 전환 안 됨"):
         //   sm_travel_client 의 ci.cancel() 으로 vanilla LivingEntity.travel 본체 skip →
@@ -99,17 +99,17 @@ public final class SmartMovingSlider {
         //   isSliding 진행 중 box 발 = ground top 정확 동등 시 vanilla *touching* 으로 onGround=false.
         //   기존 식: onGround false → else if (vy<0) → fall += -vy 누적 → cycle BUG.
         //   해결: box.minY ≈ solid top (epsilon 1e-3 매치) 시도 fall=0 reset (= touching=ground 간주).
-        net.minecraft.util.math.Box _bbS67 = player.getBoundingBox();
+        net.minecraft.world.phys.AABB _bbS67 = player.getBoundingBox();
         double _solidTopS67 = SmartMovingClientState.getMaxPlayerSolidBetween(player, _bbS67.minY - 1.0, _bbS67.minY, 0);
         boolean _atSolidTop = Math.abs(_bbS67.minY - _solidTopS67) < 1.0E-3;
-        if (player.isOnGround() || _atSolidTop) {
+        if (player.onGround() || _atSolidTop) {
             player.fallDistance = 0.0F;
-        } else if (player.getVelocity().y < 0.0) {
-            player.fallDistance -= (float) player.getVelocity().y;
+        } else if (player.getDeltaMovement().y < 0.0) {
+            player.fallDistance -= (float) player.getDeltaMovement().y;
         }
 
         // [9-5] 슬라이딩 파티클
-        spawnSlidingParticle(player, sm, new Vec3d(newVx, 0, newVz));
+        spawnSlidingParticle(player, sm, new Vec3(newVx, 0, newVz));
 
         // 종료 조건은 SmartMovingClientState 메인 tick (SlideToHeadJumping 다음 위치, 원본 L2563-L2567)
         // 에서 sneak 떼기 + horizontalSpeedSquare < stopFactor*0.01 + wasCrawling=toCrawling() 1:1 처리.
@@ -129,8 +129,8 @@ public final class SmartMovingSlider {
      *       motionX/Z = 이동방향 * -4D, motionY = 1.5D
      *       타이머 리셋
      */
-    private static void spawnSlidingParticle(ClientPlayerEntity player, SmartMovingClientState sm, Vec3d horizontal) {
-        if (!player.getWorld().isClient) return;
+    private static void spawnSlidingParticle(LocalPlayer player, SmartMovingClientState sm, Vec3 horizontal) {
+        if (!player.level().isClientSide()) return;
 
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         sm.spawnSlindingParticle += 1F;
@@ -139,18 +139,18 @@ public final class SmartMovingSlider {
         if (sm.spawnSlindingParticle > threshold) {
             sm.spawnSlindingParticle = 0F;
 
-            BlockState below = player.getWorld().getBlockState(player.getBlockPos().down());
+            BlockState below = player.level().getBlockState(player.blockPosition().below());
             if (below.isAir()) return;
 
-            double speed = horizontal.horizontalLength();
+            double speed = horizontal.horizontalDistance();
             if (speed < 0.01D) return;
 
             // 이동 방향 반대로 파티클 발사 (원본: motionX/Z = direction * -4D)
             double nx = horizontal.x / speed;
             double nz = horizontal.z / speed;
 
-            player.getWorld().addParticle(
-                    new BlockStateParticleEffect(ParticleTypes.BLOCK, below),
+            player.level().addParticle(
+                    new BlockParticleOption(ParticleTypes.BLOCK, below),
                     player.getX(), player.getY(), player.getZ(),
                     nx * -4D, 1.5D, nz * -4D
             );

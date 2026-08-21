@@ -3,9 +3,9 @@ package choco.ratel.smartmoving.mixin.client;
 import choco.ratel.smartmoving.client.SmartMovingClientState;
 import choco.ratel.smartmoving.client.input.SmartMovingKeys;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.EntityPose;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.player.Input;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *       → moving.tickEssential()  ← isActive() 체크 없이 항상 호출
  *       → isActive() ? moving.updateEntityActionState(false) : localUpdateEntityActionState()
  */
-@Mixin(ClientPlayerEntity.class)
+@Mixin(LocalPlayer.class)
 public abstract class MixinClientPlayerEntity {
 
     /**
@@ -45,10 +45,10 @@ public abstract class MixinClientPlayerEntity {
     @org.spongepowered.asm.mixin.Unique
     private boolean sm_abilFlyAtTickStart;
 
-    @Inject(method = "tickMovement", at = @At("HEAD"))
+    @Inject(method = "aiStep", at = @At("HEAD"))
     private void sm_tickMovement(CallbackInfo ci) {
-        ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
-        sm_yawAtTickStart = player.getYaw();
+        LocalPlayer player = (LocalPlayer)(Object)this;
+        sm_yawAtTickStart = player.getYRot();
         sm_abilFlyAtTickStart = player.getAbilities().flying;
         SmartMovingClientState.get(player).tickEssential(player);
     }
@@ -67,7 +67,7 @@ public abstract class MixinClientPlayerEntity {
      * 차단. SM 자체 sneakFactor/crawlFactor 만 적용 → 0.3/0.15 base. SM 비활성 시 inject
      * 통과 → vanilla 정상 작동 (0.3) + SM 가드 자동 비활성 → 0.3 base. 동일 효과.
      */
-    @Inject(method = "shouldSlowDown", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isMovingSlowly", at = @At("HEAD"), cancellable = true)
     private void sm_blockVanillaSlowDown(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
         if (!SmartMovingConfig.Config.enabled) return;
         cir.setReturnValue(false);
@@ -84,27 +84,27 @@ public abstract class MixinClientPlayerEntity {
      *   crawlOverEdge=true (기본) + isCrawling 시 모든 항 false → return false →
      *   edge protection 미발동 → 떨어짐.
      */
-    @Inject(method = "isSneaking", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isShiftKeyDown", at = @At("HEAD"), cancellable = true)
     private void sm_isSneaking_ClientPlayer(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
-        ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
-        if (!SmartMovingConfig.Config.enabled || player.hasVehicle()) return;
+        LocalPlayer player = (LocalPlayer)(Object)this;
+        if (!SmartMovingConfig.Config.enabled || player.isPassenger()) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         if (sm.forceIsSneaking != null) { cir.setReturnValue(sm.forceIsSneaking); return; }
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
         // 🔴 fix #75 (BUG #2): weeping/twisting vines 위 + sneak 시 vanilla 위임.
         //   상세는 MixinEntityClient.sm_isSneaking 주석 참조.
-        net.minecraft.block.Block _blockAtPos = player.getWorld()
-                .getBlockState(player.getBlockPos()).getBlock();
-        if (_blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES
-                || _blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES_PLANT
-                || _blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES
-                || _blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES_PLANT) {
+        net.minecraft.world.level.block.Block _blockAtPos = player.level()
+                .getBlockState(player.blockPosition()).getBlock();
+        if (_blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES
+                || _blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES_PLANT
+                || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES
+                || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT) {
             return;  // override skip → vanilla isSneaking 그대로
         }
 
         // 🔴 fix #83 (2026-05-12): 슬라이딩 시 isSneaking()=true 강제. 자세한 사유 = MixinEntityClient 동일 inject.
-        boolean result = (sm.isSlow && player.isOnGround())
+        boolean result = (sm.isSlow && player.onGround())
                 || (!cfg.sneak && sm.wouldIsSneaking && sm.jumpCharge > 0)
                 || (!cfg.crawlOverEdge && sm.isCrawling && !sm.isClimbing)
                 || sm.isSliding;
@@ -128,9 +128,9 @@ public abstract class MixinClientPlayerEntity {
      * 해결: ClientPlayerEntity.tickNewAi TAIL inject — vanilla `this.jumping = input.jumping`
      *       이후 우리 가드 적용해 false 로 강제 set.
      */
-    @Inject(method = "tickNewAi", at = @At("TAIL"))
+    @Inject(method = "applyInput", at = @At("TAIL"))
     private void sm_jumpingFilter_tickNewAi(CallbackInfo ci) {
-        ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
+        LocalPlayer player = (LocalPlayer)(Object)this;
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         if (!cfg.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
@@ -149,17 +149,17 @@ public abstract class MixinClientPlayerEntity {
         boolean shouldBlock =
                 sm.isCrawling
              || sm.isSliding
-             || (cfg.headJump && SmartMovingKeys.grab.isPressed() && player.isSprinting())
-             || (cfg.jumpCharge && sm.wouldIsSneaking && player.isOnGround() && sm.isStanding)
+             || (cfg.headJump && SmartMovingKeys.grab.isDown() && player.isSprinting())
+             || (cfg.jumpCharge && sm.wouldIsSneaking && player.onGround() && sm.isStanding)
              || sm.blockJumpTillButtonRelease;
         if (shouldBlock) {
-            ((net.minecraft.entity.LivingEntity)(Object)this).setJumping(false);
+            ((net.minecraft.world.entity.LivingEntity)(Object)this).setJumping(false);
         }
     }
 
-    @Inject(method = "tickMovement", at = @At("TAIL"))
+    @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_tickMovementYawRestore(CallbackInfo ci) {
-        ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
+        LocalPlayer player = (LocalPlayer)(Object)this;
         // 비행 진입 엣지 (HEAD: abilFly=false, TAIL: abilFly=true) 만 검사.
         boolean flyEntryEdge = !sm_abilFlyAtTickStart && player.getAbilities().flying;
         if (!flyEntryEdge) return;
@@ -167,14 +167,14 @@ public abstract class MixinClientPlayerEntity {
         // 임계값 1° (부동소수점 잡음 회피, 그 외 모든 vanilla 자동 회전 catch).
         // 사용자 mouse 입력은 별도 메서드 (changeLookDirection) 라 tick 안 yaw 변경 X →
         // 안전하게 모든 변화 복구.
-        float currentYaw = player.getYaw();
+        float currentYaw = player.getYRot();
         float diff = currentYaw - sm_yawAtTickStart;
         while (diff > 180F) diff -= 360F;
         while (diff < -180F) diff += 360F;
         if (Math.abs(diff) > 1F) {
-            player.setYaw(sm_yawAtTickStart);
-            player.bodyYaw = sm_yawAtTickStart;
-            player.prevBodyYaw = sm_yawAtTickStart;
+            player.setYRot(sm_yawAtTickStart);
+            player.yBodyRot = sm_yawAtTickStart;
+            player.yBodyRotO = sm_yawAtTickStart;
         }
     }
 
@@ -190,9 +190,9 @@ public abstract class MixinClientPlayerEntity {
      * 1.21.1 vanilla 자세 결정 source 추적 불가 → 모든 sneak source 일괄 reset.
      * 가드: sm.isClimbing 만 (W 무관 — 원본 1:1).
      */
-    @Inject(method = "tickMovement", at = @At("TAIL"))
+    @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_resetSneakInClimb(CallbackInfo ci) {
-        ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
+        LocalPlayer player = (LocalPlayer)(Object)this;
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         // 🔴 등반 직후 1 틱 reset 유지 (wasClimbing). 사용자 보고: 등반 끝난 직후 vanilla
@@ -201,12 +201,14 @@ public abstract class MixinClientPlayerEntity {
         //   tickMovement TAIL 에서도 wasClimbing 가드로 reset.
         if (sm.isClimbing || sm.wasClimbing || sm.sneakHeldDuringClimb) {
             // 1. input.sneaking 강제 false
-            player.input.sneaking = false;
+            Input input = player.input.keyPresses;
+            player.input.keyPresses = new Input(input.forward(), input.backward(), input.left(), input.right(),
+                    input.jump(), false, input.sprint());
             // 2. SNEAKING flag 강제 false
-            if (player.isSneaking()) player.setSneaking(false);
+            if (player.isShiftKeyDown()) player.setShiftKeyDown(false);
             // 3. CROUCHING 자세 강제 STANDING
-            if (player.getPose() == EntityPose.CROUCHING) {
-                player.setPose(EntityPose.STANDING);
+            if (player.getPose() == Pose.CROUCHING) {
+                player.setPose(Pose.STANDING);
             }
             // 🔴 isCrawling/crawlToggled 강제 reset 제거: 사다리 등반 막바지 isClimbCrawling
             //   해제 엣지 (L1890-1908) 의 toCrawling() 호출 결과 (isCrawling=true) 를 즉시
@@ -227,9 +229,9 @@ public abstract class MixinClientPlayerEntity {
      *
      * 원본: sp.cameraYaw=0; sp.prevCameraYaw=0 — 1.21.1에서 해당 필드 없음 (삭제됨).
      */
-    @Inject(method = "tickMovement", at = @At("TAIL"), order = 900)
+    @Inject(method = "aiStep", at = @At("TAIL"), order = 900)
     private void sm_flyWhileOnGround(CallbackInfo ci) {
-        ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
+        LocalPlayer player = (LocalPlayer)(Object)this;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
@@ -241,11 +243,11 @@ public abstract class MixinClientPlayerEntity {
         //   해결: 가드 삭제 (cfg.flyWhileOnGround 만 검사).
         if (!cfg.enabled || !cfg.flyWhileOnGround) return;
         // sneakButton.Pressed: vanilla 키 직접 (SM isSneaking override 우회)
-        if (net.minecraft.client.MinecraftClient.getInstance().options.sneakKey.isPressed()
-                && SmartMovingKeys.grab.isPressed()) return;
-        if (sm.wasCapabilitiesIsFlying && !player.getAbilities().flying && player.isOnGround()) {
+        if (net.minecraft.client.Minecraft.getInstance().options.keyShift.isDown()
+                && SmartMovingKeys.grab.isDown()) return;
+        if (sm.wasCapabilitiesIsFlying && !player.getAbilities().flying && player.onGround()) {
             player.getAbilities().flying = true;
-            player.sendAbilitiesUpdate();
+            player.onUpdateAbilities();
         }
     }
 
@@ -258,9 +260,9 @@ public abstract class MixinClientPlayerEntity {
      * 0.02 < f < 0.05 구간(느린 이동)에서 renderYawOffset(=bodyYaw)을 이동 방향으로 서서히 정렬.
      * sp.swingProgress > 0 시에는 rotationYaw 고정.
      */
-    @Inject(method = "tickMovement", at = @At("TAIL"))
+    @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_correctOnUpdate(CallbackInfo ci) {
-        ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
+        LocalPlayer player = (LocalPlayer)(Object)this;
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         if (!cfg.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
@@ -268,36 +270,36 @@ public abstract class MixinClientPlayerEntity {
         boolean isSmall = sm.isSwimming_sm || sm.isDiving || sm.isDipping || sm.isCrawling;
         if (!isSmall) return;
 
-        double d  = player.getX() - player.prevX;
-        double d1 = player.getZ() - player.prevZ;
+        double d  = player.getX() - player.xo;
+        double d1 = player.getZ() - player.zo;
         float f = (float) Math.sqrt(d * d + d1 * d1);
         if (f <= 0.02F || f >= 0.05F) return;
 
         float f1 = (float)(Math.atan2(d1, d) * 180.0 / Math.PI) - 90F;
-        if (player.handSwingProgress > 0.0F) f1 = player.getYaw();
+        if (player.attackAnim > 0.0F) f1 = player.getYRot();
 
-        float f4 = f1 - player.bodyYaw;
+        float f4 = f1 - player.yBodyRot;
         for (; f4 < -180F; f4 += 360F) {}
         for (; f4 >= 180F;  f4 -= 360F) {}
-        float x = player.bodyYaw + f4 * 0.3F;
+        float x = player.yBodyRot + f4 * 0.3F;
 
-        float f5 = player.getYaw() - x;
+        float f5 = player.getYRot() - x;
         for (; f5 < -180F; f5 += 360F) {}
         for (; f5 >= 180F;  f5 -= 360F) {}
         if (f5 < -75F) f5 = -75F;
         if (f5 >= 75F)  f5 = 75F;
 
-        player.bodyYaw = player.getYaw() - f5;
-        if (f5 * f5 > 2500F) player.bodyYaw += f5 * 0.2F;
+        player.yBodyRot = player.getYRot() - f5;
+        if (f5 * f5 > 2500F) player.yBodyRot += f5 * 0.2F;
 
-        for (; player.bodyYaw - player.prevBodyYaw < -180F; player.prevBodyYaw -= 360F) {}
-        for (; player.bodyYaw - player.prevBodyYaw >= 180F; player.prevBodyYaw += 360F) {}
+        for (; player.yBodyRot - player.yBodyRotO < -180F; player.yBodyRotO -= 360F) {}
+        for (; player.yBodyRot - player.yBodyRotO >= 180F; player.yBodyRotO += 360F) {}
     }
 
     // R-01: tickMovement TAIL — 모든 이동 처리 후 State 패킷 전송
-    @Inject(method = "tickMovement", at = @At("TAIL"))
+    @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_sendStatePacket(CallbackInfo ci) {
-        ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
+        LocalPlayer player = (LocalPlayer)(Object)this;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         sm.sendStatePacket(player);
 
@@ -342,17 +344,17 @@ public abstract class MixinClientPlayerEntity {
      * 좁은 천장 시나리오 (canChangeIntoPose(STANDING)=false) 에서는 vanilla 가 자체 판단으로
      * inSneakingPose=true 강제 — vanilla 안전 fallback 으로 사용자 강제 STANDING 시 끼임 방지.
      */
-    @Redirect(method = "tickMovement",
+    @Redirect(method = "aiStep",
             at = @At(value = "INVOKE",
-                     target = "Lnet/minecraft/client/network/ClientPlayerEntity;isSneaking()Z"))
-    private boolean sm_redirectIsSneakingForInSneakingPose(ClientPlayerEntity self) {
-        boolean original = self.isSneaking();
+                     target = "Lnet/minecraft/client/player/LocalPlayer;isShiftKeyDown()Z"))
+    private boolean sm_redirectIsSneakingForInSneakingPose(LocalPlayer self) {
+        boolean original = self.isShiftKeyDown();
         if (!original) return false;
         if (!SmartMovingConfig.Config.enabled) return original;
 
-        boolean isFalling = !self.isOnGround()
+        boolean isFalling = !self.onGround()
                 && self.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
-                && !self.isTouchingWater()
+                && !self.isInWater()
                 && !self.getAbilities().flying;
         if (isFalling) return false;
 
@@ -368,12 +370,12 @@ public abstract class MixinClientPlayerEntity {
         //   해결: 같은 redirect 에 weeping/twisting vines 가드 추가 → 해당 isSneaking() 호출만 false
         //   반환 → inSneakingPose=false → 모델 정상 위치.
         //   다른 isSneaking() 호출 (isHoldingOntoLadder 등) 영향 X → 매달림 유지 (= 기능 보존).
-        net.minecraft.block.Block blockAtPos = self.getWorld()
-                .getBlockState(self.getBlockPos()).getBlock();
-        if (blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES
-                || blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES_PLANT
-                || blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES
-                || blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES_PLANT) {
+        net.minecraft.world.level.block.Block blockAtPos = self.level()
+                .getBlockState(self.blockPosition()).getBlock();
+        if (blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES
+                || blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES_PLANT
+                || blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES
+                || blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT) {
             return false;
         }
 

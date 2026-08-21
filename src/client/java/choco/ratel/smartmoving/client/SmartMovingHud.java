@@ -3,12 +3,12 @@ package choco.ratel.smartmoving.client;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.render.RenderTickCounter;
-import net.minecraft.util.Identifier;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.resources.Identifier;
 
 /**
  * SM 전용 HUD 렌더링.
@@ -25,18 +25,19 @@ import net.minecraft.util.Identifier;
 @Environment(EnvType.CLIENT)
 public final class SmartMovingHud {
 
-    private static final Identifier ICONS = Identifier.of("smartmoving", "textures/gui/icons.png");
+    private static final Identifier ICONS = Identifier.fromNamespaceAndPath("smartmoving", "textures/gui/icons.png");
+    private static final Identifier HUD_ELEMENT_ID = Identifier.fromNamespaceAndPath("smartmoving", "movement_bars");
     private static final int ICON_SIZE = 9;
 
     private SmartMovingHud() {}
 
     public static void register() {
-        HudRenderCallback.EVENT.register(SmartMovingHud::render);
+        HudElementRegistry.addLast(HUD_ELEMENT_ID, SmartMovingHud::render);
     }
 
-    private static void render(DrawContext context, RenderTickCounter tickCounter) {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        ClientPlayerEntity player = mc.player;
+    private static void render(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
         if (player == null) return;
 
         SmartMovingClientState sm = SmartMovingClientState.get(player);
@@ -64,8 +65,8 @@ public final class SmartMovingHud {
 
         if (!drawJump && !drawExhaustion) return;
 
-        int width  = mc.getWindow().getScaledWidth();
-        int height = mc.getWindow().getScaledHeight();
+        int width  = mc.getWindow().getGuiScaledWidth();
+        int height = mc.getWindow().getGuiScaledHeight();
 
         if (drawJump) {
             float maxCharge = stillCharge > runCharge ? maxStillCharge : maxRunCharge;
@@ -77,7 +78,7 @@ public final class SmartMovingHud {
             int half  = maxed ? 0  : Math.max(0, (int) Math.ceil((double)charge * 10D / maxCharge) - fulls);
 
             // Y: height - 49. 갑옷 있으면 10 위로
-            int jy = height - 49 - (player.getArmor() > 0 ? 10 : 0);
+            int jy = height - 49 - (player.getArmorValue() > 0 ? 10 : 0);
 
             for (int i = 0; i < fulls + half; i++) {
                 drawIcon(context, (width / 2 - 91) + i * 8, jy, i < fulls ? 2 : 3, 0);
@@ -92,7 +93,7 @@ public final class SmartMovingHud {
             int half  = halfs % 2;
 
             // Y: height - 49. 물속이면 10 위로
-            int jy = height - 49 - (player.isTouchingWater() ? 10 : 0);
+            int jy = height - 49 - (player.isInWater() ? 10 : 0);
 
             for (int i = 0; i < Math.min(fulls + half, 10); i++) {
                 drawIcon(context, (width / 2 + 90) - (i + 1) * 8, jy, i < fulls ? 0 : 1, 0);
@@ -102,7 +103,11 @@ public final class SmartMovingHud {
 
     // icons.png에서 (iconX*9, iconY*9) 위치의 9×9 스프라이트를 (x, y)에 렌더.
     // DrawContext.drawTexture 7-인자 형태: textureWidth/Height = 256 자동 가정.
-    private static void drawIcon(DrawContext context, int x, int y, int iconX, int iconY) {
-        context.drawTexture(ICONS, x, y, iconX * ICON_SIZE, iconY * ICON_SIZE, ICON_SIZE, ICON_SIZE);
+    private static void drawIcon(GuiGraphicsExtractor context, int x, int y, int iconX, int iconY) {
+        float u0 = (float) (iconX * ICON_SIZE) / 256.0F;
+        float v0 = (float) (iconY * ICON_SIZE) / 256.0F;
+        float u1 = (float) ((iconX + 1) * ICON_SIZE) / 256.0F;
+        float v1 = (float) ((iconY + 1) * ICON_SIZE) / 256.0F;
+        context.blit(ICONS, x, y, ICON_SIZE, ICON_SIZE, u0, v0, u1, v1);
     }
 }

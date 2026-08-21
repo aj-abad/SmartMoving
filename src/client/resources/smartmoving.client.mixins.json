@@ -2,9 +2,11 @@
   "required": true,
   "minVersion": "0.8",
   "package": "choco.ratel.smartmoving.mixin.client",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_25",
   "client": [
     "MixinAbstractClientPlayerEntityClient",
+    "MixinAvatarDimensionsClient",
+    "MixinAvatarRenderState",
     "MixinCamera",
     "MixinClientPlayNetworkHandler",
     "MixinClientPlayerEntity",
@@ -18,8 +20,7 @@
     "MixinPlayerEntityClient",
     "MixinCapeFeatureRenderer",
     "MixinPlayerEntityModelClient",
-    "MixinPlayerEntityRenderer",
-    "PlayerEntityModelAccessor"
+    "MixinPlayerEntityRenderer"
   ],
   "injectors": {
     "defaultRequire": 1

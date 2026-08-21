@@ -1,13 +1,13 @@
 package choco.ratel.smartmoving.mixin.server;
 
 import choco.ratel.smartmoving.server.SmartMovingServer;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.network.ServerPlayerInteractionManager;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.world.World;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerPlayerGameMode;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -26,21 +26,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * 1.21.1 매핑: ItemInWorldManager.activateBlockOrUseItem → ServerPlayerInteractionManager.interactBlock.
  * 블록 상호작용 구간 동안 MixinEntity.sm_isSneaking 가 클라이언트 스니크 버튼 상태를 강제 반환.
  */
-@Mixin(ServerPlayerInteractionManager.class)
+@Mixin(ServerPlayerGameMode.class)
 public abstract class MixinServerPlayerInteractionManager {
 
-    @Inject(method = "interactBlock", at = @At("HEAD"))
-    private void sm_beforeInteractBlock(ServerPlayerEntity player, World world, ItemStack stack,
-                                         Hand hand, BlockHitResult hitResult,
-                                         CallbackInfoReturnable<ActionResult> cir) {
+    @Inject(method = "useItemOn", at = @At("HEAD"))
+    private void sm_beforeInteractBlock(ServerPlayer player, Level world, ItemStack stack,
+                                         InteractionHand hand, BlockHitResult hitResult,
+                                         CallbackInfoReturnable<InteractionResult> cir) {
         SmartMovingServer sm = SmartMovingServer.get(player);
         sm.forceIsSneaking = sm.isSneakButtonPressed;
     }
 
-    @Inject(method = "interactBlock", at = @At("RETURN"))
-    private void sm_afterInteractBlock(ServerPlayerEntity player, World world, ItemStack stack,
-                                        Hand hand, BlockHitResult hitResult,
-                                        CallbackInfoReturnable<ActionResult> cir) {
+    @Inject(method = "useItemOn", at = @At("RETURN"))
+    private void sm_afterInteractBlock(ServerPlayer player, Level world, ItemStack stack,
+                                        InteractionHand hand, BlockHitResult hitResult,
+                                        CallbackInfoReturnable<InteractionResult> cir) {
         SmartMovingServer.get(player).forceIsSneaking = null;
     }
 }

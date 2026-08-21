@@ -2,7 +2,7 @@ package choco.ratel.smartmoving.mixin.client;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.render.Camera;
+import net.minecraft.client.Camera;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
@@ -29,15 +29,15 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Environment(EnvType.CLIENT)
 public interface MixinCamera {
 
-    @Accessor("cameraY")
+    @Accessor("eyeHeight")
     void sm_setCameraY(float cameraY);
 
-    @Accessor("lastCameraY")
+    @Accessor("eyeHeightOld")
     void sm_setLastCameraY(float lastCameraY);
 
-    @Accessor("cameraY")
+    @Accessor("eyeHeight")
     float sm_getCameraY();
 
-    @Accessor("lastCameraY")
+    @Accessor("eyeHeightOld")
     float sm_getLastCameraY();
 }

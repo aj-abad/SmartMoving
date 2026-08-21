@@ -2,10 +2,10 @@ package choco.ratel.smartmoving.mixin;
 
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import choco.ratel.smartmoving.server.SmartMovingServer;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * 클라이언트 측 → MixinPlayerEntityClient.sm_getBaseDimensions_client(), sm_updatePose_client()
  */
-@Mixin(PlayerEntity.class)
+@Mixin(Player.class)
 public abstract class MixinPlayerEntity {
 
     /**
@@ -39,9 +39,9 @@ public abstract class MixinPlayerEntity {
      * isFlying 은 vanilla `abilities.flying + cfg.fly + !isSwimming + !isDiving` 원본 공식
      * (SmartMovingSelf L2509-L2515) 1:1.
      */
-    @Inject(method = "getBaseDimensions", at = @At("HEAD"), cancellable = true)
-    private void sm_getBaseDimensions_server(EntityPose pose, CallbackInfoReturnable<EntityDimensions> cir) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+    @Inject(method = "getDefaultDimensions", at = @At("HEAD"), cancellable = true, require = 0)
+    private void sm_getBaseDimensions_server(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
 
         // 🔴 BUG-29 진짜 원인 정정 (Flying Phase / 세션 45): 비행/Levitate 분기 제거 (서버측).
@@ -63,7 +63,7 @@ public abstract class MixinPlayerEntity {
         //   발동 → ladder grip 영역 벗어남 → 의도치 않은 ICC 발동. 원본 1:1 = smSmall dim
         //   (0.8, 0.62) 적용 (원본 setHeightOffset 호출 없음 → 이전 isCrawling 박스 잔존).
         if (sm.isClimbCrawling) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
         // 🔴 isHeadJumping 별도 분기 (2026-05-08, 다단계 fix 후 정착) — 클라 측과 1:1 대칭:
@@ -73,7 +73,7 @@ public abstract class MixinPlayerEntity {
         if (sm.isHeadJumping) {
             // 🔴 fix #13 (2026-05-08): 클라 측과 동일 매핑 — dim 0.6×0.8 + eyeHeight 1.62F.
             //   MixinEntity.sm_offsetBoundingBoxForFlying 의 POSE=SLIDING 가드로 mixin offset 차단.
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
         // 🔴 fix #59 (2026-05-10, dump 분석 결과 — 사용자 보고 "여우무빙 시 EYEHEIGHT 가 콜리전
@@ -86,7 +86,7 @@ public abstract class MixinPlayerEntity {
         //   해결: isSliding 시 eyeHeight=1.62 (= STANDING) → 카메라 = entity.y + 1.62 →
         //   박스 안 (= entity.y+1 ~ entity.y+1.8 안에 entity.y+1.62) 정상.
         if (sm.isSliding) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
         // 🔵 (2026-05-20, Phase 0 검증 fix #102) swim/dive 별도 분기 — 클라 매핑 1:1 대칭.
@@ -94,7 +94,7 @@ public abstract class MixinPlayerEntity {
         //   client side `sm_getBaseDimensions_client` 의 swim/dive 분기 변경과 1:1 동기화 필수
         //   (= server reconcile + multi remote bb 정합).
         if (sm.isSwimming || sm.isDiving) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
         // 🔴 v26.12 — v26.5 가드 폐기 (client/server 양쪽 동기화).
@@ -102,7 +102,7 @@ public abstract class MixinPlayerEntity {
         //   1:1 복원. 사용자 보고 "STANDING → 엎드림" transition 차단.
         boolean smSmall = sm.isCrawling || sm.isCrawlClimbing;
         if (smSmall) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(0.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(0.62F));
             return;
         }
 
@@ -117,13 +117,13 @@ public abstract class MixinPlayerEntity {
                               && !sm.isSwimming
                               && !sm.isDiving;
         if (serverIsFlying || sm.isLevitating) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(1.62F));
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
 
         // SLIDING POSE 가 vanilla 가 아닌 경로로 들어온 경우 보강 (외부 모드 등).
-        if (pose == EntityPose.SLIDING) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 0.8F).withEyeHeight(0.62F));
+        if (pose == Pose.SLIDING) {
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(0.62F));
             return;
         }
 
@@ -131,8 +131,8 @@ public abstract class MixinPlayerEntity {
         //   가끔 콜리전 정상 엎드리기보다 작음"):
         //   클라 sm_getBaseDimensions_client 와 동일 가드 — pose=SWIMMING + smSmall 미매치 시
         //   STANDING dim 강제. 클라/서버 대칭으로 박스 sync 일관 유지 (server reconcile 차단).
-        if (pose == EntityPose.SWIMMING) {
-            cir.setReturnValue(EntityDimensions.changing(0.6F, 1.8F).withEyeHeight(1.62F));
+        if (pose == Pose.SWIMMING) {
+            cir.setReturnValue(EntityDimensions.scalable(0.6F, 1.8F).withEyeHeight(1.62F));
         }
     }
 
@@ -149,19 +149,19 @@ public abstract class MixinPlayerEntity {
      *
      * 클라/서버 POSE 동일 sync → datatracker 진동 0.
      */
-    @Inject(method = "updatePose", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "updatePlayerPose", at = @At("HEAD"), cancellable = true)
     private void sm_updatePose_server(CallbackInfo ci) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
 
         if (sm.isCrawling || sm.isCrawlClimbing) {
-            player.setPose(EntityPose.SWIMMING);
+            player.setPose(Pose.SWIMMING);
             ci.cancel();
         } else if (sm.isHeadJumping || sm.isSliding) {
-            player.setPose(EntityPose.SLIDING);
+            player.setPose(Pose.SLIDING);
             ci.cancel();
         } else if (sm.isSwimming || sm.isDiving) {
-            player.setPose(EntityPose.SWIMMING);
+            player.setPose(Pose.SWIMMING);
             ci.cancel();
         }
         // 🔴 BUG-29 진짜 원인 정정 (Flying Phase / 세션 45): 비행/Levitate 분기 제거 (서버측).
@@ -196,11 +196,11 @@ public abstract class MixinPlayerEntity {
      * SM 상태 (Crawling/CrawlClimbing/HeadJumping/Sliding/Swimming/Diving) 는 sm_updatePose_*
      * 가 이미 ci.cancel() 후 setPose() 처리 → vanilla 본체 미실행 → 이 redirect 영향 없음.
      */
-    @Redirect(method = "updatePose",
+    @Redirect(method = "getDesiredPose",
             at = @At(value = "INVOKE",
-                     target = "Lnet/minecraft/entity/player/PlayerEntity;isSneaking()Z"))
-    private boolean sm_redirectIsSneakingForFallingPose(PlayerEntity self) {
-        boolean original = self.isSneaking();
+                     target = "Lnet/minecraft/world/entity/player/Player;isShiftKeyDown()Z"))
+    private boolean sm_redirectIsSneakingForFallingPose(Player self) {
+        boolean original = self.isShiftKeyDown();
         if (!original) return false;
         if (!SmartMovingConfig.Config.enabled) return original;
 
@@ -210,9 +210,9 @@ public abstract class MixinPlayerEntity {
         // SM 상태 (isClimbing 등) 는 SmartMovingClientState/Server 에 분리 저장이라 양측
         // 직접 참조 불가. 그러나 climbing 중에는 SmartMovingClimber 가 fallDistance=0 으로
         // reset 하므로 fallDistance > minimum 조건이 자연스레 climbing 제외.
-        boolean isFalling = !self.isOnGround()
+        boolean isFalling = !self.onGround()
                 && self.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
-                && !self.isTouchingWater()
+                && !self.isInWater()
                 && !self.getAbilities().flying;
         if (isFalling) return false;
 
@@ -228,12 +228,12 @@ public abstract class MixinPlayerEntity {
         //   메모리 project_vine_animation_complete.md 의 "weeping/twisting vines = 사다리 자세
         //     + vanilla 매달림 motion" 의도와 정합.
         //   이 redirect 는 PlayerEntity (main mixin) 라 client + server 양측 자동 적용.
-        net.minecraft.block.Block blockAtPos = self.getWorld()
-                .getBlockState(self.getBlockPos()).getBlock();
-        if (blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES
-                || blockAtPos == net.minecraft.block.Blocks.WEEPING_VINES_PLANT
-                || blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES
-                || blockAtPos == net.minecraft.block.Blocks.TWISTING_VINES_PLANT) {
+        net.minecraft.world.level.block.Block blockAtPos = self.level()
+                .getBlockState(self.blockPosition()).getBlock();
+        if (blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES
+                || blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES_PLANT
+                || blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES
+                || blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT) {
             return false;
         }
 
@@ -247,9 +247,9 @@ public abstract class MixinPlayerEntity {
      * addExhaustion()은 PlayerEntity에서 선언되므로 여기서 inject.
      * ServerPlayerEntity에는 선언되어 있지 않아 MixinServerPlayerEntity에서 inject 불가.
      */
-    @Inject(method = "addExhaustion", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "causeFoodExhaustion", at = @At("HEAD"), cancellable = true)
     private void sm_addExhaustion(float exhaustion, CallbackInfo ci) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
         if (sm.disableAddExhaustion) {
             ci.cancel();

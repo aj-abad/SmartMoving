@@ -7,15 +7,22 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.entity.Entity;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.phys.Vec3;
+
+import java.net.URI;
 
 public class SmartMovingClient implements ClientModInitializer {
 
@@ -29,11 +36,11 @@ public class SmartMovingClient implements ClientModInitializer {
      *   self 가 disabled 면 자기 SM state 모두 false (= state update / packet 송신 stop) 라
      *   remote 측에서 자기는 자동으로 vanilla 표시 (= 정확).
      */
-    public static boolean isSmRenderEnabled(net.minecraft.entity.Entity entity) {
+    public static boolean isSmRenderEnabled(net.minecraft.world.entity.Entity entity) {
         if (SmartMovingConfig.Config.enabled) return true;
         // 자기 cfg disabled — remote player 만 통과 (= vanilla cfg 무관 + remote 의 SM 분기 정상).
-        if (!(entity instanceof AbstractClientPlayerEntity ap)) return false;
-        return ap != MinecraftClient.getInstance().player;
+        if (!(entity instanceof AbstractClientPlayer ap)) return false;
+        return ap != Minecraft.getInstance().player;
     }
 
     @Override
@@ -54,10 +61,10 @@ public class SmartMovingClient implements ClientModInitializer {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
                 client.execute(() -> {
                     if (client.player == null) return;
-                    client.player.sendMessage(buildBorderLine(), false);
-                    client.player.sendMessage(buildBrandLine(), false);
-                    client.player.sendMessage(buildLinksLine(), false);
-                    client.player.sendMessage(buildBorderLine(), false);
+                    client.player.sendSystemMessage(buildBorderLine());
+                    client.player.sendSystemMessage(buildBrandLine());
+                    client.player.sendSystemMessage(buildLinksLine());
+                    client.player.sendSystemMessage(buildBorderLine());
                 }));
 
         // 클라이언트 접속 해제 시 상태 인스턴스 정리 + Config 복원
@@ -78,46 +85,46 @@ public class SmartMovingClient implements ClientModInitializer {
     private static final String SUPPORT_URL = "https://ko-fi.com/viewstudio";
 
     /** 가로 테두리 선 (상/하) — 공백 + strikethrough 으로 끊김 없는 연속 선. */
-    private static Text buildBorderLine() {
-        return Text.literal(" ".repeat(40))
-                .styled(s -> s.withColor(Formatting.DARK_GRAY).withStrikethrough(true));
+    private static Component buildBorderLine() {
+        return Component.literal(" ".repeat(40))
+                .withStyle(s -> s.withColor(ChatFormatting.DARK_GRAY).withStrikethrough(true));
     }
 
     /** 1줄: 브랜드 + 작성자. */
-    private static Text buildBrandLine() {
-        MutableText tag = Text.literal("[SmartMoving]")
-                .styled(s -> s.withColor(Formatting.GOLD));
+    private static Component buildBrandLine() {
+        MutableComponent tag = Component.literal("[SmartMoving]")
+                .withStyle(s -> s.withColor(ChatFormatting.GOLD));
 
-        MutableText by = Text.literal(" by ")
-                .styled(s -> s.withColor(Formatting.GRAY));
+        MutableComponent by = Component.literal(" by ")
+                .withStyle(s -> s.withColor(ChatFormatting.GRAY));
 
-        MutableText author = Text.literal("View-Studio")
-                .styled(s -> s.withColor(Formatting.WHITE));
+        MutableComponent author = Component.literal("View-Studio")
+                .withStyle(s -> s.withColor(ChatFormatting.WHITE));
 
-        return Text.empty().append(tag).append(by).append(author);
+        return Component.empty().append(tag).append(by).append(author);
     }
 
     /** 2줄: 클릭 가능한 GitHub + Support 링크. */
-    private static Text buildLinksLine() {
-        MutableText sep = Text.literal("  ·  ").styled(s -> s.withColor(Formatting.DARK_GRAY));
+    private static Component buildLinksLine() {
+        MutableComponent sep = Component.literal("  ·  ").withStyle(s -> s.withColor(ChatFormatting.DARK_GRAY));
 
-        MutableText github = Text.literal("[GitHub]")
-                .styled(s -> s
-                        .withColor(Formatting.AQUA)
-                        .withUnderline(true)
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, GITHUB_URL))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                Text.literal("Open repository\n" + GITHUB_URL))));
+        MutableComponent github = Component.literal("[GitHub]")
+                .withStyle(s -> s
+                        .withColor(ChatFormatting.AQUA)
+                        .withUnderlined(true)
+                        .withClickEvent(new ClickEvent.OpenUrl(URI.create(GITHUB_URL)))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.literal("Open repository\n" + GITHUB_URL))));
 
-        MutableText support = Text.literal("[Support ☕]")
-                .styled(s -> s
-                        .withColor(Formatting.YELLOW)
-                        .withUnderline(true)
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, SUPPORT_URL))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                Text.literal("Buy me a coffee\n" + SUPPORT_URL))));
+        MutableComponent support = Component.literal("[Support ☕]")
+                .withStyle(s -> s
+                        .withColor(ChatFormatting.YELLOW)
+                        .withUnderlined(true)
+                        .withClickEvent(new ClickEvent.OpenUrl(URI.create(SUPPORT_URL)))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.literal("Buy me a coffee\n" + SUPPORT_URL))));
 
-        return Text.empty().append(github).append(sep).append(support);
+        return Component.empty().append(github).append(sep).append(support);
     }
 
     private static void registerClientReceivers() {
@@ -125,13 +132,13 @@ public class SmartMovingClient implements ClientModInitializer {
         // 원본: SmartMovingFactory.getOtherSmartMoving(entityId).processStatePacket(state)
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.StatePayload.ID,
             (payload, context) -> {
-                MinecraftClient client = context.client();
+                Minecraft client = context.client();
                 client.execute(() -> {
-                    ClientWorld world = client.world;
+                    ClientLevel world = client.level;
                     if (world == null) return;
-                    Entity entity = world.getEntityById(payload.entityId());
+                    Entity entity = world.getEntity(payload.entityId());
                     if (entity == null) return;
-                    SmartMovingClientState target = SmartMovingClientState.get(entity.getUuid());
+                    SmartMovingClientState target = SmartMovingClientState.get(entity.getUUID());
                     // 🔴 (Phase 2 multi BUG-7) remote ICC EXIT 시 박스/모델 1칸 down jump 차단.
                     //   원인: packet 처리 (= ICC=false 적용 + dim 변경) 시점과 PlayerEntity.tick HEAD
                     //         사이 1 tick lag → ICC dim offset (+1m bb) 사라진 후 entity.y 그대로 →
@@ -156,8 +163,8 @@ public class SmartMovingClient implements ClientModInitializer {
                     boolean wasCR_fix154 = target.isCrawling;
                     double slideBoxMinYBefore = 0.0;
                     double flyBoxMinYBefore = 0.0;
-                    if (entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity rsPre
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
+                    if (entity instanceof AbstractClientPlayer rsPre
+                            && !(entity instanceof LocalPlayer)) {
                         double bbMinY = rsPre.getBoundingBox().minY;
                         // calc dim *전* bb (= mixin offset 활성 시점). self fix #70 의 _currentBoxMinY70 등가.
                         if (wasSliding) slideBoxMinYBefore = bbMinY;
@@ -168,8 +175,8 @@ public class SmartMovingClient implements ClientModInitializer {
                     // 🔴 (Phase 2 multi BUG-12/14) packet 도착 시 dim 즉시 갱신 → vanilla pose sync 대기
                     //   없이 sm.* 비트 따라 dim 결정. boolean OR 가드 제거 — 여러 비트 동시 변경 시
                     //   감지 누락 회피. dim 동일 시 vanilla 자체 영향 미미.
-                    if (entity instanceof net.minecraft.entity.LivingEntity living) {
-                        living.calculateDimensions();
+                    if (entity instanceof LivingEntity living) {
+                        living.refreshDimensions();
                     }
                     // 🔴 (slide→crawl 박스 부유 fix, 2026-05-13) remote 측 POSE 즉시 갱신.
                     //   사용자 보고 BUG: REMOTE 측 slide → crawl 자동 전환 *사이* (~2 tick = 100ms)
@@ -187,15 +194,15 @@ public class SmartMovingClient implements ClientModInitializer {
                     //     안 setPose(SWIMMING) 호출 → 다음 render frame bb=y. 부유 frame 거의 X.
                     //   해결: remote 측 packet lambda 안 setPose 즉시 호출. self side
                     //     sm_updatePose_client 와 동일 4 분기 매핑.
-                    if (entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity apPose
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
-                        net.minecraft.entity.EntityPose targetPose = null;
+                    if (entity instanceof AbstractClientPlayer apPose
+                            && !(entity instanceof LocalPlayer)) {
+                        Pose targetPose = null;
                         if (target.isCrawling && !target.isClimbing) {
-                            targetPose = net.minecraft.entity.EntityPose.SWIMMING;
+                            targetPose = Pose.SWIMMING;
                         } else if (target.isHeadJumping || target.isSliding) {
-                            targetPose = net.minecraft.entity.EntityPose.SLIDING;
+                            targetPose = Pose.SLIDING;
                         } else if (target.isSwimming_sm || target.isDiving) {
-                            targetPose = net.minecraft.entity.EntityPose.SWIMMING;
+                            targetPose = Pose.SWIMMING;
                         } else {
                             // 🔴 (벽 충돌 cycle fix, 2026-05-13) orphan POSE 잔존 frame 의 박스 부유 차단.
                             //   사용자 보고 BUG: 슬라이딩 중 벽 충돌 시 박스 위로 튀는 frame.
@@ -214,18 +221,18 @@ public class SmartMovingClient implements ClientModInitializer {
                             //       가드. 매치 시 우리 fix skip.
                             //     - 일반 STANDING: curPose=STANDING → 매치 X (조건 SWIMMING|SLIDING) → skip.
                             //     - vanilla 자체 수영 (물 안): isInSwimmingPose=true → skip.
-                            net.minecraft.entity.EntityPose curPose = apPose.getPose();
-                            if ((curPose == net.minecraft.entity.EntityPose.SWIMMING
-                                    || curPose == net.minecraft.entity.EntityPose.SLIDING)
-                                    && !apPose.isInSwimmingPose()
+                            Pose curPose = apPose.getPose();
+                            if ((curPose == Pose.SWIMMING
+                                    || curPose == Pose.SLIDING)
+                                    && !apPose.isVisuallySwimming()
                                     && !apPose.isFallFlying()) {
-                                targetPose = net.minecraft.entity.EntityPose.STANDING;
+                                targetPose = Pose.STANDING;
                             }
                         }
                         if (targetPose != null && apPose.getPose() != targetPose) {
                             apPose.setPose(targetPose);
-                            if (entity instanceof net.minecraft.entity.LivingEntity living2) {
-                                living2.calculateDimensions();
+                            if (entity instanceof LivingEntity living2) {
+                                living2.refreshDimensions();
                             }
                         }
                     }
@@ -239,21 +246,20 @@ public class SmartMovingClient implements ClientModInitializer {
                     //   시 entity.y +0.05m 누적 → 카메라 움찔움찔 fix") 그대로 적용.
                     //   heightOffset/Camera 는 self 식/1인칭 전용이라 remote 안 필요.
                     if (!wasIcc && target.isClimbCrawling
-                            && entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity remoteEnter
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
+                            && entity instanceof AbstractClientPlayer remoteEnter
+                            && !(entity instanceof LocalPlayer)) {
                         boolean wasColH = remoteEnter.horizontalCollision;
                         double iccEnterYBefore = remoteEnter.getY();
-                        remoteEnter.move(net.minecraft.entity.MovementType.SELF,
-                                new net.minecraft.util.math.Vec3d(0, 0.05, 0));
+                        remoteEnter.move(MoverType.SELF, new Vec3(0, 0.05, 0));
                         if (remoteEnter.getY() != iccEnterYBefore) {
-                            remoteEnter.setPosition(remoteEnter.getX(), iccEnterYBefore, remoteEnter.getZ());
+                            remoteEnter.setPos(remoteEnter.getX(), iccEnterYBefore, remoteEnter.getZ());
                         }
                         remoteEnter.horizontalCollision = wasColH;
                     }
 
                     if (wasIcc && !target.isClimbCrawling
-                            && entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity remote
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
+                            && entity instanceof AbstractClientPlayer remote
+                            && !(entity instanceof LocalPlayer)) {
                         // 🔴 (Phase 2 BUG-7 fix 정착) self side ICC EXIT 매핑 1:1 복제 (cd25cfc 패턴).
                         //   self side: setPosition(x, y+1, z) + lastRenderY/prevY +=1 + calculateDimensions
                         //              + bottom snap (사다리/덩굴 케이스 미적용).
@@ -262,25 +268,24 @@ public class SmartMovingClient implements ClientModInitializer {
                         //   calculateDimensions 는 packet handler 위 (L109-L111) 에서 이미 호출됨.
                         if (target.isCrawling) {
                             double newY = remote.getY() + 1.0;
-                            remote.setPosition(remote.getX(), newY, remote.getZ());
-                            remote.lastRenderY = newY;
-                            remote.prevY = newY;
+                            remote.setPos(remote.getX(), newY, remote.getZ());
+                            remote.yOld = newY;
+                            remote.yo = newY;
                             // 🔴 (BUG B fix, 2026-05-13) lerp cancel — BUG-15 동일 패턴.
                             //   vanilla OtherClientPlayerEntity.lerpPosAndRotation 이 매 tick srvY 로
                             //   entity.y 끌고 감 → 우리 setPos+1m 무효화 → 점진 -1m down → 사용자 보고
                             //   "1칸 아래 내려갔다 올라옴" 직접 원인. srvY/bti 동기화로 lerp 차단.
-                            choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor accI =
-                                    (choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor)(Object) remote;
+                            SmartMovingLivingEntityAccess accI =
+                                    (SmartMovingLivingEntityAccess)(Object) remote;
                             accI.sm_setServerY(newY);
                             accI.sm_setBodyTrackingIncrements(0);
                             // 일반 블록 케이스만 bottom snap. 사다리/덩굴 케이스 미적용 (ladder maxY+1 위 유지).
-                            if (!remote.isClimbing()) {
+                            if (!remote.onClimbable()) {
                                 double minY = remote.getBoundingBox().minY;
                                 double gap = minY - choco.ratel.smartmoving.client.SmartMovingClientState
                                         .getMaxPlayerSolidBetween(remote, minY - 1.0, minY, 0);
                                 if (gap >= 0.0 && gap < 1.0) {
-                                    remote.move(net.minecraft.entity.MovementType.SELF,
-                                            new net.minecraft.util.math.Vec3d(0, -gap, 0));
+                                    remote.move(MoverType.SELF, new Vec3(0, -gap, 0));
                                     // bottom snap 후 srvY 재동기화 (= move 가 entity.y 변경했으므로).
                                     accI.sm_setServerY(remote.getY());
                                     accI.sm_setBodyTrackingIncrements(0);
@@ -305,10 +310,10 @@ public class SmartMovingClient implements ClientModInitializer {
                     //   (= move(0, -gap, 0)) 1:1 매핑으로 처리. 우리 slide 진입 fix 의 fixed -1m push 와
                     //   gap-변동 식 충돌 방지.
                     if (!wasSliding && target.isSliding && !wasFlying
-                            && entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity remoteSlideEnter
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
-                        choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor accE =
-                                (choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor)(Object) remoteSlideEnter;
+                            && entity instanceof AbstractClientPlayer remoteSlideEnter
+                            && !(entity instanceof LocalPlayer)) {
+                        SmartMovingLivingEntityAccess accE =
+                                (SmartMovingLivingEntityAccess)(Object) remoteSlideEnter;
                         // 🔴 fix #93 (2026-05-13, dump 검증 — 사용자 보고 "여우무빙 → 슬라이딩 동시 진입 시 잠깐 잠김"):
                         //   기존 newY = remoteSlideEnter.getY() - 1.0:
                         //     진입 직전 client.y 가 *헤드점프 진행 중 server.y broadcast lag* 로 잠긴
@@ -322,9 +327,9 @@ public class SmartMovingClient implements ClientModInitializer {
                         double groundY93 = choco.ratel.smartmoving.client.SmartMovingClientState
                                 .getMaxPlayerSolidBetween(remoteSlideEnter, bbMinBefore93 - 1.5, bbMinBefore93 + 0.5, 0);
                         double newY = groundY93 - 1.0;
-                        remoteSlideEnter.setPosition(remoteSlideEnter.getX(), newY, remoteSlideEnter.getZ());
-                        remoteSlideEnter.lastRenderY = newY;
-                        remoteSlideEnter.prevY = newY;
+                        remoteSlideEnter.setPos(remoteSlideEnter.getX(), newY, remoteSlideEnter.getZ());
+                        remoteSlideEnter.yOld = newY;
+                        remoteSlideEnter.yo = newY;
                         // 🔴 lerp cancel — vanilla OtherClientPlayerEntity.lerpPosAndRotation 이
                         //   srvY (= 직전 broadcast standing y) 로 entity.y 끌고 감 → 우리 setPos 무효화.
                         //   BUG-7 v25.3 패턴: srvY = newY + bti = 0 → 다음 broadcast 도착 전까지 lerp 차단.
@@ -361,17 +366,17 @@ public class SmartMovingClient implements ClientModInitializer {
                     //     매칭. slide → HJ 자동 전환 시 push 차단. 다른 slide-exit 케이스 (crawl/standing/
                     //     비행) 는 isHJ=false 라 통과 → 기존 동작 유지.
                     if (wasSliding && !target.isSliding && !target.isHeadJumping
-                            && entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity remoteSlideExit
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
-                        choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor accX =
-                                (choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor)(Object) remoteSlideExit;
+                            && entity instanceof AbstractClientPlayer remoteSlideExit
+                            && !(entity instanceof LocalPlayer)) {
+                        SmartMovingLivingEntityAccess accX =
+                                (SmartMovingLivingEntityAccess)(Object) remoteSlideExit;
                         double newY = remoteSlideExit.getY();
                         boolean willDrop = (slideBoxMinYBefore - newY) > 0.5;
                         if (willDrop) {
                             newY += 1.0;
-                            remoteSlideExit.setPosition(remoteSlideExit.getX(), newY, remoteSlideExit.getZ());
-                            remoteSlideExit.lastRenderY = newY;
-                            remoteSlideExit.prevY = newY;
+                            remoteSlideExit.setPos(remoteSlideExit.getX(), newY, remoteSlideExit.getZ());
+                            remoteSlideExit.yOld = newY;
+                            remoteSlideExit.yo = newY;
                             // 🔴 lerp cancel — 진입 분기와 동일 패턴 (srvY/bti 동기화 → lerp 차단).
                             accX.sm_setServerY(newY);
                             accX.sm_setBodyTrackingIncrements(0);
@@ -417,14 +422,14 @@ public class SmartMovingClient implements ClientModInitializer {
                             && !target.isSwimming_sm && !target.isDiving
                             && !target.isFlying && !target.isLevitating
                             && !target.isAngleJumping() && !target.isRopeSliding
-                            && entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity remoteHJCr
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
-                        choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor accHJCr =
-                                (choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor)(Object) remoteHJCr;
+                            && entity instanceof AbstractClientPlayer remoteHJCr
+                            && !(entity instanceof LocalPlayer)) {
+                        SmartMovingLivingEntityAccess accHJCr =
+                                (SmartMovingLivingEntityAccess)(Object) remoteHJCr;
                         double newYHJCr = accHJCr.sm_getServerY() + 1.0;
-                        remoteHJCr.setPosition(remoteHJCr.getX(), newYHJCr, remoteHJCr.getZ());
-                        remoteHJCr.lastRenderY = newYHJCr;
-                        remoteHJCr.prevY = newYHJCr;
+                        remoteHJCr.setPos(remoteHJCr.getX(), newYHJCr, remoteHJCr.getZ());
+                        remoteHJCr.yOld = newYHJCr;
+                        remoteHJCr.yo = newYHJCr;
                         accHJCr.sm_setServerY(newYHJCr);
                         accHJCr.sm_setBodyTrackingIncrements(0);
                     }
@@ -452,13 +457,13 @@ public class SmartMovingClient implements ClientModInitializer {
                     //   해결: swim/dive 종료 detection 시 flag set + crawl 진입 detection 시 flag 5 tick 안 검사.
                     boolean _swimEndedFix154 = (wasSwim_fix154 || wasDive_fix154)
                             && !target.isSwimming_sm && !target.isDiving;
-                    if (_swimEndedFix154 && entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity _rememF154
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
-                        target.smRecentSwimDiveEndTick = _rememF154.age;
+                    if (_swimEndedFix154 && entity instanceof AbstractClientPlayer _rememF154
+                            && !(entity instanceof LocalPlayer)) {
+                        target.smRecentSwimDiveEndTick = _rememF154.tickCount;
                     }
-                    boolean _recentSwimEndedFix154 = entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity _checkRecent
-                            && (_checkRecent.age - target.smRecentSwimDiveEndTick) >= 0
-                            && (_checkRecent.age - target.smRecentSwimDiveEndTick) <= 10;
+                    boolean _recentSwimEndedFix154 = entity instanceof AbstractClientPlayer _checkRecent
+                            && (_checkRecent.tickCount - target.smRecentSwimDiveEndTick) >= 0
+                            && (_checkRecent.tickCount - target.smRecentSwimDiveEndTick) <= 10;
                     if (_recentSwimEndedFix154
                             && !wasCR_fix154 && target.isCrawling
                             && !wasHJ && !target.isHeadJumping
@@ -467,8 +472,8 @@ public class SmartMovingClient implements ClientModInitializer {
                             && !target.isClimbing && !target.isCeilingClimbing
                             && !target.isFlying && !target.isLevitating
                             && !target.isAngleJumping() && !target.isRopeSliding
-                            && entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity remoteSwCr
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
+                            && entity instanceof AbstractClientPlayer remoteSwCr
+                            && !(entity instanceof LocalPlayer)) {
                         // 🔵 (2026-05-22 fix #154 v3) fix #99 v4 패턴 1:1 — newY = srvY + 1.
                         //   이전 v2 (groundY 직접 측정) 식: getMaxPlayerSolidBetween 의 clamp 가 잠긴 시
                         //     ground top 매치 X (= yMax 작음). v2 식 정상 위치 시도 ceiling 매치 (= yMax 큼).
@@ -476,22 +481,22 @@ public class SmartMovingClient implements ClientModInitializer {
                         //     적용 → server.y = self.y = ground. broadcast S2C state 시점 srvY prev = ground-1
                         //     (= 이전 broadcast 잔존). newY = prev srvY + 1 = ground = self.y. REMOTE.y 정렬.
                         //   [project_remote_hjcr_direct_transition_fix] / [feedback_remote_setpos_newY_srvY_plus_1].
-                        choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor accSwCr =
-                                (choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor)(Object) remoteSwCr;
+                        SmartMovingLivingEntityAccess accSwCr =
+                                (SmartMovingLivingEntityAccess)(Object) remoteSwCr;
                         double newYSwCr = accSwCr.sm_getServerY() + 1.0;
-                        remoteSwCr.setPosition(remoteSwCr.getX(), newYSwCr, remoteSwCr.getZ());
-                        remoteSwCr.lastRenderY = newYSwCr;
-                        remoteSwCr.prevY = newYSwCr;
+                        remoteSwCr.setPos(remoteSwCr.getX(), newYSwCr, remoteSwCr.getZ());
+                        remoteSwCr.yOld = newYSwCr;
+                        remoteSwCr.yo = newYSwCr;
                         accSwCr.sm_setServerY(newYSwCr);
                         accSwCr.sm_setBodyTrackingIncrements(0);
                         target.smRecentSwimDiveEndTick = -9999;  // 1회 한정 clear.
                     }
                     if (wasHJ && !target.isHeadJumping
                             && !target.isSliding && !target.isCrawling
-                            && entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity remoteHJ
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
-                        choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor accH =
-                                (choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor)(Object) remoteHJ;
+                            && entity instanceof AbstractClientPlayer remoteHJ
+                            && !(entity instanceof LocalPlayer)) {
+                        SmartMovingLivingEntityAccess accH =
+                                (SmartMovingLivingEntityAccess)(Object) remoteHJ;
                         double bbMin = remoteHJ.getBoundingBox().minY;
                         // 🔴 fix #92 (2026-05-13, dump 검증 — 사용자 보고 "가끔 잠깐 잠겼다 회복"):
                         //   기존 yMax = bbMin - 0.01: 잠긴 상태 (= bbMin < ground top) 진입 시 검색 범위
@@ -513,7 +518,7 @@ public class SmartMovingClient implements ClientModInitializer {
                         //   → hold 조건 (curY > groundY+0.005) 미매치 → cycle 2-9 fix 효과 X.
                         //   해결: prevY (= 이전 frame y, lerp 진행 전) 사용. EXIT 직전 frame 의 공중
                         //     위치 정확 검출. lastRenderY 와 prevY 둘 다 같은 값 (= resetPosition 직후).
-                        double curY = remoteHJ.prevY;
+                        double curY = remoteHJ.yo;
                         double diff = curY - groundY;  // 양수 = 공중, 음수 = 잠긴
                         // 🔵 (2026-05-14, fix #98 위치 기반) fix #92 가드 분리 — 잠긴 vs 공중.
                         //   잠긴 상태 (= curY < groundY - 0.005): 기존 fix #92 — setPos + lerp cancel.
@@ -525,9 +530,9 @@ public class SmartMovingClient implements ClientModInitializer {
                         if (diff < -0.005) {
                             // 잠긴 상태 — 기존 fix #92.
                             double newY = groundY;
-                            remoteHJ.setPosition(remoteHJ.getX(), newY, remoteHJ.getZ());
-                            remoteHJ.lastRenderY = newY;
-                            remoteHJ.prevY = newY;
+                            remoteHJ.setPos(remoteHJ.getX(), newY, remoteHJ.getZ());
+                            remoteHJ.yOld = newY;
+                            remoteHJ.yo = newY;
                             // 🔴 lerp cancel — BUG-7 v25.3 / BUG-15 / BUG B 동일 패턴.
                             accH.sm_setServerY(newY);
                             accH.sm_setBodyTrackingIncrements(0);
@@ -540,9 +545,9 @@ public class SmartMovingClient implements ClientModInitializer {
                             //     REMOTE.y → ground. 자세 hold 동안 잠긴 trajectory 차단.
                             //   메모리 패턴: feedback_remote_setpos_lerp_cancel 4-동기화.
                             double newY = curY;  // prevY = 공중 위치 잔존.
-                            remoteHJ.setPosition(remoteHJ.getX(), newY, remoteHJ.getZ());
-                            remoteHJ.lastRenderY = newY;
-                            remoteHJ.prevY = newY;
+                            remoteHJ.setPos(remoteHJ.getX(), newY, remoteHJ.getZ());
+                            remoteHJ.yOld = newY;
+                            remoteHJ.yo = newY;
                             accH.sm_setServerY(newY);
                             accH.sm_setBodyTrackingIncrements(0);
                             // 자세 visual hold flag set.
@@ -583,10 +588,10 @@ public class SmartMovingClient implements ClientModInitializer {
                     //       해결: 분기 3 setPos+lerp cancel 자체 제거 → vanilla 자체 lerp 자연 처리
                     //       (= 매 tick 1/bti step 점진, ~15 tick 부드러운 transition).
                     if (wasFlying && !target.isFlying
-                            && entity instanceof net.minecraft.client.network.AbstractClientPlayerEntity remoteFly
-                            && !(entity instanceof net.minecraft.client.network.ClientPlayerEntity)) {
-                        choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor accF =
-                                (choco.ratel.smartmoving.mixin.client.MixinLivingEntityAccessor)(Object) remoteFly;
+                            && entity instanceof AbstractClientPlayer remoteFly
+                            && !(entity instanceof LocalPlayer)) {
+                        SmartMovingLivingEntityAccess accF =
+                                (SmartMovingLivingEntityAccess)(Object) remoteFly;
                         double srvY = accF.sm_getServerY();
                         double srvBBMinY = srvY + 1.0;  // 비행 mixin offset 활성 = bb 발 = self.y + 1.
                         double groundY = choco.ratel.smartmoving.client.SmartMovingClientState
@@ -629,9 +634,9 @@ public class SmartMovingClient implements ClientModInitializer {
                             //   정정 — sneak+grab slide 케이스 만 self.y 변화 X. 자연 crawl 케이스는 +1m.
                             double newY = srvY + 1.0;
                             if (newY != remoteFly.getY()) {
-                                remoteFly.setPosition(remoteFly.getX(), newY, remoteFly.getZ());
-                                remoteFly.lastRenderY = newY;
-                                remoteFly.prevY = newY;
+                                remoteFly.setPos(remoteFly.getX(), newY, remoteFly.getZ());
+                                remoteFly.yOld = newY;
+                                remoteFly.yo = newY;
                             }
                             accF.sm_setServerY(newY);
                             accF.sm_setBodyTrackingIncrements(0);
@@ -649,12 +654,12 @@ public class SmartMovingClient implements ClientModInitializer {
         //     sm_tickStatsForRemote TAIL 에서 자체 stats.calculate 결과를 packet 값으로 덮어쓰기.
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.StatsPayload.ID,
             (payload, context) -> {
-                MinecraftClient client = context.client();
+                Minecraft client = context.client();
                 client.execute(() -> {
-                    ClientWorld world = client.world;
+                    ClientLevel world = client.level;
                     if (world == null) return;
-                    Entity entity = world.getEntityById(payload.entityId());
-                    if (!(entity instanceof AbstractClientPlayerEntity ap)) return;
+                    Entity entity = world.getEntity(payload.entityId());
+                    if (!(entity instanceof AbstractClientPlayer ap)) return;
                     if (ap == client.player) return;  // 안전 가드 — server 가 self 제외 broadcast.
                     SmartMovingClientState target = SmartMovingClientState.get(ap);
                     target.smRemoteStatsVerticalAngle_fromPacket = payload.verticalAngle();
@@ -682,7 +687,7 @@ public class SmartMovingClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.ConfigContentPayload.ID,
             (payload, context) -> {
                 String[] lines = payload.lines();
-                MinecraftClient client = context.client();
+                Minecraft client = context.client();
                 client.execute(() -> processConfigContentPacket(lines));
             });
 
@@ -691,13 +696,13 @@ public class SmartMovingClient implements ClientModInitializer {
         // A-26: 원문 확인 — remote/local 구분 메시지 (en_us.json smartmoving.message.config.illegal.*)
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.ConfigChangePayload.ID,
             (payload, context) -> {
-                MinecraftClient client = context.client();
+                Minecraft client = context.client();
                 boolean isRemote = isRemoteServer(client);
                 String key = isRemote
                     ? "smartmoving.message.config.illegal.remote"
                     : "smartmoving.message.config.illegal.local";
                 client.execute(() -> {
-                    if (client.player != null) client.player.sendMessage(Text.translatable(key));
+                    if (client.player != null) client.player.sendSystemMessage(Component.translatable(key));
                 });
             });
 
@@ -706,7 +711,7 @@ public class SmartMovingClient implements ClientModInitializer {
         // A-26: 권한없음 메시지 원문 확인 (en_us.json smartmoving.message.speed.illegal.*)
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.SpeedChangePayload.ID,
             (payload, context) -> {
-                MinecraftClient client = context.client();
+                Minecraft client = context.client();
                 int difference = payload.difference();
                 if (difference != 0) {
                     client.execute(() -> {
@@ -718,7 +723,7 @@ public class SmartMovingClient implements ClientModInitializer {
                             ? "smartmoving.message.speed.client.reset"
                             : "smartmoving.message.speed.client.change";
                         if (client.player != null)
-                            client.player.sendMessage(Text.translatable(msgKey, percent));
+                            client.player.sendSystemMessage(Component.translatable(msgKey, percent));
                     });
                 } else {
                     boolean isRemote = isRemoteServer(client);
@@ -726,7 +731,7 @@ public class SmartMovingClient implements ClientModInitializer {
                         ? "smartmoving.message.speed.illegal.remote"
                         : "smartmoving.message.speed.illegal.local";
                     client.execute(() -> {
-                        if (client.player != null) client.player.sendMessage(Text.translatable(key));
+                        if (client.player != null) client.player.sendSystemMessage(Component.translatable(key));
                     });
                 }
             });
@@ -734,8 +739,8 @@ public class SmartMovingClient implements ClientModInitializer {
 
     // 원본: SmartMovingComm.isConnectedToRemoteServer() — MinecraftServer.getServer()==null 등 3조건
     // 1.21.1: client.getServer()가 null이면 원격 서버 (통합 서버 없음)
-    private static boolean isRemoteServer(MinecraftClient client) {
-        return client.getServer() == null;
+    private static boolean isRemoteServer(Minecraft client) {
+        return client.getSingleplayerServer() == null;
     }
 
     // ── 13-1/13-2: processConfigContentPacket ────────────────────────────────
@@ -760,7 +765,7 @@ public class SmartMovingClient implements ClientModInitializer {
         //   client 측에서 자기 vanilla 표시 (= 정확).
         //   SERVER_CONFIG 자체 갱신은 server-side 옵션 (= block-code 등) 이 사용 가능하도록
         //   유지. 그러나 client Config 는 INSTANCE 그대로.
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (content == null || content.length == 0) {
             // 메시지만 (= 원본 message). Config 변경 안 함.
             return;

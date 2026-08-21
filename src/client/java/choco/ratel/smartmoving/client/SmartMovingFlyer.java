@@ -1,10 +1,9 @@
 package choco.ratel.smartmoving.client;
 
 import choco.ratel.smartmoving.config.SmartMovingConfig;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.MovementType;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * SM 비행 물리 — handleAlternativeFlying() 이식.
@@ -27,8 +26,8 @@ public class SmartMovingFlyer {
      * @param jumping LivingEntity.jumping 필드 (Space 키 보유 여부)
      * @return true → SM이 처리함, 호출 측에서 ci.cancel() + return
      */
-    public static boolean handleFlying(ClientPlayerEntity player, SmartMovingClientState sm,
-                                       Vec3d movementInput, boolean jumping) {
+    public static boolean handleFlying(LocalPlayer player, SmartMovingClientState sm,
+                                       Vec3 movementInput, boolean jumping) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         // 원본 SmartMovingSelf.handleAlternativeFlying L604:
         //   handleAlternativeFlying = !handledSwimming && !handledLava && capabilities.isFlying && Config.isFlyingEnabled()
@@ -49,14 +48,14 @@ public class SmartMovingFlyer {
         //   원본 SmartMovingSelf L611 = `esp.movementInput.sneak` 직접 검사. player.input.sneaking
         //   으로 변경 = 원본 1:1.
         float moveUpward = 0F;
-        if (player.input.sneaking) {
-            Vec3d vel = player.getVelocity();
-            player.setVelocity(vel.x, vel.y + 0.14999999999999999D, vel.z);
+        if (player.input.keyPresses.shift()) {
+            Vec3 vel = player.getDeltaMovement();
+            player.setDeltaMovement(vel.x, vel.y + 0.14999999999999999D, vel.z);
             moveUpward -= 0.98F;
         }
         if (jumping) {
-            Vec3d vel = player.getVelocity();
-            player.setVelocity(vel.x, vel.y - 0.14999999999999999D, vel.z);
+            Vec3 vel = player.getDeltaMovement();
+            player.setDeltaMovement(vel.x, vel.y - 0.14999999999999999D, vel.z);
             moveUpward += 0.98F;
         }
 
@@ -92,12 +91,12 @@ public class SmartMovingFlyer {
         //   sm_travel_client 가 ci.cancel() 으로 vanilla travel() 차단 → vanilla move() 호출 안 됨
         //   → 기존 setVelocity 만으로는 motion 적용 안 됨 = 비행 시 몸 고정 (BUG-1).
         //   수정: motion 계산 후 player.move() 명시 호출 → vanilla collision/위치 갱신 처리.
-        Vec3d motion = player.getVelocity();
-        player.move(MovementType.SELF, motion);
+        Vec3 motion = player.getDeltaMovement();
+        player.move(MoverType.SELF, motion);
 
         // 감쇠 (HorizontalAirDamping = 0.91F) — 원본 L626-L628
-        Vec3d velAfterMove = player.getVelocity();
-        player.setVelocity(velAfterMove.x * 0.91F, velAfterMove.y * 0.91F, velAfterMove.z * 0.91F);
+        Vec3 velAfterMove = player.getDeltaMovement();
+        player.setDeltaMovement(velAfterMove.x * 0.91F, velAfterMove.y * 0.91F, velAfterMove.z * 0.91F);
 
         return true;
     }
@@ -111,7 +110,7 @@ public class SmartMovingFlyer {
      *   3. 최종 속도 증분 계산 (비표준 정규화: sqrt(sqrt(x²+z²) + y²))
      *   4. player velocity에 합산
      */
-    static void moveFlying(ClientPlayerEntity player,
+    static void moveFlying(LocalPlayer player,
                            float moveUpward, float moveStrafing, float moveForward,
                            float speedFactor, boolean treeDimensional) {
         float diffMotionXStrafing = 0F, diffMotionXForward = 0F;
@@ -123,7 +122,7 @@ public class SmartMovingFlyer {
             if (total < 1.0F) total = 1.0F;  // 정규화 하한 (원본 동일)
             float moveStrafingFactor = moveStrafing / total;
             float moveForwardFactor  = moveForward  / total;
-            float yawRad = (float) Math.toRadians(player.getYaw());
+            float yawRad = (float) Math.toRadians(player.getYRot());
             float sin = (float) Math.sin(yawRad);
             float cos = (float) Math.cos(yawRad);
             diffMotionXStrafing =  moveStrafingFactor * cos;
@@ -134,7 +133,7 @@ public class SmartMovingFlyer {
 
         // 2단계: pitch 기반 수직 보정 (treeDimensional=true 시 pitch → 라디안)
         // RadiantToAngle = 180/π → rotationPitch / RadiantToAngle = toRadians(pitch)
-        float rotation = treeDimensional ? (float) Math.toRadians(player.getPitch()) : 0F;
+        float rotation = treeDimensional ? (float) Math.toRadians(player.getXRot()) : 0F;
         float divingHorizontalFactor = (float) Math.cos(rotation);
         // signum(moveForward): 앞으로 볼 때(forward>0) 위를 보면 올라감, 뒤를 볼 때는 반전
         float divingVerticalFactor   = -(float) Math.sin(rotation) * Math.signum(moveForward);
@@ -153,8 +152,8 @@ public class SmartMovingFlyer {
         );
         if (totalNorm > 0.01F) {
             float factor = speedFactor / totalNorm;
-            Vec3d vel = player.getVelocity();
-            player.setVelocity(
+            Vec3 vel = player.getDeltaMovement();
+            player.setDeltaMovement(
                     vel.x + diffMotionX * factor,
                     vel.y + diffMotionY * factor,
                     vel.z + diffMotionZ * factor

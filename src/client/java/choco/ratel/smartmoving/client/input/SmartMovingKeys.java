@@ -1,8 +1,9 @@
 package choco.ratel.smartmoving.client.input;
 
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -15,36 +16,36 @@ import org.lwjgl.glfw.GLFW;
  */
 public class SmartMovingKeys {
 
-    private static final String CATEGORY_GAMEPLAY     = "key.categories.gameplay";
-    private static final String CATEGORY_SMARTMOVING  = "key.categories.smartmoving";
+    private static final KeyMapping.Category CATEGORY_SMARTMOVING = KeyMapping.Category.register(
+            Identifier.fromNamespaceAndPath("smartmoving", "controls"));
 
-    public static KeyBinding grab;
-    public static KeyBinding configToggle;
-    public static KeyBinding speedIncrease;
-    public static KeyBinding speedDecrease;
+    public static KeyMapping grab;
+    public static KeyMapping configToggle;
+    public static KeyMapping speedIncrease;
+    public static KeyMapping speedDecrease;
 
     public static void register() {
-        grab = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        grab = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.smartmoving.grab",
-            InputUtil.Type.KEYSYM,
+            InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_R,
-            CATEGORY_GAMEPLAY
+            KeyMapping.Category.GAMEPLAY
         ));
-        configToggle = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        configToggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.smartmoving.config_toggle",
-            InputUtil.Type.KEYSYM,
+            InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_F9,
             CATEGORY_SMARTMOVING
         ));
-        speedIncrease = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        speedIncrease = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.smartmoving.speed_increase",
-            InputUtil.Type.KEYSYM,
+            InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_O,
             CATEGORY_SMARTMOVING
         ));
-        speedDecrease = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        speedDecrease = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.smartmoving.speed_decrease",
-            InputUtil.Type.KEYSYM,
+            InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_I,
             CATEGORY_SMARTMOVING
         ));

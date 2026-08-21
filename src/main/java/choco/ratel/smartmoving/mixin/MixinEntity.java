@@ -2,14 +2,14 @@ package choco.ratel.smartmoving.mixin;
 
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import choco.ratel.smartmoving.server.SmartMovingServer;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.MovementType;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -29,13 +29,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class MixinEntity {
 
     /**
-     * 5-7: Entity.velocityDirty (field_6007).
-     * SM이 velocity를 직접 조작할 때 서버 동기화를 위해 true로 설정한다.
-     * 사용처: SM 속도 계산 로직에서 setVelocity() 대신 직접 조작 시 참조.
-     */
-    @Shadow public boolean velocityDirty;
-
-    /**
      * Entity.dimensions — 현재 EntityDimensions (width/height/eyeHeight).
      * sm_offsetBoundingBoxForFlying 의 가드 신호.
      */
@@ -48,9 +41,9 @@ public abstract class MixinEntity {
      *
      * 원본: SmartMovingServer.isSneaking(): forceIsSneaking != null ? forceIsSneaking : vanilla
      */
-    @Inject(method = "isSneaking", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isShiftKeyDown", at = @At("HEAD"), cancellable = true)
     private void sm_isSneaking(CallbackInfoReturnable<Boolean> cir) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
         if (sm.forceIsSneaking != null) {
             cir.setReturnValue(sm.forceIsSneaking);
@@ -74,8 +67,8 @@ public abstract class MixinEntity {
      *   1단계 (isCrawling) + 2단계 (isCrawlClimbing/isCeilingClimbing) 모두 인게임 회귀 없음.
      */
     @Inject(method = "move", at = @At("TAIL"))
-    private void sm_afterMove(MovementType type, Vec3d movement, CallbackInfo ci) {
-        if (!((Object) this instanceof ServerPlayerEntity player)) return;
+    private void sm_afterMove(MoverType type, Vec3 movement, CallbackInfo ci) {
+        if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
         if (sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing) {
             sm.distanceClimbedModified += movement.length() * (sm.isClimbing ? 1.2 : 0.9);
@@ -107,8 +100,8 @@ public abstract class MixinEntity {
      *   reflection 실패 시 true 반환 (= 가드 통과 → 기존 동작 유지).
      */
     @org.spongepowered.asm.mixin.Unique
-    private static boolean sm_isValidSlidingPoseState(PlayerEntity player) {
-        if (player instanceof ServerPlayerEntity sp) {
+    private static boolean sm_isValidSlidingPoseState(Player player) {
+        if (player instanceof ServerPlayer sp) {
             SmartMovingServer sm = SmartMovingServer.get(sp);
             return sm.isSliding || sm.isHeadJumping;
         }
@@ -141,9 +134,9 @@ public abstract class MixinEntity {
         }
     }
 
-    @Inject(method = "calculateBoundingBox", at = @At("RETURN"), cancellable = true)
-    private void sm_offsetBoundingBoxForFlying(CallbackInfoReturnable<Box> cir) {
-        if (!((Object) this instanceof PlayerEntity player)) return;
+    @Inject(method = "makeBoundingBox", at = @At("RETURN"), cancellable = true)
+    private void sm_offsetBoundingBoxForFlying(CallbackInfoReturnable<AABB> cir) {
+        if (!((Object) this instanceof Player player)) return;
         if (!SmartMovingConfig.Config.enabled) return;
         if (player.getAbilities() == null) return;
 
@@ -162,19 +155,19 @@ public abstract class MixinEntity {
         //     - sm_updatePose 식: isHeadJumping || isSliding || isFlying || isLevitating → SLIDING.
         //   → 모든 SLIDING POSE 에서 박스 +1m up. 1.7.10/1.12.2 setHeightOffset 효과 1:1.
         //   부작용: 일반 슬라이딩 시도 박스 +1m up — 1.12.2 동등 동작 (= 부작용 X).
-        EntityPose pose = ((Entity) (Object) this).getPose();
-        if (dim.eyeHeight() <= 1.0F && pose != EntityPose.SLIDING) return;
+        Pose pose = ((Entity) (Object) this).getPose();
+        if (dim.eyeHeight() <= 1.0F && pose != Pose.SLIDING) return;
 
         // 🔴 fix #175 v5 (2026-05-27, v4 후 헤드점프/여우무빙 회귀 fix):
         //   SLIDING POSE 진입 path = 4 SM phase (isHeadJumping || isSliding || isFlying || isLevitating).
         //   v4 = sm.isSliding 만 검사 → 다른 phase 시 차단 → 박스 박힘.
         //   v5 = 4 phase 어느 하나라도 true 시 통과. 모두 false 시만 잔존 → 차단.
-        if (pose == EntityPose.SLIDING) {
+        if (pose == Pose.SLIDING) {
             if (!sm_isValidSlidingPoseState(player)) return;
         }
 
-        Box original = cir.getReturnValue();
-        cir.setReturnValue(original.offset(0.0, 1.0, 0.0));
+        AABB original = cir.getReturnValue();
+        cir.setReturnValue(original.move(0.0, 1.0, 0.0));
         // 🔴 v26.6 — remote 측 timer override 는 client-side mixin 에서 추가 적용 (분리 사유:
         //   main mixin set 은 server 빌드 시 client class 참조 불가).
         //   client-side `MixinEntityClient.sm_iccTimerOffsetBb` 가 같은 method 에 RETURN inject.

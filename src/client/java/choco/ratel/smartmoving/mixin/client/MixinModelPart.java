@@ -1,10 +1,10 @@
 package choco.ratel.smartmoving.mixin.client;
 
 import choco.ratel.smartmoving.client.SmModelPartOverride;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.model.geom.ModelPart;
 import org.joml.Quaternionf;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -29,9 +29,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Environment(EnvType.CLIENT)
 @Mixin(ModelPart.class)
 public abstract class MixinModelPart implements SmModelPartOverride {
-    @Shadow public float pivotX;
-    @Shadow public float pivotY;
-    @Shadow public float pivotZ;
+    @Shadow public float x;
+    @Shadow public float y;
+    @Shadow public float z;
     @Shadow public float xScale;
     @Shadow public float yScale;
     @Shadow public float zScale;
@@ -39,28 +39,16 @@ public abstract class MixinModelPart implements SmModelPartOverride {
     @Unique
     private Quaternionf sm_overrideQuat = null;
 
-    @Inject(method = "rotate", at = @At("HEAD"), cancellable = true)
-    private void sm_rotate_override(MatrixStack matrices, CallbackInfo ci) {
+    @Inject(method = "translateAndRotate", at = @At("HEAD"), cancellable = true)
+    private void sm_rotate_override(PoseStack matrices, CallbackInfo ci) {
         if (sm_overrideQuat != null) {
-            matrices.translate(this.pivotX / 16f, this.pivotY / 16f, this.pivotZ / 16f);
-            matrices.multiply(sm_overrideQuat);
+            matrices.translate(this.x / 16f, this.y / 16f, this.z / 16f);
+            matrices.mulPose(sm_overrideQuat);
             if (this.xScale != 1.0F || this.yScale != 1.0F || this.zScale != 1.0F) {
                 matrices.scale(this.xScale, this.yScale, this.zScale);
             }
             ci.cancel();
         }
-    }
-
-    /**
-     * vanilla PlayerEntityModel.setAngles 의 끝에서 sleeve.copyTransform(arm) 호출.
-     * arm 의 override quat 도 sleeve 에 함께 복사 → outer layer 자세 일치.
-     * (jacket/hat/pants 도 동일 패턴으로 자동 처리.)
-     */
-    @Inject(method = "copyTransform", at = @At("TAIL"))
-    private void sm_copyTransform_quat(ModelPart other, CallbackInfo ci) {
-        SmModelPartOverride src = (SmModelPartOverride)(Object) other;
-        Quaternionf srcQ = src.sm_getOverrideQuat();
-        this.sm_overrideQuat = (srcQ != null) ? new Quaternionf(srcQ) : null;
     }
 
     @Override

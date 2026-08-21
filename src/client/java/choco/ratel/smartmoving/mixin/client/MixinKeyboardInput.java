@@ -4,10 +4,11 @@ import choco.ratel.smartmoving.client.SmartMovingClientState;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.input.Input;
-import net.minecraft.client.input.KeyboardInput;
-import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.ClientInput;
+import net.minecraft.client.player.KeyboardInput;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.player.Input;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -34,27 +35,29 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Environment(EnvType.CLIENT)
 public abstract class MixinKeyboardInput {
 
-    @Inject(method = "tick(ZF)V", at = @At("TAIL"))
-    private void sm_blockSneakInClimb(boolean slowDown, float slowDownFactor, CallbackInfo ci) {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        ClientPlayerEntity player = mc.player;
+    @Inject(method = "tick", at = @At("TAIL"))
+    private void sm_blockSneakInClimb(CallbackInfo ci) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
         if (player == null) return;
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
-        Input self = (Input) (Object) this;
+        ClientInput self = (ClientInput) (Object) this;
         // 🔴 등반 중 sneak 누름 추적 + 등반 끝난 후에도 sneak 키 떼기 전까지 차단.
         //   사용자 의도: 사다리 등반 중 sneak 누르고 있다가 등반 끝나도 vanilla CROUCHING
         //   자세 발동 X. sneak 키 한 번 떼고 다시 누르면 정상 활성화.
         //   원본 isSneaking() override 는 등반 직후 sneak 자세 허용 (1.7.10 자세 시각 미미)
         //   하지만 1.21.1 CROUCHING 은 두드러져서 사용자 인식 → 추가 보정.
-        if (sm.isClimbing && self.sneaking) {
+        if (sm.isClimbing && self.keyPresses.shift()) {
             sm.sneakHeldDuringClimb = true;
         }
-        if (!self.sneaking) {
+        if (!self.keyPresses.shift()) {
             sm.sneakHeldDuringClimb = false;
         }
-        if ((sm.isClimbing || sm.sneakHeldDuringClimb) && self.movementForward > 0F) {
-            self.sneaking = false;
+        if ((sm.isClimbing || sm.sneakHeldDuringClimb) && self.hasForwardImpulse()) {
+            Input input = self.keyPresses;
+            self.keyPresses = new Input(input.forward(), input.backward(), input.left(), input.right(),
+                    input.jump(), false, input.sprint());
         }
     }
 }

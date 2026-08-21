@@ -1,7 +1,7 @@
 package choco.ratel.smartmoving.climbing;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.util.math.Direction;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.state.BlockState;
 
 /** 클라이밍 탐색 결과를 담는 데이터 클래스. 원본 Block(int)+Meta(int) 쌍을 BlockState 단일 객체로 대체. */
 public class ClimbGap {

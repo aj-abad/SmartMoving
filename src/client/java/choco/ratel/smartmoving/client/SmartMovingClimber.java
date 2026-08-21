@@ -6,20 +6,20 @@ import choco.ratel.smartmoving.climbing.HandsClimbing;
 import choco.ratel.smartmoving.climbing.Orientation;
 import choco.ratel.smartmoving.client.input.SmartMovingKeys;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
-import net.minecraft.stat.Stats;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.stats.Stats;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.VineBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import choco.ratel.smartmoving.climbing.CeilingClimbBlocks;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.LadderBlock;
-import net.minecraft.block.VineBlock;
-import net.minecraft.util.math.Box;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.World;
 
 /**
  * 클라이언트 측 클라이밍 물리 로직.
@@ -71,8 +71,8 @@ public final class SmartMovingClimber {
      * 사용처: `wouldWantClimb` 4-OR 의 3번째 분기 (원본 L2471) — 자동 사다리 진입.
      * B-16a (세션 69).
      */
-    public static boolean isFacedToLadder(ClientPlayerEntity player, boolean isSmall) {
-        World world = player.getWorld();
+    public static boolean isFacedToLadder(LocalPlayer player, boolean isSmall) {
+        Level world = player.level();
         HandsClimbing[] h = {HandsClimbing.NONE};
         FeetClimbing[]  f = {FeetClimbing.NONE};
         ClimbGap[] hg = {new ClimbGap()};
@@ -94,16 +94,16 @@ public final class SmartMovingClimber {
      *
      * 사용자 의도 "원본 사다리 기능을 일반 덩굴에도 동일 적용" — ladder 외 VineBlock 도 카운트.
      */
-    public static int getOnLadderOrVineCount(ClientPlayerEntity player, int maxResult,
+    public static int getOnLadderOrVineCount(LocalPlayer player, int maxResult,
                                              boolean faceOnly, boolean isSmall) {
-        World world = player.getWorld();
+        Level world = player.level();
         int px = (int) Math.floor(player.getX());
         int minj = (int) Math.floor(player.getBoundingBox().minY);
         int pz = (int) Math.floor(player.getZ());
 
         if (isSmall) minj--;
 
-        Direction facedDir = faceOnly ? player.getHorizontalFacing() : null;
+        Direction facedDir = faceOnly ? player.getDirection() : null;
 
         int result = 0;
         int maxj = (int) Math.floor(player.getBoundingBox().minY
@@ -116,7 +116,7 @@ public final class SmartMovingClimber {
             BlockState centerState = world.getBlockState(new BlockPos(px, j, pz));
             Direction localLadderFacing = null;
             if (centerState.getBlock() instanceof LadderBlock) {
-                localLadderFacing = centerState.get(LadderBlock.FACING);
+                localLadderFacing = centerState.getValue(LadderBlock.FACING);
                 if (facedDir == null || facedDir == localLadderFacing) {
                     result++;
                 }
@@ -130,24 +130,24 @@ public final class SmartMovingClimber {
             if (result >= maxResult) return result;
 
             // 4방향 인접 LadderBlock (원본 L260-269) — 사다리가 우리 쪽으로 면이 향함.
-            for (Direction dir : Direction.Type.HORIZONTAL) {
+            for (Direction dir : Direction.Plane.HORIZONTAL) {
                 if (result >= maxResult) return result;
                 if (faceOnly && dir != facedDir) continue;
                 if (dir == localLadderFacing) continue;  // 중심 사다리와 같은 방향 제외
 
                 BlockState s = world.getBlockState(new BlockPos(
-                        px + dir.getOffsetX(), j, pz + dir.getOffsetZ()));
+                        px + dir.getStepX(), j, pz + dir.getStepZ()));
                 if (s.getBlock() instanceof LadderBlock) {
-                    if (s.get(LadderBlock.FACING).getOpposite() == dir) {
+                    if (s.getValue(LadderBlock.FACING).getOpposite() == dir) {
                         result++;
                     }
                 } else if (s.getBlock() instanceof VineBlock) {
                     // vine 인접: face property 가 우리 쪽 (dir 반대) 으로 향함.
                     boolean hasFace = switch (dir) {
-                        case NORTH -> s.get(VineBlock.SOUTH);  // 북쪽 인접 vine 의 남쪽 면 = 우리 향함
-                        case SOUTH -> s.get(VineBlock.NORTH);
-                        case EAST  -> s.get(VineBlock.WEST);
-                        case WEST  -> s.get(VineBlock.EAST);
+                        case NORTH -> s.getValue(VineBlock.SOUTH);  // 북쪽 인접 vine 의 남쪽 면 = 우리 향함
+                        case SOUTH -> s.getValue(VineBlock.NORTH);
+                        case EAST  -> s.getValue(VineBlock.WEST);
+                        case WEST  -> s.getValue(VineBlock.EAST);
                         default    -> false;
                     };
                     if (hasFace) result++;
@@ -169,8 +169,8 @@ public final class SmartMovingClimber {
      * 사용처: `wouldWantClimb` 4-OR 의 4번째 분기 (원본 L2472) — 자동 솔리드 덩굴 진입.
      * B-16a (세션 69).
      */
-    public static boolean isFacedToSolidVine(ClientPlayerEntity player, boolean isSmall) {
-        World world = player.getWorld();
+    public static boolean isFacedToSolidVine(LocalPlayer player, boolean isSmall) {
+        Level world = player.level();
         HandsClimbing[] h = {HandsClimbing.NONE};
         FeetClimbing[]  f = {FeetClimbing.NONE};
         ClimbGap[] hg = {new ClimbGap()};
@@ -204,7 +204,7 @@ public final class SmartMovingClimber {
      * faceOnly=true이면 player 정면 방향만 탐색.
      */
     public static void getOnLadderOrVine(
-            ClientPlayerEntity player, World world,
+            LocalPlayer player, Level world,
             boolean isSmall, boolean faceOnly,
             HandsClimbing[] out_hands, FeetClimbing[] out_feet,
             ClimbGap[] out_handsGap, ClimbGap[] out_feetGap,
@@ -225,7 +225,7 @@ public final class SmartMovingClimber {
         int minY = isSmall ? py - 1 : py;
         int maxY = py + 1; // 손 위치
 
-        Direction playerFacing = player.getHorizontalFacing();
+        Direction playerFacing = player.getDirection();
 
         // 🔴 사다리/덩굴 자동 진입 BUG: 사용자 위치 자체 (px, by, pz) 검사 누락.
         //   원본 SmartMovingBase L260-286 흐름:
@@ -244,7 +244,7 @@ public final class SmartMovingClimber {
 
             // 사용자 위치 자체 사다리
             if (centerState.getBlock() instanceof LadderBlock) {
-                Direction ladderFacing = centerState.get(LadderBlock.FACING);
+                Direction ladderFacing = centerState.getValue(LadderBlock.FACING);
                 // 🔴 BUG 정정: vanilla LadderBlock.FACING = 사다리 정면 (사용자 측 향) 방향.
                 //   사용자 facing=NORTH (사다리 보면서) → 사다리 정면=SOUTH → 사용자 측 향.
                 //   매칭: ladderFacing.getOpposite() == playerFacing (= 사다리 정면 반대 = 사용자 정면).
@@ -266,17 +266,17 @@ public final class SmartMovingClimber {
                 boolean hasAnyFace;
                 if (faceOnly) {
                     hasAnyFace = switch (playerFacing) {
-                        case NORTH -> centerState.get(VineBlock.NORTH);
-                        case SOUTH -> centerState.get(VineBlock.SOUTH);
-                        case EAST  -> centerState.get(VineBlock.EAST);
-                        case WEST  -> centerState.get(VineBlock.WEST);
+                        case NORTH -> centerState.getValue(VineBlock.NORTH);
+                        case SOUTH -> centerState.getValue(VineBlock.SOUTH);
+                        case EAST  -> centerState.getValue(VineBlock.EAST);
+                        case WEST  -> centerState.getValue(VineBlock.WEST);
                         default    -> false;
                     };
                 } else {
-                    hasAnyFace = centerState.get(VineBlock.NORTH)
-                              || centerState.get(VineBlock.SOUTH)
-                              || centerState.get(VineBlock.EAST)
-                              || centerState.get(VineBlock.WEST);
+                    hasAnyFace = centerState.getValue(VineBlock.NORTH)
+                              || centerState.getValue(VineBlock.SOUTH)
+                              || centerState.getValue(VineBlock.EAST)
+                              || centerState.getValue(VineBlock.WEST);
                 }
                 if (hasAnyFace) {
                     // 원본 vine 자기 위치 검사: solid 뒤 블록 검증 없음 (L289-292 fasedOnlyTo == null
@@ -330,7 +330,7 @@ public final class SmartMovingClimber {
      *   isClimbing 안 set → travel inject 가 vanilla 진행 → 사다리 댐핑 X → 떨어짐 →
      *   다음 tick 다시 발동 → on/off 진동 = 끊김 (사용자 보고 BUG-1).
      */
-    public static boolean setShouldClimbSpeed(ClientPlayerEntity player, SmartMovingClientState sm,
+    public static boolean setShouldClimbSpeed(LocalPlayer player, SmartMovingClientState sm,
                                                double value, boolean isUp, double combinedFactor) {
         // 원본 L1502: setShouldClimbSpeed(value) → setShouldClimbSpeed(value, UpGrab, DownStep).
         // 우리는 hands/feet type 별도 처리 안 함 (R-01 패킷 인코딩만 영향) — setOnly 직접 호출.
@@ -341,7 +341,7 @@ public final class SmartMovingClimber {
      * 원본: SmartMovingSelf.setOnlyShouldClimbSpeed L1513-1551.
      *   `isClimbing = true` 진입 시 무조건. relevant 일 때만 motionY 적용.
      */
-    public static boolean setOnlyShouldClimbSpeed(ClientPlayerEntity player, SmartMovingClientState sm,
+    public static boolean setOnlyShouldClimbSpeed(LocalPlayer player, SmartMovingClientState sm,
                                                    double value, boolean isUp, double combinedFactor) {
         // 원본 L1515: isClimbing=true 무조건 (climbing 발동 의도가 있는 어떤 호출이든).
         sm.isClimbing = true;
@@ -352,7 +352,7 @@ public final class SmartMovingClimber {
             isUp = true;
         }
 
-        double motionY = player.getVelocity().y;
+        double motionY = player.getDeltaMovement().y;
 
         // 원본 L1520-1543: value != HoldMotion 시 factor 보간. HoldMotion 인 경우는 isClimbingStill.
         if (value != HOLD_MOTION) {
@@ -389,7 +389,7 @@ public final class SmartMovingClimber {
         // 원본 L1547-1550: relevant = value<0 || value>motionY. relevant 시만 motionY 적용.
         boolean relevant = value < 0 || value > motionY;
         if (relevant) {
-            player.setVelocity(player.getVelocity().x, value, player.getVelocity().z);
+            player.setDeltaMovement(player.getDeltaMovement().x, value, player.getDeltaMovement().z);
         }
         sm.isClimbJumping = !relevant && !sm.isClimbHolding;
         return relevant;
@@ -406,7 +406,7 @@ public final class SmartMovingClimber {
      * 5. setShouldClimbSpeed로 Y 속도 결정
      * 6. fallDistance = 0 (낙하 데미지 방지)
      */
-    public static void handleClimbing(ClientPlayerEntity player, SmartMovingClientState sm) {
+    public static void handleClimbing(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
         // B-14 (세션 57): 원본 L816 `resetClimbing()` 매 틱 리셋 이식.
@@ -432,14 +432,14 @@ public final class SmartMovingClimber {
             //   호출 (relevant 가드 + isClimbing=true) 은 부수효과 발생 → 직접 set 으로 변경.
             if (player.horizontalCollision) {
                 double combinedFactor = SmartMovingMover.getCombinedSpeedFactor(player, cfg);
-                Vec3d v = player.getVelocity();
-                player.setVelocity(v.x, 0.2D * combinedFactor, v.z);
+                Vec3 v = player.getDeltaMovement();
+                player.setDeltaMovement(v.x, 0.2D * combinedFactor, v.z);
                 player.fallDistance = 0;
             }
             return;
         }
 
-        World world = player.getWorld();
+        Level world = player.level();
         boolean isSmall = sm.isSmall || sm.isCrawling;
 
         // 8방향 탐색 결과 집계
@@ -475,7 +475,7 @@ public final class SmartMovingClimber {
                     BlockState state = world.getBlockState(new BlockPos(px + d[0], by, pz + d[1]));
                     boolean isHandsLevel = (by == py + 1);
                     if (state.getBlock() instanceof LadderBlock) {
-                        Direction facing = state.get(LadderBlock.FACING);
+                        Direction facing = state.getValue(LadderBlock.FACING);
                         boolean relevant = (d[0] > 0 && facing == Direction.WEST)
                                         || (d[0] < 0 && facing == Direction.EAST)
                                         || (d[1] > 0 && facing == Direction.NORTH)
@@ -488,16 +488,16 @@ public final class SmartMovingClimber {
                     } else if (state.getBlock() instanceof VineBlock) {
                         // 원본 Orientation.hasVineOrientation(): 탐색 방향 == vine face 방향
                         // PZ(동쪽) → East, NZ(서쪽) → West, ZP(남쪽) → South, ZN(북쪽) → North
-                        boolean hasFace = (d[0] > 0 && Boolean.TRUE.equals(state.get(VineBlock.EAST)))
-                                       || (d[0] < 0 && Boolean.TRUE.equals(state.get(VineBlock.WEST)))
-                                       || (d[1] > 0 && Boolean.TRUE.equals(state.get(VineBlock.SOUTH)))
-                                       || (d[1] < 0 && Boolean.TRUE.equals(state.get(VineBlock.NORTH)));
+                        boolean hasFace = (d[0] > 0 && Boolean.TRUE.equals(state.getValue(VineBlock.EAST)))
+                                       || (d[0] < 0 && Boolean.TRUE.equals(state.getValue(VineBlock.WEST)))
+                                       || (d[1] > 0 && Boolean.TRUE.equals(state.getValue(VineBlock.SOUTH)))
+                                       || (d[1] < 0 && Boolean.TRUE.equals(state.getValue(VineBlock.NORTH)));
                         // 🔴 사다리/덩굴 1-1: 4방향 탐색과 동일하게 solid 뒤 블록 검증 추가
                         //   (원본 SmartMovingBase L284: isRemoteSolid 체크). vine 이 매달릴 solid 벽 필수.
                         if (hasFace) {
                             BlockPos solidPos = new BlockPos(px + d[0] * 2, by, pz + d[1] * 2);
                             BlockState solidState = world.getBlockState(solidPos);
-                            if (solidState.isSolidBlock(world, solidPos)) {
+                            if (solidState.isRedstoneConductor(world, solidPos)) {
                                 ClimbGap gap = new ClimbGap(); gap.state = state;
                                 if (isHandsLevel) {
                                     handsClimbing = handsClimbing.max(HandsClimbing.UP, handsGap, gap);
@@ -530,7 +530,7 @@ public final class SmartMovingClimber {
             int iz = (int) Math.floor(kd);
 
             // 원본 L922-L925: rotation 정규화 (0 ~ 360F)
-            float rotation = player.getYaw() % 360F;
+            float rotation = player.getYRot() % 360F;
             if (rotation < 0) rotation += 360F;
 
             // 원본 L918: isSmallClimbing = isCrawling || isSliding
@@ -681,7 +681,7 @@ public final class SmartMovingClimber {
                     BlockPos pos1 = new BlockPos(remoteI, jd2 + 1, remoteK);
                     BlockState s0 = world.getBlockState(pos0);
                     BlockState s1 = world.getBlockState(pos1);
-                    if (!s0.isSolidBlock(world, pos0) && !s1.isSolidBlock(world, pos1)) {
+                    if (!s0.isRedstoneConductor(world, pos0) && !s1.isRedstoneConductor(world, pos1)) {
                         handsClimbing = HandsClimbing.NONE;
                     }
                 }
@@ -689,12 +689,12 @@ public final class SmartMovingClimber {
 
             // 원본 L972-L976: !grabPressed && handsClimbing==Up && feetClimbing==None →
             //   주변 공기 + !horizontalCollision 시 handsClimbing 해제 (스티키 클라이밍 방지).
-            if (!SmartMovingKeys.grab.isPressed()
+            if (!SmartMovingKeys.grab.isDown()
                     && handsClimbing == HandsClimbing.UP
                     && feetClimbing == FeetClimbing.NONE) {
                 if (!player.horizontalCollision
-                        && world.isAir(new BlockPos(ix2, jd2, iz2))
-                        && world.isAir(new BlockPos(ix2, jd2 + 1, iz2))) {
+                        && world.isEmptyBlock(new BlockPos(ix2, jd2, iz2))
+                        && world.isEmptyBlock(new BlockPos(ix2, jd2 + 1, iz2))) {
                     handsClimbing = HandsClimbing.NONE;
                 }
             }
@@ -731,8 +731,8 @@ public final class SmartMovingClimber {
                 else if (hands)         motionY = SLOW_UP_MOTION;
                 else                    motionY = 0.0D;
                 motionY *= combinedFactor;
-                Vec3d v = player.getVelocity();
-                player.setVelocity(v.x, motionY, v.z);
+                Vec3 v = player.getDeltaMovement();
+                player.setDeltaMovement(v.x, motionY, v.z);
                 player.fallDistance = 0;
             }
             return;
@@ -782,8 +782,8 @@ public final class SmartMovingClimber {
                     motionY = 0.0D;
                 }
                 motionY *= combinedFactor;
-                Vec3d v = player.getVelocity();
-                player.setVelocity(v.x, motionY, v.z);
+                Vec3 v = player.getDeltaMovement();
+                player.setDeltaMovement(v.x, motionY, v.z);
                 player.fallDistance = 0;
             }
             return;
@@ -854,7 +854,7 @@ public final class SmartMovingClimber {
             // 원본 L991-995: feetClimbing.FastUp + 특수 조건 → fast climb.
             //   원본 조건: !(handsClimbing == None && onGround && feetClimbGap.Block != bed)
             //   1.21.1 매핑: bed 검사 생략 (근사).
-            boolean handsNoneOnGround = (handsClimbing == HandsClimbing.NONE) && player.isOnGround();
+            boolean handsNoneOnGround = (handsClimbing == HandsClimbing.NONE) && player.onGround();
             if (feetClimbing == FeetClimbing.FAST_UP && !handsNoneOnGround) {
                 value = FAST_UP_MOTION; isUp = true;
                 handsAnim = 0; feetAnim = 1;  // 원본 L994: NoGrab + DownStep
@@ -981,7 +981,7 @@ public final class SmartMovingClimber {
             //   않고 그 자리 hold (사용자 보고).
             //   해결: SINK 가드에 `grabPressed` 추가 — grab 키 누른 케이스만 hold (iron_bars
             //   의도 유지) + 사다리 끝 grab 안 누름 케이스는 SINK_DOWN_MOTION 정상 적용 (천천히 내려옴).
-            boolean grabPressed_holdGuard = SmartMovingKeys.grab.isPressed();
+            boolean grabPressed_holdGuard = SmartMovingKeys.grab.isDown();
             if (sm.isClimbHolding || (handsClimbing == HandsClimbing.SINK && grabPressed_holdGuard)) {
                 value = HOLD_MOTION; isUp = true;
                 matched = true;
@@ -997,10 +997,10 @@ public final class SmartMovingClimber {
             //   사다리 끝 우발적 fence/iron_bars 매핑되어도 자동 hold 차단.
             boolean grabbedFenceOrBars = grabPressed_holdGuard && (
                     (sm.handsEdgeBlock != null
-                            && (sm.handsEdgeBlock.getBlock() == net.minecraft.block.Blocks.IRON_BARS
+                            && (sm.handsEdgeBlock.getBlock() == net.minecraft.world.level.block.Blocks.IRON_BARS
                                 || Orientation.isFence(sm.handsEdgeBlock)))
                  || (sm.feetEdgeBlock != null
-                            && (sm.feetEdgeBlock.getBlock() == net.minecraft.block.Blocks.IRON_BARS
+                            && (sm.feetEdgeBlock.getBlock() == net.minecraft.world.level.block.Blocks.IRON_BARS
                                 || Orientation.isFence(sm.feetEdgeBlock))));
             if (grabbedFenceOrBars) {
                 value = HOLD_MOTION; isUp = true;
@@ -1062,13 +1062,13 @@ public final class SmartMovingClimber {
      * 원본: SmartMovingSelf isHandsLadderSubstitute / isFeetLadderSubstitute 판정.
      * includeCenter=true → 현재 위치(ZZ)도 포함 (feetSubstitute 용).
      */
-    private static boolean hasSubstituteLadderOrVine(World world, int px, int py, int pz, boolean includeCenter) {
+    private static boolean hasSubstituteLadderOrVine(Level world, int px, int py, int pz, boolean includeCenter) {
         if (includeCenter) {
             BlockState s = world.getBlockState(new BlockPos(px, py, pz));
             if (s.getBlock() instanceof LadderBlock || s.getBlock() instanceof VineBlock) return true;
         }
-        for (Direction dir : Direction.Type.HORIZONTAL) {
-            BlockState s = world.getBlockState(new BlockPos(px + dir.getOffsetX(), py, pz + dir.getOffsetZ()));
+        for (Direction dir : Direction.Plane.HORIZONTAL) {
+            BlockState s = world.getBlockState(new BlockPos(px + dir.getStepX(), py, pz + dir.getStepZ()));
             if (s.getBlock() instanceof LadderBlock || s.getBlock() instanceof VineBlock) return true;
         }
         return false;
@@ -1082,14 +1082,14 @@ public final class SmartMovingClimber {
      * cfg.climbJumpBackHead=false(기본): grab 미입력 → HEAD 점프, grab 입력 → 일반 뒤로 점프.
      * continueWallJumping = !isHeadJumping — 뒤로 점프 후 연속 벽 점프 허용.
      */
-    private static void handleClimbBackJump(ClientPlayerEntity player, SmartMovingClientState sm) {
+    private static void handleClimbBackJump(LocalPlayer player, SmartMovingClientState sm) {
         // Phase H BUG-4 1:1 정정: 원본 L1060 `jumpButton.StartPressed` (점프 키 rising-edge).
         //   기존 sm.jumpPending 은 sm_jump 인터셉트 시 set 되는 매 점프 시도 플래그 — 의미 다름.
         //   1.21.1 측 sm.jumpKeyStartPressed (L1176 set: curJumpPressed && !prevJumpKeyPressed) 가 정확 매핑.
         if (!sm.isClimbHolding || !sm.jumpKeyStartPressed) return;
 
         SmartMovingConfig cfg = SmartMovingConfig.Config;
-        boolean grabPressed = SmartMovingKeys.grab.isPressed();
+        boolean grabPressed = SmartMovingKeys.grab.isDown();
 
         // Phase H BUG-2 1:1 정정: 원본 L1062 `handsOnly = feetClimbing != FeetClimbing.None`.
         //   ★ 변수명 함정 (원본 그대로 보존): handsOnly==true 면 feet 도 등반 중 → 일반 ClimbBackHead/Up.
@@ -1109,7 +1109,7 @@ public final class SmartMovingClimber {
                              : SmartMovingJumper.CLIMB_BACK_HANDS_ONLY;
         }
 
-        float jumpAngle = player.getYaw() + 180F;
+        float jumpAngle = player.getYRot() + 180F;
 
         // Phase H BUG-3 1:1 정정: 원본 L1069 `if (tryJump(type, null, null, jumpAngle))` + 후처리.
         //   tryJump 가 D-15 head 분기 시 isHeadJumping/setPoseSmall/heightOffset 처리 + D-11 angle
@@ -1117,8 +1117,8 @@ public final class SmartMovingClimber {
         if (SmartMovingJumper.tryJump(player, sm, type, null, null, jumpAngle)) {
             sm.continueWallJumping = !sm.isHeadJumping;     // 원본 L1071
             sm.isClimbing = false;                            // 원본 L1072
-            player.setYaw(jumpAngle);                         // 원본 L1073
-            player.bodyYaw = jumpAngle;                       // 1.21.1 추가 — 회전 동기화 (Phase G 패턴)
+            player.setYRot(jumpAngle);                         // 원본 L1073
+            player.yBodyRot = jumpAngle;                       // 1.21.1 추가 — 회전 동기화 (Phase G 패턴)
             // 원본 L1074 onStartClimbBackJump():
             //   - prev rotateAngleY += isHeadJumping ? Half : Quarter  ← 보류 (애니메이션 사이클 / 사용자 원본 확인 대기)
             //   - isClimbBackJumping = true  (SmartMoving.java L147)
@@ -1131,14 +1131,14 @@ public final class SmartMovingClimber {
      * 원본: SmartMovingSelf.handleCrash(startDistance, factor)
      * fallDistance > startDistance 시 초과분 * factor 데미지 적용.
      */
-    private static void handleCrash(ClientPlayerEntity player, float startDistance, float factor) {
+    private static void handleCrash(LocalPlayer player, float startDistance, float factor) {
         // Phase E BUG-2 1:1 정정 (handleCrash 두 번째 복사본 — free climb 용)
         if (player.fallDistance >= 2.0F) {
-            player.increaseStat(Stats.FALL_ONE_CM, (int) Math.round(player.fallDistance * 100D));
+            player.awardStat(Stats.FALL_ONE_CM, (int) Math.round(player.fallDistance * 100D));
         }
         if (player.fallDistance >= startDistance) {
             float damage = (float) Math.ceil((player.fallDistance - startDistance) * factor);
-            player.damage(player.getDamageSources().fall(), damage);
+            player.hurt(player.damageSources().fall(), damage);
         }
         // Phase E BUG-1 1:1 정정: 원본 L2242 fallDistance reset
         player.fallDistance = 0F;
@@ -1159,7 +1159,7 @@ public final class SmartMovingClimber {
      * fallDistance = 0
      *
      */
-    public static void handleCeilingClimbing(ClientPlayerEntity player, SmartMovingClientState sm) {
+    public static void handleCeilingClimbing(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
         if (!cfg.ceilingClimbing) return;
@@ -1174,8 +1174,8 @@ public final class SmartMovingClimber {
 
         // C-34: wantClimbCeiling 조건 — grab 키 + !isCrawling + !isSneaking
         // 원본: grabButton.Pressed && !wantCrawlNotClimb && !isSneaking() && !disabled
-        boolean wantClimbCeiling = SmartMovingKeys.grab.isPressed()
-                && !sm.isCrawling && !player.isSneaking();
+        boolean wantClimbCeiling = SmartMovingKeys.grab.isDown()
+                && !sm.isCrawling && !player.isShiftKeyDown();
         if (!wantClimbCeiling) return;
 
         // 조건: !isClimbing && (!isCrawling || conflict) && !isCrawlClimbing
@@ -1187,8 +1187,8 @@ public final class SmartMovingClimber {
         //         if (topBlock != null || bottomBlock != null) { ... }
         //   기본 dictionary (SmartMovingConfig L142): iron bars + closed trapdoor.
         //   기존 CeilingClimbBlocks.supports(state) 헬퍼 호출 — 이미 dictionary 이식됨.
-        World world = player.getWorld();
-        Box bb = player.getBoundingBox();
+        Level world = player.level();
+        AABB bb = player.getBoundingBox();
         int px = (int) Math.floor(player.getX());
         int pz = (int) Math.floor(player.getZ());
         int topY = (int) Math.floor(bb.maxY);
@@ -1256,7 +1256,7 @@ public final class SmartMovingClimber {
      * 원본: sp.boundingBox.maxY 기준, 위쪽으로 첫 솔리드 블록 Y - bb.maxY.
      * jgap이 클수록 방이 높음 → 천장 클라이밍 속도 증가.
      */
-    private static double computeJgap(ClientPlayerEntity player) {
+    private static double computeJgap(LocalPlayer player) {
         // 🔴 원본 SmartMovingSelf L1147-1149 정밀 1:1:
         //   double jgap = 1D - jd + j;
         //   if (bottomCeilingClimbing) jgap++;
@@ -1271,8 +1271,8 @@ public final class SmartMovingClimber {
         //     - 평형점 = maxY = fence.y - 0.116 (사용자 머리가 fence 의 0.116 아래)
         //
         //   이전 식 (collision shape 거리 계산) 은 원본과 결과 다름 → 평형점 안 잡힘.
-        World world = player.getWorld();
-        Box bb = player.getBoundingBox();
+        Level world = player.level();
+        AABB bb = player.getBoundingBox();
         int px = (int) Math.floor(player.getX());
         int pz = (int) Math.floor(player.getZ());
 
@@ -1301,19 +1301,19 @@ public final class SmartMovingClimber {
      * 천장 매달림 가드 3 에서 호출: getMinPlayerSolidBetween(jd, jd + 0.6, 0.2).
      * 머리 위 0.6 범위, X/Z 0.2 확장으로 머리 가까운 솔리드 블록 검출.
      */
-    public static double getMinPlayerSolidBetween(ClientPlayerEntity player,
+    public static double getMinPlayerSolidBetween(LocalPlayer player,
                                                     double yMin, double yMax,
                                                     double horizontalTolerance) {
-        Box bb = player.getBoundingBox();
-        Box checkBox = new Box(
+        AABB bb = player.getBoundingBox();
+        AABB checkBox = new AABB(
                 bb.minX - horizontalTolerance, yMin, bb.minZ - horizontalTolerance,
                 bb.maxX + horizontalTolerance, yMax, bb.maxZ + horizontalTolerance
         );
         double result = yMax;
-        Iterable<VoxelShape> collisions = player.getWorld().getBlockCollisions(player, checkBox);
+        Iterable<VoxelShape> collisions = player.level().getBlockCollisions(player, checkBox);
         for (VoxelShape shape : collisions) {
             if (shape.isEmpty()) continue;
-            Box shapeBox = shape.getBoundingBox();
+            AABB shapeBox = shape.bounds();
             // shape 가 yMin~yMax 와 Y 범위 겹침 (X/Z 는 getBlockCollisions 가 처리)
             if (shapeBox.maxY > yMin && shapeBox.minY < yMax) {
                 result = Math.min(result, shapeBox.minY);

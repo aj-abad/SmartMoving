@@ -1,223 +1,120 @@
 package choco.ratel.smartmoving.mixin.client;
 
+import choco.ratel.smartmoving.client.SmartMovingAvatarRenderState;
 import choco.ratel.smartmoving.client.SmartMovingClientState;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.entity.LivingEntityRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * renderName() sneakNameTag 대응.
- *
- * 원본: SmartMovingRender.renderName() —
- *   스니킹 중 sneakNameTag=true이면 temporaryIsSneaking=false 취급.
- *   → isSneaky()=false → hasLabel에서 64 거리 기준 적용 (vanilla 32 대신).
- *
- * LivingEntityRenderer.hasLabel(T) 내부의 entity.isSneaky() 호출을 redirect해서
- * 타인 플레이어가 스니킹 중이어도 sneakNameTag=true이면 isSneaky()=false 반환.
+ * Bridges player data into Minecraft 26.2's detached render states and replaces
+ * the vanilla walk-animation inputs with Smart Moving's horizontal statistics.
  */
 @Mixin(LivingEntityRenderer.class)
 @Environment(EnvType.CLIENT)
 public abstract class MixinLivingEntityRenderer {
 
-    @Redirect(method = "hasLabel(Lnet/minecraft/entity/LivingEntity;)Z",
-              at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;isSneaky()Z"))
-    private boolean sm_isSneakyForLabel(LivingEntity entity) {
-        if (!(entity instanceof AbstractClientPlayerEntity) || entity instanceof ClientPlayerEntity)
-            return entity.isSneaky();
+    @Redirect(
+            method = "shouldShowName(Lnet/minecraft/world/entity/LivingEntity;D)Z",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/entity/LivingEntity;isDiscrete()Z"
+            )
+    )
+    private boolean sm_isDiscreteForLabel(LivingEntity entity) {
+        if (!(entity instanceof AbstractClientPlayer) || entity instanceof LocalPlayer) {
+            return entity.isDiscrete();
+        }
         SmartMovingConfig cfg = SmartMovingConfig.Config;
-        // 🔴 (2026-05-05) self → Config.enabled / remote → 항상 true.
-        if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(entity)) return entity.isSneaky();
-        if (!cfg.sneakNameTag) return entity.isSneaky();
-        // sneakNameTag=true: 스니킹 중이어도 isSneaky()=false → 64 거리 기준 적용
+        if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(entity)
+                || !cfg.sneakNameTag) {
+            return entity.isDiscrete();
+        }
         return false;
     }
 
-    /**
-     * 🔴 (2026-04-27) 낙하/기본 상태 head 가 vanilla 동작 유지하도록 netHeadYaw 보정.
-     *
-     * 우리 매핑: setupTransforms force=0 + sm_setupTransforms TAIL 의 R_y(-yawLerped) 추가.
-     * vertex 분석: head world yaw = yawLerped + netHeadYaw_deg.
-     * vanilla head world yaw = headYaw_deg (cameraYaw 즉시 추적).
-     *
-     * 같으려면 netHeadYaw_force = headYaw - yawLerped = (netHeadYaw + bodyYaw_natural) - yawLerped.
-     *   → netHeadYaw_force = vanilla_netHeadYaw + (bodyYaw_natural - yawLerped).
-     *
-     * 비행/SM force 분기는 smStandardFadeActive=false → 그대로 통과.
-     *
-     * 🔴 (2026-04-27) 낙하 sub-mode 분기 추가 (사용자 요청 "낙하는 비행처럼"):
-     *   smFallingFadeMode=true 시 보정 skip → vanilla netHeadYaw 그대로 → head 가 fade matrix 영향
-     *   받아 body 와 같이 lag (비행 패턴). sm_animateFalling 의 head.yaw=0 force 와 협동.
-     */
-    @ModifyArg(
-        method = "render",
-        at = @At(value = "INVOKE",
-                 target = "Lnet/minecraft/client/render/entity/model/EntityModel;setAngles(Lnet/minecraft/entity/Entity;FFFFF)V"),
-        index = 4
+    @Inject(
+            method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V",
+            at = @At("HEAD")
     )
-    private float sm_modifyNetHeadYaw(float netHeadYaw) {
-        // 🔴 (Phase 2 fix-3-1) sm 인스턴스 lookup — sm_currentRenderPlayer (= 현재 render 중 player).
-        if (sm_currentRenderPlayer == null) return netHeadYaw;
-        SmartMovingClientState sm = SmartMovingClientState.get(sm_currentRenderPlayer.getUuid());
-        // 🔴 (2026-04-27) head 가 vanilla cameraYaw 추적 유지하도록 보정.
-        float result;
-        if (sm.smCrawlMode) result = netHeadYaw;
-        else if (!sm.smStandardFadeActive) result = netHeadYaw;
-        else if (sm.smFallingFadeMode) result = netHeadYaw;
-        else result = netHeadYaw + sm.smCachedBodyYawNaturalDeg - sm.smCachedBodyYawLaggedDeg;
-        return result;
-    }
+    private void sm_prepareRenderState(
+            LivingEntity entity,
+            LivingEntityRenderState renderState,
+            float tickDelta,
+            CallbackInfo ci
+    ) {
+        if (!(entity instanceof AbstractClientPlayer player)
+                || !(renderState instanceof SmartMovingAvatarRenderState smartState)) {
+            return;
+        }
 
-    /**
-     * 🔴 (2026-04-28) 원본 SmartRenderModel.animateArmSwinging (L269-275) 1:1 매핑.
-     *   vanilla 1.21.1 limbAnimator (EMA + min(f*4,1) multiplier) 대신 SM stat 사용.
-     *
-     *   원본 식 (vanilla 동일):
-     *     rightArm.pitch = cos(swingPos * 0.6662 + π) * 2.0 * speed * 0.5;
-     *     leftLeg.pitch  = cos(swingPos * 0.6662 + π) * 1.4 * speed;
-     *
-     *   원본 SM 입력: totalHorizontalDistance (= EMA 누적 거리), currentHorizontalSpeed (= EMA 속도).
-     *   vanilla 1.21.1 입력: limbAnimator.pos (= EMA + *4 multiplier), limbAnimator.speed.
-     *
-     *   ModifyArg 로 인자만 변경 → vanilla setAngles 식 그대로 + sneak/idle/heldItem 등 다른
-     *   효과 다 보존.
-     *
-     *   ClientPlayerEntity (자기 자신) 만 적용. 다른 entity (mob, 다른 player) 는 vanilla.
-     */
-    /**
-     * 🔴 (2026-04-28) entity 가 모든 player (AbstractClientPlayerEntity = 자기 + 다른 player)
-     *   일 때 ModifyArg 발동. mob 등 다른 entity 는 vanilla 그대로.
-     *
-     *   자기 player: SmartMovingClientState.get(ClientPlayerEntity).
-     *   다른 player: SmartMovingClientState.get(uuid) — server 에서 sync 된 stat.
-     */
-    @Unique private AbstractClientPlayerEntity sm_currentRenderPlayer;
+        smartState.sm_setPlayer(player);
+        smartState.sm_setTickDelta(tickDelta);
+        SmartMovingClientState.globalCachedTickDelta = tickDelta;
 
-    @Inject(method = "render", at = @At("HEAD"))
-    private void sm_captureRenderEntity(LivingEntity entity, float yaw, float tickDelta,
-                                         MatrixStack matrices, VertexConsumerProvider vertexConsumers,
-                                         int light, CallbackInfo ci) {
-        sm_currentRenderPlayer = entity instanceof AbstractClientPlayerEntity p ? p : null;
-        // 🔴 (Phase 2 fix-3-1) ModifyArg 등 entity 인자 없는 mixin point 가 lookup 위해 사용.
-        SmartMovingClientState.currentRenderTarget = sm_currentRenderPlayer;
-
-        // 🔴 사용자 보고 fix (2026-05-04 — "1칸 공간 재진입 시 잠깐 SWIMMING 모델 보임"):
-        //   원인: server 가 pose=SWIMMING 동기화 → client 첫 frame render 시점
-        //   SmartMovingClientState 새로 생성 (= isCrawling=false). client tick 의 init 분기
-        //   (= tickEssential 안) 실행 전 render → vanilla SWIMMING 모델 보임.
-        //   fix: render HEAD 에 SmartMovingClientState init 검사 (= tickEssential init 분기 1:1)
-        //        강제 → 첫 frame 부터 isCrawling=true → SM 매핑 적용.
-        //   ClientPlayerEntity (자기 자신) 만 적용. 다른 player 는 server sync 만 사용.
-        if (SmartMovingConfig.Config.enabled
-                && entity instanceof net.minecraft.client.network.ClientPlayerEntity localPlayer) {
+        // Initialize crawl state before vanilla snapshots the pose for the first frame.
+        if (SmartMovingConfig.Config.enabled && player instanceof LocalPlayer localPlayer) {
             SmartMovingClientState sm = SmartMovingClientState.get(localPlayer);
-
-            // 원본 `remote` = multi player. integrated server (single player) 면 무관.
-            boolean isRemoteServer = net.minecraft.client.MinecraftClient.getInstance().getServer() == null;
+            boolean remoteServer = Minecraft.getInstance().getSingleplayerServer() == null;
             if (!sm.initialized
-                    && !(isRemoteServer && sm.multiPlayerInitialized != 0)
-                    && !localPlayer.hasVehicle()) {
-                net.minecraft.util.math.Box bb = localPlayer.getBoundingBox();
-                double standH = localPlayer.getDimensions(net.minecraft.entity.EntityPose.STANDING).height();
-                double solidTop = SmartMovingClientState.getMaxPlayerSolidBetween(localPlayer, bb.minY, bb.minY + standH, 0);
-                if (solidTop > bb.minY) {
+                    && !(remoteServer && sm.multiPlayerInitialized != 0)
+                    && !localPlayer.isPassenger()) {
+                var box = localPlayer.getBoundingBox();
+                double standingHeight = localPlayer.getDimensions(net.minecraft.world.entity.Pose.STANDING).height();
+                double solidTop = SmartMovingClientState.getMaxPlayerSolidBetween(
+                        localPlayer, box.minY, box.minY + standingHeight, 0
+                );
+                if (solidTop > box.minY) {
                     sm.initializeCrawling = true;
                     sm.toCrawling();
                     sm.heightOffset = -1F;
-                    localPlayer.calculateDimensions();
-                    localPlayer.setPose(net.minecraft.entity.EntityPose.SWIMMING);
+                    localPlayer.refreshDimensions();
+                    localPlayer.setPose(net.minecraft.world.entity.Pose.SWIMMING);
                 }
                 sm.initialized = true;
             }
         }
     }
 
-    /**
-     * 🔴 (Phase 2 fix-3-1) render TAIL — currentRenderTarget cursor clear.
-     *   render 가 nested call 되는 경우는 거의 없으나, 안전하게 clear (= 다음 frame init 안전).
-     */
-    @Inject(method = "render", at = @At("TAIL"))
-    private void sm_clearRenderEntity(LivingEntity entity, float yaw, float tickDelta,
-                                       MatrixStack matrices, VertexConsumerProvider vertexConsumers,
-                                       int light, CallbackInfo ci) {
-        sm_currentRenderPlayer = null;
-        SmartMovingClientState.currentRenderTarget = null;
-    }
-
-    @ModifyArg(
-        method = "render",
-        at = @At(value = "INVOKE",
-                 target = "Lnet/minecraft/client/render/entity/model/EntityModel;setAngles(Lnet/minecraft/entity/Entity;FFFFF)V"),
-        index = 1
+    @Inject(
+            method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V",
+            at = @At("TAIL")
     )
-    private float sm_modifyLimbSwing(float limbSwing) {
-        if (sm_currentRenderPlayer == null) return limbSwing;
-        // 🔴 (2026-05-05) self → Config.enabled / remote → 항상 true.
-        if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(sm_currentRenderPlayer)) return limbSwing;
-        SmartMovingClientState sm = SmartMovingClientState.get(sm_currentRenderPlayer.getUuid());
-        // 🔴 (사용자 보고: 점프/낙하 시 팔다리 앞뒤 swing) — 원본 SmartRenderModel.animateArmSwinging
-        //   입력 `totalHorizontalDistance` (수평만) 1:1. getTotalDistance (3D, 수직 포함) 사용 시
-        //   점프/낙하 motionY 큰 값 → SM currentSpeed 큰 값 → vanilla setAngles 의 arm.pitch swing
-        //   식 활성 → 사용자 보고 팔다리 swing.
-        return sm.stats.getTotalHorizontalDistance(SmartMovingClientState.globalCachedTickDelta);
-    }
+    private void sm_applyAnimationInputs(
+            LivingEntity entity,
+            LivingEntityRenderState renderState,
+            float tickDelta,
+            CallbackInfo ci
+    ) {
+        if (!(entity instanceof AbstractClientPlayer player)
+                || !choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) {
+            return;
+        }
 
-    @ModifyArg(
-        method = "render",
-        at = @At(value = "INVOKE",
-                 target = "Lnet/minecraft/client/render/entity/model/EntityModel;setAngles(Lnet/minecraft/entity/Entity;FFFFF)V"),
-        index = 2
-    )
-    private float sm_modifyLimbSwingAmount(float limbSwingAmount) {
-        if (sm_currentRenderPlayer == null) return limbSwingAmount;
-        // 🔴 (2026-05-05) self → Config.enabled / remote → 항상 true.
-        if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(sm_currentRenderPlayer)) return limbSwingAmount;
-        SmartMovingClientState sm = SmartMovingClientState.get(sm_currentRenderPlayer.getUuid());
+        SmartMovingClientState sm = SmartMovingClientState.get(player.getUUID());
+        renderState.walkAnimationPos = sm.stats.getTotalHorizontalDistance(tickDelta);
 
-        // 🔴 fix #189 (2026-05-28): 원본 SmartMovingModel.animateArmSwinging (L640-647) 의
-        //   `if(isStandard)` 가드 1:1 매핑. SM phase (= anySmState) 시 vanilla walking arm swing
-        //   식 효과 0 → base arm.pitch 진동 cancel.
-        //
-        // ROOT CAUSE (= 사용자 보고 fact + dump 검증):
-        //   사용자 verbatim "기본 STANDING 보다 SM 휘두르는게 더 빠르다 + 여우무빙 팔 지직".
-        //   dump fact (= log_temp.txt 2회차):
-        //     - STAND tick 1 swing 0.167: pitch -0.65 → -1.55 (변화 0.90)
-        //     - HJ    tick 1 swing 0.167: pitch -0.53 → -1.90 (변화 1.37 = 1.52배)
-        //   차이 cause: HJ 시 currentHorizontalSpeed 가 큰 값 → vanilla setAngles 의
-        //     arm.pitch = cos(limbSwing*0.6662+π)*2*limbDistance*0.5 식이 큰 amplitude
-        //     진동 → swing 식 (cubic + sin*π) 결과와 누적 → 시각적 "더 빠른 motion + 지직".
-        //
-        // 원본 1.7.10 흐름:
-        //   isStandard=false (SM phase) 시 imp.superAnimateArmSwinging() SKIP →
-        //   bipedRightArm.rotateAngleX (= 우리 arm.pitch 등가) 가 reset 직후 0 유지 →
-        //   animateWorkingArms 의 swing 식만 적용 (= 누적 없음).
-        //
-        // 1.21.1 매핑:
-        //   vanilla setAngles 는 통합 메서드라 walking arm 식만 SKIP 불가 → limbSwingAmount=0
-        //   force 로 식 효과 0 등가. leg 식도 0 (= SM 자세 매핑이 덮어쓰므로 영향 X).
-        //   STAND 시 currentSpeed ≈ 0 → 원래 영향 X (가드 안 걸려도 동일 효과).
         boolean anySmState = sm.isFlying || sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isRopeSliding || sm.isClimbJumping
                 || sm.doFallingAnimation || sm.isAngleJumping();
-        if (anySmState) {
-            return 0f;
+        renderState.walkAnimationSpeed = anySmState
+                ? 0F
+                : sm.stats.getCurrentHorizontalSpeed(tickDelta);
+        if (anySmState && renderState instanceof HumanoidRenderState humanoidState) {
+            humanoidState.swimAmount = 0F;
         }
-
-        // 🔴 STAND 분기 — `currentHorizontalSpeed` (수평만) 1:1. `getCurrentSpeed` (3D) 사용 시
-        //   점프/낙하 시 팔다리 swing 발생 (사용자 보고).
-        return sm.stats.getCurrentHorizontalSpeed(SmartMovingClientState.globalCachedTickDelta);
     }
 }

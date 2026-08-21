@@ -4,11 +4,11 @@ import choco.ratel.smartmoving.client.SmartMovingClientState;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Mth;
+import net.minecraft.world.item.Items;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -26,13 +26,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *   bow: f *= 1 - t²*0.15; spyglass 1인칭: return 0.1;
  *   return lerp(fovEffectScale, 1.0, f)
  */
-@Mixin(AbstractClientPlayerEntity.class)
+@Mixin(AbstractClientPlayer.class)
 @Environment(EnvType.CLIENT)
 public abstract class MixinAbstractClientPlayerEntityClient {
 
-    @Inject(method = "getFovMultiplier", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getFieldOfViewModifier", at = @At("HEAD"), cancellable = true)
     private void sm_getFovMultiplier(CallbackInfoReturnable<Float> cir) {
-        if (!((Object) this instanceof ClientPlayerEntity player)) return;
+        if (!((Object) this instanceof LocalPlayer player)) return;
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         if (!cfg.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
@@ -40,27 +40,27 @@ public abstract class MixinAbstractClientPlayerEntityClient {
 
         float f = 1.0F;
         if (player.getAbilities().flying) f *= 1.1F;
-        float walkSpeed = player.getAbilities().getWalkSpeed();
+        float walkSpeed = player.getAbilities().getWalkingSpeed();
         if (walkSpeed != 0F) {
             f *= (sm.fadingPerspectiveFactor / walkSpeed + 1F) / 2F;
         }
         if (walkSpeed == 0F || Float.isNaN(f) || Float.isInfinite(f)) f = 1.0F;
 
         if (player.isUsingItem()) {
-            var activeItem = player.getActiveItem();
-            if (activeItem.isOf(Items.BOW)) {
-                float t = Math.min(player.getItemUseTime() / 20.0F, 1.0F);
+            var activeItem = player.getUseItem();
+            if (activeItem.is(Items.BOW)) {
+                float t = Math.min(player.getTicksUsingItem() / 20.0F, 1.0F);
                 t = t * t;
                 f *= 1.0F - t * 0.15F;
-            } else if (MinecraftClient.getInstance().options.getPerspective().isFirstPerson()
-                    && player.isUsingSpyglass()) {
+            } else if (Minecraft.getInstance().options.getCameraType().isFirstPerson()
+                    && player.isScoping()) {
                 cir.setReturnValue(0.1F);
                 return;
             }
         }
 
-        float fovScale = ((Double) MinecraftClient.getInstance().options.getFovEffectScale().getValue()).floatValue();
-        cir.setReturnValue(MathHelper.lerp(fovScale, 1.0F, f));
+        float fovScale = ((Double) Minecraft.getInstance().options.fovEffectScale().get()).floatValue();
+        cir.setReturnValue(Mth.lerp(fovScale, 1.0F, f));
     }
 
 }

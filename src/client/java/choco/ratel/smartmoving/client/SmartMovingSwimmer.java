@@ -3,14 +3,12 @@ package choco.ratel.smartmoving.client;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.MovementType;
-import net.minecraft.registry.tag.FluidTags;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * 클라이언트 측 수영/잠수 물리 로직.
@@ -90,7 +88,7 @@ public final class SmartMovingSwimmer {
         sm.isJumpingOutOfWater         = false;
     }
 
-    public static void updateSwimState(ClientPlayerEntity player, SmartMovingClientState sm) {
+    public static void updateSwimState(LocalPlayer player, SmartMovingClientState sm) {
         // 🔵 (2026-05-20, BUG 1 fix #103) calculateDimensions 호출 트리거.
         //   원본 1.7.10 `setHeightOffset(-1F)` 는 boundingBox.minY 직접 변경 → 즉시 박스 갱신.
         //   1.21.1 매핑은 dim provider 패턴 → `Entity.calculateDimensions()` 호출 시점에만
@@ -140,14 +138,14 @@ public final class SmartMovingSwimmer {
             double standMaxY = standMinY + 0.8;
             double cBot = SmartMovingClientState.getMaxPlayerSolidBetween(player, standMinY - 1D, standMinY, 0);
             double cCeil = SmartMovingClientState.getMinPlayerSolidBetween(player, standMaxY, standMaxY + 1.1D, 0);
-            float plH = player.getDimensions(net.minecraft.entity.EntityPose.STANDING).height();
+            float plH = player.getDimensions(net.minecraft.world.entity.Pose.STANDING).height();
             inSmallHole = (cCeil - cBot) < plH;
         }
         boolean handleSwim = !sm.isFlying
                 && !sm.isLiquidClimbing
                 && !sm.isCrawling
                 && !inSmallHole
-                && (player.isTouchingWater()
+                && (player.isInWater()
                     || (sm.isSwimming_sm && SmartMovingClientState.isInLiquid(player))
                     || (cfg7c.isLavaLikeWaterEnabled(player) && player.isInLava()));
         if (!handleSwim) {
@@ -165,7 +163,7 @@ public final class SmartMovingSwimmer {
             sm.waterMovementTicks  = 0;
             // 🔵 (BUG 1 fix #103) dim 변화 시 calculateDimensions — 물 나감 시 swim/dive→false.
             if (sm.isSwimming_sm != prevSwim103 || sm.isDiving != prevDive103) {
-                player.calculateDimensions();
+                player.refreshDimensions();
             }
             return;
         }
@@ -195,7 +193,7 @@ public final class SmartMovingSwimmer {
             sm.waterMovementTicks = 0;
             // 🔵 (BUG 1 fix #103) dim 변화 시 calculateDimensions — 강제 dipping (crawl 등) 진입.
             if (sm.isSwimming_sm != prevSwim103 || sm.isDiving != prevDive103) {
-                player.calculateDimensions();
+                player.refreshDimensions();
             }
             return;
         }
@@ -242,13 +240,13 @@ public final class SmartMovingSwimmer {
         //   project_swimming_complete fix #109 = 1.12.2 1:1 매핑. 즉 motionY -= 0.04 식 제거가 1.12.2 답지.
         //   추가: swimDown/diveDown 에 jump 가드 → swim+sneak+jump 시 sneak 효과 무시.
         //   사용자 verbatim "원래 됐었음 → jump 우선 위로 + 수면 끝까지" 매핑.
-        boolean diveUp16   = player.input.jumping;
-        boolean diveDown16 = player.input.sneaking && cfg.diveDownOnSneak && !player.input.jumping;
+        boolean diveUp16   = player.input.keyPresses.jump();
+        boolean diveDown16 = player.input.keyPresses.shift() && cfg.diveDownOnSneak && !player.input.keyPresses.jump();
         sm.isLevitating = sm.isDiving
                 && !diveUp16
                 && !diveDown16
-                && player.input.movementSideways == 0F
-                && player.input.movementForward == 0F;
+                && player.input.getMoveVector().x == 0F
+                && player.input.getMoveVector().y == 0F;
 
         // B-12 (세션 64): 원본 L481-L484 정정 — swimming/diving 만 증분, dipping 포함
         //   else 는 ticks=0 리셋. 기존 무조건 증분 (dipping 포함) 은 오역.
@@ -269,14 +267,14 @@ public final class SmartMovingSwimmer {
         //     override (fix #101) 자동 매치.
         //   회귀 안전성: ticks=0 잔존 (dipping 시) 이지만 onGround / wasJumpingOutOfWater 분기로
         //     자체 매치. swim/dive 진입 시 ticks>10 조건도 그대로 작동.
-        boolean wantJumpOutOfWater = (player.input.movementForward != 0F
-                                   || player.input.movementSideways != 0F)
+        boolean wantJumpOutOfWater = (player.input.getMoveVector().y != 0F
+                                   || player.input.getMoveVector().x != 0F)
                 && player.horizontalCollision
                 && diveUp16
                 && !sm.isSlow;
         sm.isJumpingOutOfWater = wantJumpOutOfWater
                 && (sm.waterMovementTicks > 10
-                    || player.isOnGround()
+                    || player.onGround()
                     || sm.wasJumpingOutOfWater);
 
         // B-10a-post (세션 109): 원본 L507 `isShallowDiveOrSwim = couldStandUp && (isDiving ||
@@ -311,12 +309,12 @@ public final class SmartMovingSwimmer {
                 if (upperGround > player.getY() + 0.001D
                         && (upperGround - player.getY()) <= 1.5D) {
                     double pushY = upperGround - player.getY();
-                    player.setPosition(player.getX(), upperGround, player.getZ());
-                    player.lastRenderY += pushY;
-                    player.prevY += pushY;
+                    player.setPos(player.getX(), upperGround, player.getZ());
+                    player.yOld += pushY;
+                    player.yo += pushY;
                 }
             }
-            player.calculateDimensions();
+            player.refreshDimensions();
         }
     }
 
@@ -333,9 +331,9 @@ public final class SmartMovingSwimmer {
      * @return SM이 처리했으면 true (호출자가 travel() cancel)
      */
     public static boolean handleSwimming(
-            ClientPlayerEntity player,
+            LocalPlayer player,
             SmartMovingClientState sm,
-            Vec3d movementInput,
+            Vec3 movementInput,
             boolean jumping,
             boolean wasSwimming,
             boolean wasDiving) {
@@ -407,7 +405,7 @@ public final class SmartMovingSwimmer {
             int px = (int) Math.floor(player.getX());
             int py = (int) Math.floor(player.getY());
             int pz = (int) Math.floor(player.getZ());
-            World world = player.getWorld();
+            Level world = player.level();
             // **B-5 (2) 해소 (세션 135)**: 원본 `getClimbingOrientations(sp, true, true)` 는
             //   대각 포함 8방향 (L285 `true, true` 파라미터). 기존 4방향 (Direction.HORIZONTAL)
             //   근사 → 대각 4방향 추가. Orientation 의 8 방향 상수 대응:
@@ -429,7 +427,7 @@ public final class SmartMovingSwimmer {
         //   motionYDiff 계산 시 소비 (원본 L320-L321).
         // 🔵 (BUG 5 fix #107) raw sneak key — isSneaking override 우회.
         // 🔴 fix #201: swimDown jump 가드. swim+sneak+jump 시 swim 분기 미매치 → 위로 정상.
-        boolean swimDown = player.input.sneaking && cfg.swimDownOnSneak && !player.input.jumping;
+        boolean swimDown = player.input.keyPresses.shift() && cfg.swimDownOnSneak && !player.input.keyPresses.jump();
         if (wasSwimming && wantShallowSwim && swimDown) {
             swimDown = false;
             sm.isFakeShallowWaterSneaking = true;
@@ -457,7 +455,7 @@ public final class SmartMovingSwimmer {
         else if (sm.isSwimming_sm) speedFactor *= cfg.swimSpeedFactor;
         // dipping 시 분기별 factor 적용 X (원본 L477-479)
 
-        Vec3d vel = player.getVelocity();
+        Vec3 vel = player.getDeltaMovement();
         double motionX = vel.x;
         double motionY = vel.y;
         double motionZ = vel.z;
@@ -471,7 +469,7 @@ public final class SmartMovingSwimmer {
         //         자연 처리 (dive 분기 안에서만 diveDown 식 매치).
         boolean diveUp   = jumping;
         // 🔴 fix #201: diveDown jump 가드. dive+sneak+jump 동시 → diveDown=false → cancel 식 미발동 → diveUp 잔존 → motionYDiff=0.05 (위로).
-        boolean diveDown = player.input.sneaking && cfg.diveDownOnSneak && !player.input.jumping;
+        boolean diveDown = player.input.keyPresses.shift() && cfg.diveDownOnSneak && !player.input.keyPresses.jump();
 
         // 🔵 (BUG 6 fix #109) jump + sneak 동시 누름 시 둘 다 cancel — 원본 L298-L299 / 1.12.2 L306-307 1:1.
         //   `if (isDiving && diveUp && diveDown) diveUp = diveDown = false;`
@@ -490,8 +488,8 @@ public final class SmartMovingSwimmer {
         //   isPathA = diveUp || moveSwim || wantShallowSwim
         //     A 경로: 능동적 수영 (< 1.4 dipping, < 1.9 swimming, else diving)
         //     B 경로: 수동적 떠있기 (< 1.5 dipping, else diving — swimming 없음)
-        boolean moveSwim = (player.getPitch() < 0F && moveForward > 0F)
-                        || (player.getPitch() > 0F && moveForward < 0F);
+        boolean moveSwim = (player.getXRot() < 0F && moveForward > 0F)
+                        || (player.getXRot() > 0F && moveForward < 0F);
         boolean isPathA = diveUp || moveSwim || wantShallowSwim;
 
         // **B-9b 상태 재분류 (세션 129)**: A/B 경로에 따라 isDipping/isSwimming_sm/isDiving
@@ -559,7 +557,7 @@ public final class SmartMovingSwimmer {
         //   식: jump 단독 시 (= !sneak) motion -= 0.04 → 위로 안 됨 → 수면 도달 X.
         //       jump+sneak 시 (= sneak) -= 0.04 미적용 + swimDown jump 가드 (= swim 분기 미매치)
         //       → motion += motionYDiff → 위로 정상.
-        if (diveUp && !player.input.sneaking) {
+        if (diveUp && !player.input.keyPresses.shift()) {
             motionY -= 0.039999999105930328D;
         }
 
@@ -583,7 +581,7 @@ public final class SmartMovingSwimmer {
             motionX *= DAMPING_DIPPING_XZ;
             motionY *= DAMPING_DIPPING_Y;
             motionZ *= DAMPING_DIPPING_XZ;
-            Vec3d fly = moveFlying(player, moveStrafe, moveForward, BASE_SWIM_SPEED * speedFactor);
+            Vec3 fly = moveFlying(player, moveStrafe, moveForward, BASE_SWIM_SPEED * speedFactor);
             motionX += fly.x;
             motionY += dippingYDiff;
             motionZ += fly.z;
@@ -623,7 +621,7 @@ public final class SmartMovingSwimmer {
             motionX *= DAMPING_SWIMMING;
             motionY *= DAMPING_SWIMMING;
             motionZ *= DAMPING_SWIMMING;
-            Vec3d fly = moveFlying(player, moveStrafe, moveForward, BASE_SWIM_SPEED * speedFactor);
+            Vec3 fly = moveFlying(player, moveStrafe, moveForward, BASE_SWIM_SPEED * speedFactor);
             motionX += fly.x;
             motionY += motionYDiff;
             motionZ += fly.z;
@@ -646,7 +644,7 @@ public final class SmartMovingSwimmer {
                 if (diveUp) {
                     // 원본 L404: isFast && psw < 2.5 && isAirBlock(i, j + 3, k) → 스프린트 점프 부스트
                     if (sm.isFast && psw9e < 2.5D
-                            && player.getWorld().isAir(new net.minecraft.util.math.BlockPos(
+                            && player.level().isEmptyBlock(new net.minecraft.core.BlockPos(
                                     swimVals.i, swimVals.j + 3, swimVals.k))) {
                         motionYDiff = 0.11D / cfg.sprintFactor;
                     } else {
@@ -706,7 +704,7 @@ public final class SmartMovingSwimmer {
                 motionY = (motionY + motionYDiff) * 0.6D;
             } else {
                 // 원본 L494: 5인자 moveFlying (pitch 반영 수직 + horizontal). moveUpward=motionYDiff.
-                Vec3d fly = moveFlying(player, (float) motionYDiff, moveStrafe, moveForward,
+                Vec3 fly = moveFlying(player, (float) motionYDiff, moveStrafe, moveForward,
                         BASE_SWIM_SPEED * speedFactor, cfg.diveControlVertical);
                 motionX += fly.x;
                 motionY += fly.y;
@@ -740,7 +738,7 @@ public final class SmartMovingSwimmer {
                 double maxY11 = player.getBoundingBox().maxY;
                 double groundY11 = SmartMovingClientState.getMaxPlayerSolidBetween(
                         player, minY11, maxY11, 0);
-                player.move(MovementType.SELF, new Vec3d(0, groundY11 - minY11, 0));
+                player.move(MoverType.SELF, new Vec3(0, groundY11 - minY11, 0));
                 sm.isCrawling            = false;
                 sm.isDiving              = false;
                 sm.isSwimming_sm         = false;
@@ -763,8 +761,8 @@ public final class SmartMovingSwimmer {
         // 🔴 fix #128 reverted (2026-05-21, 사용자 보고 "swim 속도 자체가 느려졌다"):
         //   fix #128 의 swim 후 friction 0.91 적용이 swim speed 변경 (= 1.5배 느림). 사용자 의도 X.
         //   사용자 verbatim "머리 회전 속도만 보라" — swim physics 변경 회피.
-        player.setVelocity(motionX, motionY, motionZ);
-        player.move(MovementType.SELF, player.getVelocity());
+        player.setDeltaMovement(motionX, motionY, motionZ);
+        player.move(MoverType.SELF, player.getDeltaMovement());
         player.fallDistance = 0F;
         return true;
     }
@@ -787,7 +785,7 @@ public final class SmartMovingSwimmer {
      *
      * 4단계: 비대칭 total 공식 sqrt(sqrt(dx²+dz²) + dy²) 로 factor 적용
      */
-    private static Vec3d moveFlying(ClientPlayerEntity player, float moveUpward,
+    private static Vec3 moveFlying(LocalPlayer player, float moveUpward,
                                      float strafe, float forward, float speed, boolean treeDimensional) {
         float diffMXStrafing = 0F, diffMXForward = 0F, diffMZStrafing = 0F, diffMZForward = 0F;
         float total = (float) Math.sqrt(strafe * strafe + forward * forward);
@@ -795,7 +793,7 @@ public final class SmartMovingSwimmer {
             if (total < 1.0F) total = 1.0F;
             float strafeFactor  = strafe  / total;
             float forwardFactor = forward / total;
-            float yawRad = (float) Math.toRadians(player.getYaw());
+            float yawRad = (float) Math.toRadians(player.getYRot());
             float sin = (float) Math.sin(yawRad);
             float cos = (float) Math.cos(yawRad);
             diffMXStrafing =  strafeFactor  * cos;
@@ -804,7 +802,7 @@ public final class SmartMovingSwimmer {
             diffMZForward  =  forwardFactor * cos;
         }
 
-        float rotation = treeDimensional ? (float) Math.toRadians(player.getPitch()) : 0F;
+        float rotation = treeDimensional ? (float) Math.toRadians(player.getXRot()) : 0F;
         float horizFactor = (float) Math.cos(rotation);
         float vertFactor  = (float) (-Math.sin(rotation) * Math.signum(forward));
 
@@ -817,13 +815,13 @@ public final class SmartMovingSwimmer {
         float total2 = (float) Math.sqrt(Math.sqrt(diffMX * diffMX + diffMZ * diffMZ) + diffMY * diffMY);
         if (total2 > 0.01F) {
             float factor = speed / total2;
-            return new Vec3d(diffMX * factor, diffMY * factor, diffMZ * factor);
+            return new Vec3(diffMX * factor, diffMY * factor, diffMZ * factor);
         }
-        return Vec3d.ZERO;
+        return Vec3.ZERO;
     }
 
     /** 4-인자 wrapper (수평 전용) — moveUpward=0, treeDimensional=false. */
-    private static Vec3d moveFlying(ClientPlayerEntity player, float strafe, float forward, float speed) {
+    private static Vec3 moveFlying(LocalPlayer player, float strafe, float forward, float speed) {
         return moveFlying(player, 0F, strafe, forward, speed, false);
     }
 
@@ -894,8 +892,8 @@ public final class SmartMovingSwimmer {
      *
      * @return true 시 호출 측에서 ci.cancel() 처리하여 vanilla travel 차단
      */
-    public static boolean handleLava(ClientPlayerEntity player, SmartMovingClientState sm,
-                                      Vec3d movementInput) {
+    public static boolean handleLava(LocalPlayer player, SmartMovingClientState sm,
+                                      Vec3 movementInput) {
         // 진입 조건 (원본 L580): handledSwimming 은 호출 위치에서 보장
         boolean handleLavaFlag = !sm.isFlying && !sm.isLiquidClimbing && player.isInLava();
         if (!handleLavaFlag) return false;
@@ -917,14 +915,14 @@ public final class SmartMovingSwimmer {
         //   원본 식: sp.moveFlying(moveStrafing, moveForward, 0.02F);  // motion += fly
         //           sp.moveEntity(motionX, motionY, motionZ);
         //   해결: getVelocity().add(moved) = += 누적. 다른 swim 분기 (L526/L566) 와 일관.
-        Vec3d moved = moveFlying(player, (float) movementInput.x, (float) movementInput.z, 0.02F);
-        player.setVelocity(player.getVelocity().add(moved));
+        Vec3 moved = moveFlying(player, (float) movementInput.x, (float) movementInput.z, 0.02F);
+        player.setDeltaMovement(player.getDeltaMovement().add(moved));
 
         // 원본 L588: moveEntity(motionX, motionY, motionZ) — 실제 이동
-        player.move(MovementType.SELF, player.getVelocity());
+        player.move(MoverType.SELF, player.getDeltaMovement());
 
         // 원본 L589-L591: damping 0.5 (X/Y/Z 모두)
-        Vec3d vel = player.getVelocity();
+        Vec3 vel = player.getDeltaMovement();
         double mx = vel.x * 0.5D;
         double my = vel.y * 0.5D;
         double mz = vel.z * 0.5D;
@@ -938,17 +936,17 @@ public final class SmartMovingSwimmer {
         //   → motionY = 0.30000001192092896D
         // 1.21.1 매핑: isOffsetPositionInLiquid → BoundingBox.offset() + world.containsFluid()
         if (player.horizontalCollision) {
-            Box bb = player.getBoundingBox().offset(
+            AABB bb = player.getBoundingBox().move(
                     mx,
                     ((my + 0.60000002384185791D) - player.getY()) + d1,
                     mz);
-            if (player.getWorld().containsFluid(bb)) {
+            if (player.level().containsAnyLiquid(bb)) {
                 my = 0.30000001192092896D;
             }
         }
 
         // 최종 setVelocity (원본은 motionX/Y/Z 직접 변경, 1.21.1 은 setVelocity 일괄)
-        player.setVelocity(mx, my, mz);
+        player.setDeltaMovement(mx, my, mz);
 
         // 원본 L599 return handleLava
         return true;
@@ -970,7 +968,7 @@ public final class SmartMovingSwimmer {
      *   isFullEmpty(block) → collisionShape.isEmpty() (간소; 간판/압력판 예외는 생략)
      *   isSolid(material) → state.isOpaqueFullCube() 근사 (정확 대응 API 부재 시)
      */
-    private static boolean isTunnelAhead(World world, int i, int j, int k, int ox, int oz) {
+    private static boolean isTunnelAhead(Level world, int i, int j, int k, int ox, int oz) {
         BlockPos one = new BlockPos(i + ox, j + 1, k + oz);
         BlockPos two = new BlockPos(i + ox, j + 2, k + oz);
         boolean emptyAtOne = world.getBlockState(one).getCollisionShape(world, one).isEmpty();

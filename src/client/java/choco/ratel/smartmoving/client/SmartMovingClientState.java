@@ -7,19 +7,18 @@ import choco.ratel.smartmoving.config.SmartMovingConfig;
 import choco.ratel.smartmoving.network.SmartMovingNetwork;
 import choco.ratel.smartmoving.network.SmartMovingState;
 import choco.ratel.smartmoving.stat.SmartStatistics;
-import net.minecraft.stat.Stats;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.MovementType;
-import net.minecraft.network.packet.c2s.play.UpdatePlayerAbilitiesC2SPacket;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ServerboundPlayerAbilitiesPacket;
+import net.minecraft.stats.Stats;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -405,14 +404,14 @@ public final class SmartMovingClientState {
      * 애니메이션 파라미터 (hands edge 렌더).
      * B-15f.
      */
-    public net.minecraft.block.BlockState handsEdgeBlock;
+    public net.minecraft.world.level.block.state.BlockState handsEdgeBlock;
 
     /**
      * 원본 SmartMovingSelf L1445 `public Block feetEdgeBlock;`.
      * 발이 잡은 edge 블록. L1446 meta 는 BlockState 에 흡수.
      * B-15f.
      */
-    public net.minecraft.block.BlockState feetEdgeBlock;
+    public net.minecraft.world.level.block.state.BlockState feetEdgeBlock;
 
     // ─────────────────────────────────────────────────────────────────
 
@@ -1200,7 +1199,7 @@ public final class SmartMovingClientState {
      *   MixinLivingEntityRenderer.render HEAD 에서 set, TAIL 에서 clear. render 직렬 처리이므로
      *   매 시점에 current render entity 한 명만 가리킴.
      */
-    public static net.minecraft.client.network.AbstractClientPlayerEntity currentRenderTarget;
+    public static net.minecraft.client.player.AbstractClientPlayer currentRenderTarget;
 
     /** currentRenderTarget 의 SmartMovingClientState instance. null 일 시 null 반환. */
     public static SmartMovingClientState currentRenderTargetSm() {
@@ -1209,13 +1208,13 @@ public final class SmartMovingClientState {
 
     private static final Map<UUID, SmartMovingClientState> INSTANCES = new HashMap<>();
 
-    public static SmartMovingClientState get(ClientPlayerEntity player) {
-        return INSTANCES.computeIfAbsent(player.getUuid(), id -> new SmartMovingClientState());
+    public static SmartMovingClientState get(LocalPlayer player) {
+        return INSTANCES.computeIfAbsent(player.getUUID(), id -> new SmartMovingClientState());
     }
 
     /** 🔴 Phase 1-A: 다른 player render 시 SM state 조회 — local + remote 모두 처리. */
-    public static SmartMovingClientState get(net.minecraft.client.network.AbstractClientPlayerEntity player) {
-        return INSTANCES.computeIfAbsent(player.getUuid(), id -> new SmartMovingClientState());
+    public static SmartMovingClientState get(net.minecraft.client.player.AbstractClientPlayer player) {
+        return INSTANCES.computeIfAbsent(player.getUUID(), id -> new SmartMovingClientState());
     }
 
     /** 타 플레이어용 — UUID로 직접 조회/생성 (C-24: State 패킷 수신) */
@@ -1223,8 +1222,8 @@ public final class SmartMovingClientState {
         return INSTANCES.computeIfAbsent(uuid, id -> new SmartMovingClientState());
     }
 
-    public static void remove(ClientPlayerEntity player) {
-        INSTANCES.remove(player.getUuid());
+    public static void remove(LocalPlayer player) {
+        INSTANCES.remove(player.getUUID());
     }
 
     // ── 12-2: isAngleJumping() ───────────────────────────────────────────
@@ -1287,7 +1286,7 @@ public final class SmartMovingClientState {
      * isActive 여부 무관하게 매 틱 실행되는 필수 처리.
      * 원본: SmartMovingPlayerBase.updateEntityActionState() → moving.tickEssential()
      */
-    public void tickEssential(ClientPlayerEntity player) {
+    public void tickEssential(LocalPlayer player) {
         // 이전 틱 값 초기화 — vanilla jump() 가로채기(sm_jump)에서 당 틱에 새로 설정됨
         jumpAvoided = false;
         // 🔴 (세션 55): isJumping 매 틱 false reset (원본 SmartMovingSelf L1744 1:1).
@@ -1319,20 +1318,20 @@ public final class SmartMovingClientState {
         // 원본 Button.update() 대응 — 이번 틱 키 엣지 감지.
         // jumpButton.StartPressed / StopPressed / sneakButton.StartPressed / StopPressed 대응.
         // sm_travel_client 내 여러 핸들러에서 재참조 가능.
-        var opts = MinecraftClient.getInstance().options;
-        boolean curJumpPressed = opts.jumpKey.isPressed();
+        var opts = Minecraft.getInstance().options;
+        boolean curJumpPressed = opts.keyJump.isDown();
         jumpKeyStartPressed = curJumpPressed && !prevJumpKeyPressed;
         jumpKeyStopPressed  = !curJumpPressed && prevJumpKeyPressed;
         prevJumpKeyPressed = curJumpPressed;
 
-        boolean curSneakPressed = opts.sneakKey.isPressed();
+        boolean curSneakPressed = opts.keyShift.isDown();
         sneakKeyStartPressed = curSneakPressed && !prevSneakKeyPressed;
         sneakKeyStopPressed  = !curSneakPressed && prevSneakKeyPressed;
         prevSneakKeyPressed = curSneakPressed;
 
         // B-48a (세션 131): sprintKey 엣지 필드 — sneakKey 패턴 그대로 적용.
         // 원본 sprintButton.StartPressed / StopPressed 대응.
-        boolean curSprintPressed = opts.sprintKey.isPressed();
+        boolean curSprintPressed = opts.keySprint.isDown();
         sprintKeyStartPressed = curSprintPressed && !prevSprintKeyPressed;
         sprintKeyStopPressed  = !curSprintPressed && prevSprintKeyPressed;
         prevSprintKeyPressed = curSprintPressed;
@@ -1341,7 +1340,7 @@ public final class SmartMovingClientState {
         // 🔴 (세션 145 BUG-1+2 진짜 원인): `KeyBinding.wasPressed()` 의 timesPressed 카운터가
         //   누적되어 grabJust=true 가 40+ 틱 stuck → isCrawling 진동/풀림 BUG.
         //   sprintKey/sneakKey/jumpKey 와 동일 rising-edge 패턴으로 통일.
-        boolean curGrabPressed = SmartMovingKeys.grab.isPressed();
+        boolean curGrabPressed = SmartMovingKeys.grab.isDown();
         grabJustPressed = curGrabPressed && !prevGrabKeyPressed;
         prevGrabKeyPressed = curGrabPressed;
 
@@ -1357,17 +1356,17 @@ public final class SmartMovingClientState {
 
         // IMPL-04: 설정 토글 키 처리 (원본: toggleButton.update() + StartPressed 분기)
         // 싱글: toggle() 직접 호출 + 채팅 피드백 / 멀티: 서버에 변경 요청 패킷 전송
-        if (SmartMovingKeys.configToggle.wasPressed()) {
+        if (SmartMovingKeys.configToggle.consumeClick()) {
             if (SmartMovingConfig.Config == SmartMovingConfig.INSTANCE) {
                 SmartMovingConfig.INSTANCE.toggle();
                 // H-18 (세션 23): 2갈래 단순화. 2상태 토글(disabled↔enabled) 기준이므로
                 // 원본 4갈래(named/unnamed/enabled/disabled) 분기 불필요. configKeyName /
                 // CONFIG_KEY_ENABLED 등 잉여 코드 전부 H-19 에서 제거 예정.
                 SmartMovingConfig cfg = SmartMovingConfig.INSTANCE;
-                Text msg = Text.translatable(cfg.enabled
+                Component msg = Component.translatable(cfg.enabled
                         ? "smartmoving.message.config.client.enabled"
                         : "smartmoving.message.config.client.disabled");
-                if (player != null) player.sendMessage(msg);
+                if (player != null) player.sendSystemMessage(msg);
             } else {
                 ClientPlayNetworking.send(new SmartMovingNetwork.ConfigChangePayload());
             }
@@ -1390,12 +1389,12 @@ public final class SmartMovingClientState {
         //         && MinecraftClient.getInstance().interactionManager.getCurrentGameMode()
         //                 == net.minecraft.world.GameMode.CREATIVE;
         if (userSpeedEnabled) {
-            if (SmartMovingKeys.speedIncrease.wasPressed()) {
+            if (SmartMovingKeys.speedIncrease.consumeClick()) {
                 if (ClientPlayNetworking.canSend(SmartMovingNetwork.SpeedChangePayload.ID)) {
                     ClientPlayNetworking.send(new SmartMovingNetwork.SpeedChangePayload(1, null));
                 }
             }
-            if (SmartMovingKeys.speedDecrease.wasPressed()) {
+            if (SmartMovingKeys.speedDecrease.consumeClick()) {
                 if (ClientPlayNetworking.canSend(SmartMovingNetwork.SpeedChangePayload.ID)) {
                     ClientPlayNetworking.send(new SmartMovingNetwork.SpeedChangePayload(-1, null));
                 }
@@ -1421,11 +1420,11 @@ public final class SmartMovingClientState {
             //
             // `player.isSneaking()` 은 sm_isSneaking override 가 isSlow 를 참조하여 순환 가능 →
             // 원본처럼 raw sneakKey + sneakToggled 사용(원본 L1801).
-            boolean sneakPressedRaw = net.minecraft.client.MinecraftClient.getInstance().options.sneakKey.isPressed();
+            boolean sneakPressedRaw = net.minecraft.client.Minecraft.getInstance().options.keyShift.isDown();
             SmartMovingConfig cfg0 = SmartMovingConfig.Config;
             // B-46 (세션 66): `SmartMovingKeys.grab.wasPressed()` 지역 호출 제거 —
             // tickEssential 초반 1회 저장된 `grabJustPressed` 필드 참조.
-            boolean grabHeld0 = SmartMovingKeys.grab.isPressed();
+            boolean grabHeld0 = SmartMovingKeys.grab.isDown();
 
             // B-31c-post (세션 113): 원본 L2343-L2356 initializeCrawling true 설정 블록 이식.
             //   boolean initializeCrawling = false;
@@ -1450,18 +1449,18 @@ public final class SmartMovingClientState {
             //   1.21.1 매핑: `world.isClient()` 가 항상 true (integrated server 도 client world)
             //   → single player 도 multiPlayerInitialized=5 (= server sync) 동안 init 미진입.
             //   정확 매핑: MinecraftClient.getInstance().getServer() == null = multi player.
-            boolean isRemoteServer = net.minecraft.client.MinecraftClient.getInstance().getServer() == null;
+            boolean isRemoteServer = net.minecraft.client.Minecraft.getInstance().getSingleplayerServer() == null;
             if (!this.initialized
                     && !(isRemoteServer && this.multiPlayerInitialized != 0)
-                    && !player.hasVehicle()) {
+                    && !player.isPassenger()) {
                 // 🔴 사용자 보고 fix (2026-05-03 — "1칸 공간 엎드린 채 게임 나갔다 들어오면
                 //   SM crawl 미인식, vanilla SWIMMING pose"):
                 //   원인: player.getBoundingBox() 가 동적 pose 박스 (= SWIMMING 0.6m). 1칸 공간
                 //     안 fit → bb 안 solid 검사 false → toCrawling 미호출 → SM 인식 X.
                 //   원본 1.7.10 vanilla 박스는 항상 STANDING (1.8m) → 자연스럽게 천장 검사 매칭.
                 //   fix: STANDING height 로 yMax 명시 → 원본 동작 1:1 매핑.
-                Box bb31c = player.getBoundingBox();
-                double standingHeight = player.getDimensions(net.minecraft.entity.EntityPose.STANDING).height();
+                AABB bb31c = player.getBoundingBox();
+                double standingHeight = player.getDimensions(net.minecraft.world.entity.Pose.STANDING).height();
                 double standMinY = bb31c.minY;
                 double standMaxY = standMinY + standingHeight;
                 double solidTop = getMaxPlayerSolidBetween(player, standMinY, standMaxY, 0);
@@ -1480,7 +1479,7 @@ public final class SmartMovingClientState {
                     //   ignoreNextStopSneakButtonPressed (toCrawling 안 set) → 다음 sneak release 무시
                     //     = 만약 이게 standUp 막는다면 추가 검토 필요.
                     this.heightOffset = -1F;
-                    player.calculateDimensions();
+                    player.refreshDimensions();
                 }
                 this.initialized = true;
             }
@@ -1523,7 +1522,7 @@ public final class SmartMovingClientState {
                 //   직후 frame 은 isCrawling=false 라 검사 안 함 → mustCrawl=false 유지 →
                 //   isCrawling 잘못 활성 차단.
                 if (isCrawling || isClimbCrawling) {
-                    Box bb = player.getBoundingBox();
+                    AABB bb = player.getBoundingBox();
                     double minYR = bb.minY;
                     double maxYR = bb.maxY;
                     // 🔴 fix #70 v4 (2026-05-22, sliding rapid toggle 잠긴 자가유지 차단):
@@ -1539,10 +1538,10 @@ public final class SmartMovingClientState {
                     if (_stuckGroundTop > minYR + 0.005 && _stuckGroundTop <= minYR + 1.0) {
                         // 박스 ground 안 박힘 → push + mustCrawl=false.
                         double _pushY = _stuckGroundTop - minYR;
-                        player.setPosition(player.getX(), player.getY() + _pushY, player.getZ());
-                        player.lastRenderY += _pushY;
-                        player.prevY += _pushY;
-                        player.setVelocity(player.getVelocity().x, 0, player.getVelocity().z);
+                        player.setPos(player.getX(), player.getY() + _pushY, player.getZ());
+                        player.yOld += _pushY;
+                        player.yo += _pushY;
+                        player.setDeltaMovement(player.getDeltaMovement().x, 0, player.getDeltaMovement().z);
                         player.fallDistance = 0;
                         mustCrawl = false;
                     } else {
@@ -1553,7 +1552,7 @@ public final class SmartMovingClientState {
                                 minYR - (initializeCrawling ? 0D : 1D), minYR, horizontalTolerance);
                         double crawlStandUpCeiling = SmartMovingClimber.getMinPlayerSolidBetween(player,
                                 maxYR, maxYR + 1.1D, 0);
-                        float playerHeight = player.getDimensions(net.minecraft.entity.EntityPose.STANDING).height();
+                        float playerHeight = player.getDimensions(net.minecraft.world.entity.Pose.STANDING).height();
                         mustCrawl = crawlStandUpCeiling - crawlStandUpBottom < playerHeight - heightOffset;
                         if (player.getAbilities().flying
                                 && (cfg0.isFlyingEnabled() || cfg0.isLevitateSmallEnabled())) {
@@ -1583,10 +1582,10 @@ public final class SmartMovingClientState {
             //   if (liquidCeiling - crawlStandUpBottom >= height + 1F) → false
             //   이전 매핑 `!isDipping` 단순 검사 (근사) → 정확 식 (액체 천장 - 바닥 >= 2.8 검사).
             if (contextContinueCrawl) {
-                if (inputContinueCrawl || player.isTouchingWater() || mustCrawl) {
+                if (inputContinueCrawl || player.isInWater() || mustCrawl) {
                     contextContinueCrawl = false;
                 } else if (isCrawling) {
-                    Box bbCtx = player.getBoundingBox();
+                    AABB bbCtx = player.getBoundingBox();
                     double crawlStandUpLiquidCeiling = getMinPlayerLiquidBetween(player,
                             bbCtx.maxY, bbCtx.maxY + 1.1D);
                     // crawlStandUpBottom 은 mustCrawl 분기에서 isCrawling||isClimbCrawling 시 계산됨.
@@ -1595,7 +1594,7 @@ public final class SmartMovingClientState {
                     double horizontalToleranceCtx = cfg0.crawlOverEdge ? 0 : -0.05;
                     double crawlStandUpBottomCtx = getMaxPlayerSolidBetween(player,
                             bbCtx.minY - (initializeCrawling ? 0D : 1D), bbCtx.minY, horizontalToleranceCtx);
-                    float playerHeightCtx = player.getDimensions(net.minecraft.entity.EntityPose.STANDING).height();
+                    float playerHeightCtx = player.getDimensions(net.minecraft.world.entity.Pose.STANDING).height();
                     if (crawlStandUpLiquidCeiling - crawlStandUpBottomCtx >= playerHeightCtx + 1F) {
                         contextContinueCrawl = false;
                     }
@@ -1628,7 +1627,7 @@ public final class SmartMovingClientState {
                     (
                         (isCrawling && (inputContinueCrawl || contextContinueCrawl))
                         ||
-                        (grabJustPressed && (sneakToggled || sneakPressedRaw) && player.isOnGround()
+                        (grabJustPressed && (sneakToggled || sneakPressedRaw) && player.onGround()
                                 && !facedClimbable_)
                     );
             boolean wouldWantCrawl_ = wouldWantCrawl;  // 하위 호환용 지역 별칭
@@ -1658,7 +1657,7 @@ public final class SmartMovingClientState {
             boolean sneakContinueInput = cfg0.isSneakToggleEnabled()
                     ? (sneakToggled || sneakKeyStartPressed)
                     : sneakPressedRaw;
-            boolean grabPressed0 = SmartMovingKeys.grab.isPressed();
+            boolean grabPressed0 = SmartMovingKeys.grab.isDown();
             boolean crawlingEnabled0 = cfg0.crawl && cfg0.enabled;
             boolean wouldWantSneak =
                     !isFlying
@@ -1684,15 +1683,15 @@ public final class SmartMovingClientState {
             //   jumpButton.Pressed   = vanilla jumpKey.isPressed()
             //   sneakButton.Pressed  = 이미 sneakPressedRaw 변수로 존재
             boolean _disabled3a = !cfg0.enabled
-                    || player.hasVehicle()
+                    || player.isPassenger()
                     || player.isSleeping()
                     || player.getSleepTimer() > 0;
-            net.minecraft.client.MinecraftClient _mc3a = net.minecraft.client.MinecraftClient.getInstance();
-            boolean _sprintPressed3a = _mc3a.options.sprintKey.isPressed();
-            boolean _jumpPressed3a   = _mc3a.options.jumpKey.isPressed();
-            boolean _moveForwardPressed3a = player.input.movementForward > 0F;
-            boolean _movePressed3a = player.input.movementForward != 0F
-                                   || player.input.movementSideways != 0F;
+            net.minecraft.client.Minecraft _mc3a = net.minecraft.client.Minecraft.getInstance();
+            boolean _sprintPressed3a = _mc3a.options.keySprint.isDown();
+            boolean _jumpPressed3a   = _mc3a.options.keyJump.isDown();
+            boolean _moveForwardPressed3a = player.input.getMoveVector().y > 0F;
+            boolean _movePressed3a = player.input.getMoveVector().y != 0F
+                                   || player.input.getMoveVector().x != 0F;
             // 원본 L2595-L2615: 6-AND — Config.isSprintingEnabled() && !isSliding && sprintPressed
             //   && (지면 전진 || 등반 || (수영+입력) || (잠수+입력+점프) || (비행+입력+점프/스니크))
             //   && !disabled.
@@ -1730,9 +1729,9 @@ public final class SmartMovingClientState {
             //   !currentScreen.allowUserInput` → 1.21.1 `allowUserInput` 제거됨 →
             //   `currentScreen != null` 단일 조건 근사. 모든 열린 screen 을 입력 차단으로 간주.
             {
-                net.minecraft.client.MinecraftClient mc16 =
-                        net.minecraft.client.MinecraftClient.getInstance();
-                boolean blocked = mc16.currentScreen != null;
+                net.minecraft.client.Minecraft mc16 =
+                        net.minecraft.client.Minecraft.getInstance();
+                boolean blocked = mc16.gui.screen() != null;
 
                 // 원본 L2467-L2477 `wouldWantClimb` 4-OR + 억제:
                 //   (grab || (isClimbHolding && sneak)
@@ -1748,7 +1747,7 @@ public final class SmartMovingClientState {
                                         && SmartMovingClimber.isFacedToLadder(player, isClimbCrawling))
                                 || (cfg0.isFreeClimbAutoVineEnabled()
                                         && SmartMovingClimber.isFacedToSolidVine(player, isClimbCrawling)))
-                        && (!isSliding || (grabPressed0 && player.input.movementForward > 0F))
+                        && (!isSliding || (grabPressed0 && player.input.getMoveVector().y > 0F))
                         && !isHeadJumping
                         && !wantCrawlNotClimb
                         && !_disabled3a;
@@ -1787,7 +1786,7 @@ public final class SmartMovingClientState {
             {
                 boolean jumpPressed17 = _jumpPressed3a;  // B-3a 에서 계산된 지역 변수
                 boolean isFacedVine17 = SmartMovingClimber.isFacedToSolidVine(player, isClimbCrawling);
-                float   forward17     = player.input.movementForward;
+                float   forward17     = player.input.getMoveVector().y;
                 boolean hCollision17  = player.horizontalCollision;
 
                 wantClimbUp =
@@ -1818,11 +1817,11 @@ public final class SmartMovingClientState {
             //   호출: sm_travel_client L92. isGroundSprinting 공식의 isLevitating 분기 정상 활성.
             {
                 // 원본 L2633-L2634 / L2643-L2644: isSprintJump 매 틱 갱신.
-                if (!player.isOnGround() && isFast && !isClimbing && !isCeilingClimbing
+                if (!player.onGround() && isFast && !isClimbing && !isCeilingClimbing
                         && !isDiving && !isSwimming_sm) {
                     isSprintJump = true;
                 }
-                if (player.isOnGround() || isFlying || player.getAbilities().flying
+                if (player.onGround() || isFlying || player.getAbilities().flying
                         || isSwimming_sm || isDiving || player.isInLava()) {
                     isSprintJump = false;
                 }
@@ -1871,7 +1870,7 @@ public final class SmartMovingClientState {
                 //   이전 틱 저장 — B-48b 전환 후처리 엣지 판정용.
                 wasGroundSprinting = isGroundSprinting;
                 isGroundSprinting = _canHorizontallySprint17
-                        && (player.isOnGround() || isLevitating)
+                        && (player.onGround() || isLevitating)
                         && !isSwimming_sm && !isDiving && !isClimbing;
                 boolean _isSwimSprinting17    = _canHorizontallySprint17 && isSwimming_sm;
                 boolean _isDiveSprinting17    = _canAllSprint17 && isDiving;
@@ -1880,7 +1879,7 @@ public final class SmartMovingClientState {
                 boolean _isClimbSprinting17   = _canAnySprint17 && isClimbing && _isClimbSprintSpeed17;
 
                 // 원본 L2686 standing 지역 변수.
-                boolean _standing17 = player.isOnGround() && !isSliding && !isCrawling;
+                boolean _standing17 = player.onGround() && !isSliding && !isCrawling;
 
                 // 원본 L2688-L2695 isFast 6갈래 OR (+ isClimbSprinting 중복 1:1 보존).
                 isFast = (isGroundSprinting && (!_standing17 || cfg0.sprintEnableStanding))
@@ -1974,7 +1973,7 @@ public final class SmartMovingClientState {
                 //   해결: 비행 진입 엣지에서 stale 플래그 클리어 → restoreFromFlying 은 진입한
                 //   비행 세션 내에서만 의미 있는 신호로 유지.
                 this.restoreFromFlying = false;
-                player.calculateDimensions();
+                player.refreshDimensions();
             }
             if ((!isFlying && wasFlying) || (!isLevitating && wasLevitating)) {
                 this.heightOffset = -1F;
@@ -1990,8 +1989,8 @@ public final class SmartMovingClientState {
             //     if (restoreFromFlying || tryLanding) standupIfPossible(tryLanding, restoreFromFlying);
             //   상수: 0.003D (수평 속력 임계) / -0.03D (motionY 임계) 정확 보존.
             {
-                double _vX = player.getVelocity().x;
-                double _vZ = player.getVelocity().z;
+                double _vX = player.getDeltaMovement().x;
+                double _vZ = player.getDeltaMovement().z;
                 double _horizontalSpeedSquare = _vX * _vX + _vZ * _vZ;
                 // BUG-26 정정 취소 (세션 42): 사용자 핵심 지시 "원본 코드 보고 1:1 번역, 막 코드
                 //   넣지마" 따라 세션 41 의 `!cfg.flyCloseToGround` 가드 삭제 정정 취소 (1:1 위반).
@@ -2003,7 +2002,7 @@ public final class SmartMovingClientState {
                 boolean tryLanding = isFlying
                         && !cfg0.flyCloseToGround
                         && _horizontalSpeedSquare < 0.003D
-                        && player.getVelocity().y > -0.03D;
+                        && player.getDeltaMovement().y > -0.03D;
                 if (restoreFromFlying || tryLanding) {
                     standupIfPossible(player, tryLanding, restoreFromFlying);
                     // 🔴 (사용자 보고 — 비행 → 엎드리기 박스 0.6 BUG / 2026-04-30):
@@ -2029,7 +2028,7 @@ public final class SmartMovingClientState {
                 //   필요했으므로 진입 엣지 처리만으로는 부족).
                 //   중복 호출 무해 (vanilla calculateDimensions 는 idempotent).
                 if ((!isFlying && wasFlying) || (!isLevitating && wasLevitating)) {
-                    player.calculateDimensions();
+                    player.refreshDimensions();
                 }
             }
 
@@ -2139,8 +2138,8 @@ public final class SmartMovingClientState {
             wantCrawlNotClimb =
                     (wantCrawlNotClimb
                             || (grabJustPressed && !wasCrawling))
-                    && SmartMovingKeys.grab.isPressed()
-                    && player.input.movementForward > 0F
+                    && SmartMovingKeys.grab.isDown()
+                    && player.input.getMoveVector().y > 0F
                     && isCrawling
                     && player.horizontalCollision;
 
@@ -2186,10 +2185,10 @@ public final class SmartMovingClientState {
             //   다음 tick 매치 가능 → 원본 효과 위해 !isHeadJumping 가드 보강 (1.7.10 → 1.21.1
             //   timing 차이 정합).
             if (cfg0.slide && cfg0.enabled
-                    && SmartMovingKeys.grab.isPressed()
+                    && SmartMovingKeys.grab.isDown()
                     && (isStandupSprintingOrRunning(player)
                             || wasGroundSprinting
-                            || (wasRunning && !isRunning(player) && player.isOnGround()))
+                            || (wasRunning && !isRunning(player) && player.onGround()))
                     && !isCrawling
                     && sneakKeyStartPressed
                     && !isDipping) {
@@ -2241,8 +2240,8 @@ public final class SmartMovingClientState {
                 isSliding = true;                                        // 원본 L2558 — move 전에 set.
                 isHeadJumping = false;                                   // 원본 L2559 (fix #53).
                 isAerodynamic = false;                                   // 원본 L2560.
-                player.calculateDimensions();                            // dim 갱신 → mixin offset 활성.
-                player.move(MovementType.SELF, new Vec3d(0, -1D, 0));    // 원본 L2556 — entity.y -1m + 박스 발 ground.
+                player.refreshDimensions();                            // dim 갱신 → mixin offset 활성.
+                player.move(MoverType.SELF, new Vec3(0, -1D, 0));    // 원본 L2556 — entity.y -1m + 박스 발 ground.
                 // 🔴 fix #33 (2026-05-08) 유지: wasGroundSprinting=true 시 isFast 임시 true 강제.
                 boolean _savedIsFast = this.isFast;
                 if (wasGroundSprinting) this.isFast = true;
@@ -2274,11 +2273,11 @@ public final class SmartMovingClientState {
                 //   사용자 시나리오 (headJumpCharge>0) 시 cameraY=직전 standing 1.62 유지 → 다음 tick
                 //   dim 갱신 후 cameraY 추격 X (= standingEyeHeight=1.62 매치). 시점 안정.
                 if (headJumpCharge == 0F) {
-                    player.calculateDimensions();
-                    net.minecraft.client.render.Camera _cam =
-                            net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
+                    player.refreshDimensions();
+                    net.minecraft.client.Camera _cam =
+                            net.minecraft.client.Minecraft.getInstance().gameRenderer.mainCamera();
                     if (_cam != null) {
-                        float _eye = player.getStandingEyeHeight();
+                        float _eye = player.getEyeHeight();
                         ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) _cam).sm_setCameraY(_eye);
                         ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) _cam).sm_setLastCameraY(_eye);
                     }
@@ -2313,10 +2312,10 @@ public final class SmartMovingClientState {
                 wasHeadJumping = false;
             }
             isHeadJumping = isHeadJumping
-                    && !player.isOnGround()
+                    && !player.onGround()
                     && !(isSwimming_sm || isDiving)
                     && !(isFlying || player.getAbilities().flying)
-                    && !(player.isTouchingWater() && player.getVelocity().y < 0)
+                    && !(player.isInWater() && player.getDeltaMovement().y < 0)
                     && !player.isInLava();
 
             // 원본 L2532-L2533: !isHeadJumping 시 isAerodynamic 리셋 (재평가 뒤 위치로 이동)
@@ -2327,7 +2326,7 @@ public final class SmartMovingClientState {
             // B-N-standup (세션 115): `restoreFromFlying = true` 직후 `standupIfPossible(player,
             //   false, true)` 호출 연결. 원본은 updateEntityActionState 내부에서 별도 위치
             //   호출이나 1.21.1 단일 위치 + 근사 이식이라 여기서 직접 호출.
-            if (wasHeadJumping && !isHeadJumping && player.isOnGround()) {
+            if (wasHeadJumping && !isHeadJumping && player.onGround()) {
                 // 🔴 fix #81 (2026-05-12): 자체 슬라이딩 fire 플래그 reset — 헤드점프 종료 시.
                 //   다음 헤드점프 발사 시 일반 시각 (= thetaTarget 점진 lerp) 유지.
                 this.wasSelfSlideFire = false;
@@ -2381,10 +2380,10 @@ public final class SmartMovingClientState {
             //     isHeadJumping=true 변경 안 됨 → fox movement 작동 안 함. 사용자 보고 "여우무빙 망가짐". revert.
             // 🔴 fix #67 (2026-05-10): atSolidTop 가드 추가 — box 발 = ground top 동등 (touching) 시도 fall reset.
             if (isSliding && player.fallDistance > 0F) {
-                net.minecraft.util.math.Box _bbF67 = player.getBoundingBox();
+                net.minecraft.world.phys.AABB _bbF67 = player.getBoundingBox();
                 double _solidTopF67 = getMaxPlayerSolidBetween(player, _bbF67.minY - 1.0, _bbF67.minY, 0);
                 boolean _atSolidTopF67 = Math.abs(_bbF67.minY - _solidTopF67) < 1.0E-3;
-                if (player.isOnGround() || _atSolidTopF67) {
+                if (player.onGround() || _atSolidTopF67) {
                     player.fallDistance = 0F;
                 }
             }
@@ -2409,7 +2408,7 @@ public final class SmartMovingClientState {
             // ※ 이전 매핑: SmartMovingSlider.handleSliding 안에 horizontalSpeed (linear) 단위 + sneak
             //   누락 + toCrawling() 미호출 의 부분 매핑 → 원본 1:1 로 정정.
             if (isSliding) {
-                Vec3d _vel2563 = player.getVelocity();
+                Vec3 _vel2563 = player.getDeltaMovement();
                 double horizontalSpeedSquare = _vel2563.x * _vel2563.x + _vel2563.z * _vel2563.z;
                 // 🔴 fix #87 (2026-05-12, BUG = "슬라이딩 phase + 비행 진입 시 cycle"):
                 //   vanilla 1.21.1 ClientPlayerEntity.tickMovement 안 신규 @AUTOLAND 분기
@@ -2441,7 +2440,7 @@ public final class SmartMovingClientState {
                     //     자동 전환 효과 (isAerodynamic=true) 직접 발동 → 사용자 SHIFT timing 무관 길게.
                     //     조건: isHeadJumping=true (= case B fox movement) && !onGround (= air) &&
                     //           !wasHeadJumping (= 자동 전환 첫 발동 시점, fix #17 가드 1:1).
-                    if (isHeadJumping && !player.isOnGround() && !wasHeadJumping) {
+                    if (isHeadJumping && !player.onGround() && !wasHeadJumping) {
                         isAerodynamic = true;
                     }
                     // 🔴 fix #41 (2026-05-08, 여우무빙 fix): toCrawling() 호출에 !isHeadJumping 가드.
@@ -2495,9 +2494,9 @@ public final class SmartMovingClientState {
                         double _predictedMinY70 = player.getY();
                         boolean _willDrop70 = (_currentBoxMinY70 - _predictedMinY70) > 0.5;
                         if (_willDrop70) {
-                            player.setPosition(player.getX(), player.getY() + 1.0, player.getZ());
-                            player.lastRenderY += 1.0;
-                            player.prevY += 1.0;
+                            player.setPos(player.getX(), player.getY() + 1.0, player.getZ());
+                            player.yOld += 1.0;
+                            player.yo += 1.0;
                             // 🔴 fix #70 v3 (2026-05-22): 가드 제거 — POSE 매번 SWIMMING 강제.
                             //   log 실측 (sliding rapid toggle): fix #70 v2 의 `if (pose == SLIDING)` 가드 매치 X.
                             //     tick 1804 SLIDE-FIX70 시점 pose=STANDING 잔존 (= 이전 cycle 의 fix 결과
@@ -2513,13 +2512,13 @@ public final class SmartMovingClientState {
                             //     3. velocity Y=0 → vy 누적 차단.
                             //     4. fallDistance=0 → 잠긴 시점 fall reset.
                             //     5. onGround=true → vanilla collision check 정상 안착 보장.
-                            player.setPose(net.minecraft.entity.EntityPose.SWIMMING);
-                            player.setVelocity(player.getVelocity().x, 0, player.getVelocity().z);
+                            player.setPose(net.minecraft.world.entity.Pose.SWIMMING);
+                            player.setDeltaMovement(player.getDeltaMovement().x, 0, player.getDeltaMovement().z);
                             player.fallDistance = 0;
                             player.setOnGround(true);
                         }
                         this.heightOffset = 0F;
-                        player.calculateDimensions();
+                        player.refreshDimensions();
                         // 🔴 fix #64 (2026-05-10, dump 분석 — 사용자 보고 "전환 사이 카메라 올라갔다가 내려옴"):
                         //   entity.y push +1m 은 즉시. Camera.cameraY field 는 0.5 step lerp 추격
                         //   (= 5 frame 수렴) → 비대칭 spike.
@@ -2530,11 +2529,11 @@ public final class SmartMovingClientState {
                         //     (안정 위치 직진).
                         //   ICC 진입 fix / restoreFromFlying fix 와 동일 패턴 (= 메모리
                         //   feedback_standingEyeHeight_cached.md 참조).
-                        net.minecraft.client.MinecraftClient _mc64 = net.minecraft.client.MinecraftClient.getInstance();
-                        net.minecraft.client.render.Camera _cam64 = (_mc64 != null && _mc64.gameRenderer != null)
-                                ? _mc64.gameRenderer.getCamera() : null;
+                        net.minecraft.client.Minecraft _mc64 = net.minecraft.client.Minecraft.getInstance();
+                        net.minecraft.client.Camera _cam64 = (_mc64 != null && _mc64.gameRenderer != null)
+                                ? _mc64.gameRenderer.mainCamera() : null;
                         if (_cam64 != null) {
-                            float _crawlEye = player.getDimensions(net.minecraft.entity.EntityPose.SWIMMING).eyeHeight();
+                            float _crawlEye = player.getDimensions(net.minecraft.world.entity.Pose.SWIMMING).eyeHeight();
                             ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) _cam64).sm_setCameraY(_crawlEye);
                             ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) _cam64).sm_setLastCameraY(_crawlEye);
                         }
@@ -2571,11 +2570,11 @@ public final class SmartMovingClientState {
             // IMPL-03: 더블클릭 방향 점프 카운터 갱신
             // 원본: updateEntityActionState() 내 방향키 StartPressed → count 갱신
             {
-                MinecraftClient mc = MinecraftClient.getInstance();
-                boolean pressLeft    = mc.options.leftKey.isPressed();
-                boolean pressRight   = mc.options.rightKey.isPressed();
-                boolean pressBack    = mc.options.backKey.isPressed();
-                boolean pressForward = mc.options.forwardKey.isPressed();
+                Minecraft mc = Minecraft.getInstance();
+                boolean pressLeft    = mc.options.keyLeft.isDown();
+                boolean pressRight   = mc.options.keyRight.isDown();
+                boolean pressBack    = mc.options.keyDown.isDown();
+                boolean pressForward = mc.options.keyUp.isDown();
 
                 boolean startLeft  = pressLeft  && !prevPressLeft;
                 boolean startRight = pressRight && !prevPressRight;
@@ -2593,7 +2592,7 @@ public final class SmartMovingClientState {
                 //   canBackJump  = canAngleJump && !forwardButton.Pressed && !isStandupSprintingOrRunning()
                 // 가드 false 시 else 분기에서 count = 0 reset (원본 L2917/L2932/L2947).
                 boolean canAngleJump = !player.isSleeping()
-                        && player.isOnGround()
+                        && player.onGround()
                         && !isCrawling && !isClimbing && !isCrawlClimbing
                         && !isSwimming_sm && !isDiving;
                 boolean canSideJump  = cfg.angleJumpSide && canAngleJump;
@@ -2640,7 +2639,7 @@ public final class SmartMovingClientState {
                 //   if (sp.onGround || sp.isCollidedVertically) angleJumpType = 0;
                 // 점프 후 onGround 복귀 시 angleJumpType reset → isAngleJumping() 즉시 false.
                 // 이전 누락 → angleJumpType 잔존으로 애니메이션 잔존 가능.
-                if (player.isOnGround() || player.verticalCollision) {
+                if (player.onGround() || player.verticalCollision) {
                     angleJumpType = 0;
                 }
             }
@@ -2668,8 +2667,8 @@ public final class SmartMovingClientState {
             // horizontalSpeedSquare = motionX² + motionZ². 원본 L2389 참조. handleExhaustion
             // L1180 로컬 변수와 중복 계산되지만 isStanding 필드는 tickEssential 단일 진실 공급원.
             {
-                double _motionX = player.getVelocity().x;
-                double _motionZ = player.getVelocity().z;
+                double _motionX = player.getDeltaMovement().x;
+                double _motionZ = player.getDeltaMovement().z;
                 double _horizontalSpeedSquare = _motionX * _motionX + _motionZ * _motionZ;
                 isStanding = _horizontalSpeedSquare < 0.0005;
             }
@@ -2687,9 +2686,9 @@ public final class SmartMovingClientState {
             //   모드 중 1개 활성 시). 따라서 본 5-AND 공식 결과도 cfg 활성 시 정상 평가됨.
             //   이전 stale 주석 ("미이식 → 항상 false") 정정.
             {
-                boolean _sneakPressed17 = net.minecraft.client.MinecraftClient.getInstance()
-                        .options.sneakKey.isPressed();
-                boolean _moveForward17 = player.input.movementForward > 0F;
+                boolean _sneakPressed17 = net.minecraft.client.Minecraft.getInstance()
+                        .options.keyShift.isDown();
+                boolean _moveForward17 = player.input.getMoveVector().y > 0F;
                 // 원본 L2736 지역 변수 — 전환 블록에서 사용 (공식 직전 저장).
                 boolean _wasCrawlClimbing17 = isCrawlClimbing;
                 // 🔴 사다리/덩굴 ICC EXIT 직후 isCrawlClimbing 식 차단 가드 (사용자 보고 fix —
@@ -2738,9 +2737,9 @@ public final class SmartMovingClientState {
                         // 분기 1 (원본 L2758-L2764): 등반 종료 — toCrawling() 메서드로 크롤 재진입
                         // 판정 + 바닥 스냅. 원본 `toCrawling()` 은 세션 44 B-40 이식 완료.
                         wasCrawling = toCrawling();
-                        player.move(MovementType.SELF,
-                                new Vec3d(0, -minY + Math.floor(minY), 0));
-                    } else if (player.input.movementForward <= 0F) {
+                        player.move(MoverType.SELF,
+                                new Vec3(0, -minY + Math.floor(minY), 0));
+                    } else if (player.input.getMoveVector().y <= 0F) {
                         // 분기 2 (원본 L2765-L2777): 전진 해제 — 로컬 toCrawling boolean 반영,
                         // wantClimbUp/Down 리셋, 조건부 높이 복귀. toCrawling=true 면 크롤 유지,
                         // false 면 서기 (높이 +1).
@@ -2749,16 +2748,16 @@ public final class SmartMovingClientState {
                         wantClimbUp   = false;
                         wantClimbDown = false;
                         if (!toCrawlingLocal) heightOffset = 0F;
-                        player.move(MovementType.SELF,
-                                new Vec3d(0,
+                        player.move(MoverType.SELF,
+                                new Vec3(0,
                                         -minY + Math.floor(minY) + (toCrawlingLocal ? 0F : 1F),
                                         0));
                     } else if (!toCrawlingLocal) {
                         // 분기 3 (원본 L2778-L2783): 스니크 해제 (전진은 유지) — 높이 리셋 후
                         // 위쪽(ceil) 스냅.
                         heightOffset = 0F;
-                        player.move(MovementType.SELF,
-                                new Vec3d(0, Math.ceil(minY) - minY, 0));
+                        player.move(MoverType.SELF,
+                                new Vec3(0, Math.ceil(minY) - minY, 0));
                     }
                 }
             }
@@ -2829,12 +2828,12 @@ public final class SmartMovingClientState {
                     //   - 박스 = (entity.y+1, entity.y+1.8) ⊆ 좁은 갭. entity.y 변경 X.
                     //   - 사용자 시점 = entity.y + 1.62 = old.y + 1.62 (변경 X).
                     //   사다리 grip 효과는 sm_travel_client 의 ICC clamp 분기에서 직접 매핑.
-                    player.calculateDimensions();
+                    player.refreshDimensions();
                     // 원본 L2800: `boolean wasCollidedHorizontally = sp.isCollidedHorizontally;`
                     boolean wasColH = player.horizontalCollision;
                     // 원본 L2801: move(0, 0.05, 0) — solid 머리 위에 서있을 때 crawl 진입 방지
                     double iccEnterYBefore = player.getY();
-                    player.move(MovementType.SELF, new Vec3d(0, 0.05, 0));
+                    player.move(MoverType.SELF, new Vec3(0, 0.05, 0));
                     // 🔴 entity.y 복원 (사용자 보고 fix — grab climbing 중 sneak 시 카메라 움찔움찔):
                     //   ICC 진입/해제 매 tick 진동 (= isClimbing/isClimbHolding 매 tick true↔false) 시
                     //   매 ICC ENTER edge 마다 player.move(0, 0.05, 0) → entity.y +0.05m 누적.
@@ -2846,7 +2845,7 @@ public final class SmartMovingClientState {
                     //   (= mixin offset +1m) + horizontalCollision 효과 보존. 원본 의도 = entity.y
                     //   +0.05m 영구 적용 (= 박스 천장 close 검사 안전 마진) 부분 손실 가능.
                     if (player.getY() != iccEnterYBefore) {
-                        player.setPosition(player.getX(), iccEnterYBefore, player.getZ());
+                        player.setPos(player.getX(), iccEnterYBefore, player.getZ());
                     }
                     // 원본 L2802: sp.isCollidedHorizontally = wasCollidedHorizontally;
                     //   (water 밖으로 crawl 탈출 버그 방지)
@@ -2860,10 +2859,10 @@ public final class SmartMovingClientState {
                     //   getDimensions(STANDING).eyeHeight() 사용 (= cached getStandingEyeHeight 회피,
                     //   메모리 feedback_standingEyeHeight_cached.md).
                     {
-                        net.minecraft.client.render.Camera camEnter =
-                                net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
+                        net.minecraft.client.Camera camEnter =
+                                net.minecraft.client.Minecraft.getInstance().gameRenderer.mainCamera();
                         if (camEnter != null) {
-                            float iccEye = player.getDimensions(net.minecraft.entity.EntityPose.STANDING).eyeHeight();
+                            float iccEye = player.getDimensions(net.minecraft.world.entity.Pose.STANDING).eyeHeight();
                             ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) camEnter).sm_setCameraY(iccEye);
                             ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) camEnter).sm_setLastCameraY(iccEye);
                         }
@@ -2880,7 +2879,7 @@ public final class SmartMovingClientState {
                     //   유지. 다음 tick wasICC=true && ICC 식 결과 false → 또 가드 활성 → 무한 hold.
                     //   사용자 sneak release 또는 W 누르거나 grab 누름 시 가드 false → 정상 처리.
                     boolean sneakHoldGuard = isClimbHolding
-                            && player.input.movementForward <= 0F
+                            && player.input.getMoveVector().y <= 0F
                             && !mustCrawl;
                     if (sneakHoldGuard) {
                         // ICC 활성 박스 + dim 매핑 유지 위해 isClimbCrawling=true 강제 복원.
@@ -2891,7 +2890,7 @@ public final class SmartMovingClientState {
                         //   사용자 시나리오 — sneak hold 중 좌/우/후 이동으로 grab 블록 영역 밖 → 박스 발
                         //   아래 빈공간 (gap >= 1) → 원본은 resetHeightOffset (= 박스 1.8 복원) 으로
                         //   떨어지면서 sneak. 우리 매핑이 강제 toCrawling 했음 → 잘못된 엎드리기 BUG.
-                        Box bbExit = player.getBoundingBox();
+                        AABB bbExit = player.getBoundingBox();
                         double exitGap = bbExit.minY
                                 - getMaxPlayerSolidBetween(player, bbExit.minY - 1D, bbExit.minY, 0);
                         // 🔴 사다리/덩굴 끝 + sneak crawl 진입 시 RESET-HEIGHT 분기 차단 가드:
@@ -2906,7 +2905,7 @@ public final class SmartMovingClientState {
                             // gap >= 1 (또는 음수) && isCrawling=false → 박스 발 아래 빈공간 (= 좌/우/후
                             //   이동 standing 떨어짐) → resetHeightOffset.
                             heightOffset = 0F;
-                            player.calculateDimensions();
+                            player.refreshDimensions();
                         } else {
                         // 🔴 ICC EXIT toCrawling 매핑 (원본 1.7.10 setHeightOffset(-1F) 1:1):
                         //   원본 1.7.10: posY 변경 X + box.minY +=1 + height -=1 + ySize/yOffset 동기화.
@@ -2981,18 +2980,18 @@ public final class SmartMovingClientState {
                         //   해결: fwd<=0 시만 set → 사다리/덩굴 끝 hold 케이스 한정 → 좁은 갭 통과
                         //   시나리오 자연 전환 허용. 원본 1.7.10 은 ICC EXIT 분기에 isClimbing/
                         //   mustCrawl/iccExit 같은 강제 set 없음 (= 자연 전환).
-                        if (player.input.movementForward <= 0F) {
+                        if (player.input.getMoveVector().y <= 0F) {
                             this.iccExitJustToCrawl = true;
                         }
-                        player.setPosition(player.getX(), player.getY() + 1.0, player.getZ());
-                        player.lastRenderY += 1.0;
-                        player.prevY += 1.0;
-                        player.calculateDimensions();
+                        player.setPos(player.getX(), player.getY() + 1.0, player.getZ());
+                        player.yOld += 1.0;
+                        player.yo += 1.0;
+                        player.refreshDimensions();
                         // Camera.cameraY 보간 baseline 보정 (= 1.62 → 0.62 lerp 점프 차단).
-                        net.minecraft.client.render.Camera cam =
-                                net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
+                        net.minecraft.client.Camera cam =
+                                net.minecraft.client.Minecraft.getInstance().gameRenderer.mainCamera();
                         if (cam != null) {
-                            float eye = player.getStandingEyeHeight();
+                            float eye = player.getEyeHeight();
                             ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setCameraY(eye);
                             ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setLastCameraY(eye);
                         }
@@ -3005,14 +3004,14 @@ public final class SmartMovingClientState {
                             double gapUnderneight = minY18
                                     - getMaxPlayerSolidBetween(player, minY18 - 1D, minY18, 0);
                             if (gapUnderneight >= 0D && gapUnderneight < 1D) {
-                                player.move(MovementType.SELF, new Vec3d(0, -gapUnderneight, 0));
+                                player.move(MoverType.SELF, new Vec3(0, -gapUnderneight, 0));
                             }
                         }
                         }  // toCrawling 분기 (gap < 1) 닫기
                     } else {
                         // sneak 안 누름 — 박스 1.8 복원 (원본 resetHeightOffset).
                         heightOffset = 0F;
-                        player.calculateDimensions();
+                        player.refreshDimensions();
                     }
                 }
             }
@@ -3047,10 +3046,10 @@ public final class SmartMovingClientState {
                 //   원래 의도 (= project_crawl_release_camera_jump_fix): 떨어지면서 풀림 시
                 //     (= onG=false + solid 없음) -1m drop 정상 (= 박스 발 정렬).
                 //   해결: onGround=true + dy<0 시 push skip. 떨어지면서 풀림 (= onG=false) 시 적용.
-                if (b35Dy < 0D && player.isOnGround()) {
+                if (b35Dy < 0D && player.onGround()) {
                     // skip — 지면 위 + dy<0 = 벽 충돌 시 fallback 잘못 매트릭스. self.y 보존.
                 } else {
-                player.move(MovementType.SELF, new Vec3d(0, b35Dy, 0));
+                player.move(MoverType.SELF, new Vec3(0, b35Dy, 0));
                 // 🔴 Camera lerp 점프 차단 (사용자 보고 fix — 엎드린 채 떨어지면서 풀림 시 1인칭 덜컹):
                 //   B-35 분기 `move(0, crawlStandUpBottom - minY, 0)` = 박스 발 정렬. 떨어지는 중
                 //   solid 없으면 dy=-1m → entity.y -1m. lastRenderY/prevY 미동기화 → lerp baseline
@@ -3061,12 +3060,12 @@ public final class SmartMovingClientState {
                 //   해결: dy 만큼 lastRenderY/prevY 동기화 + Camera.cameraY/lastCameraY = STANDING
                 //   dim eye 직접 사용 (= 1.62, getStandingEyeHeight() cached 우회) 강제.
                 if (b35Dy != 0D) {
-                    player.lastRenderY += b35Dy;
-                    player.prevY += b35Dy;
-                    net.minecraft.client.render.Camera cam =
-                            net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
+                    player.yOld += b35Dy;
+                    player.yo += b35Dy;
+                    net.minecraft.client.Camera cam =
+                            net.minecraft.client.Minecraft.getInstance().gameRenderer.mainCamera();
                     if (cam != null) {
-                        float eye = player.getDimensions(net.minecraft.entity.EntityPose.STANDING).eyeHeight();
+                        float eye = player.getDimensions(net.minecraft.world.entity.Pose.STANDING).eyeHeight();
                         ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setCameraY(eye);
                         ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setLastCameraY(eye);
                     }
@@ -3077,7 +3076,7 @@ public final class SmartMovingClientState {
             //   → setHeightOffset(-1F) + move(0, -1D, 0) + (initializeCrawling → toCrawling())
             if ((isCrawling && !wasCrawling) || initializeCrawling) {
                 heightOffset = -1F;
-                player.move(MovementType.SELF, new Vec3d(0, -1D, 0));
+                player.move(MoverType.SELF, new Vec3(0, -1D, 0));
                 if (initializeCrawling) toCrawling();
             }
 
@@ -3102,19 +3101,19 @@ public final class SmartMovingClientState {
                     double minY36a = player.getBoundingBox().minY;
                     double maxY36a = player.getBoundingBox().maxY;
                     double groundY36a = getMaxPlayerSolidBetween(player, minY36a, maxY36a, 0);
-                    player.move(MovementType.SELF, new Vec3d(0, groundY36a - minY36a, 0));
+                    player.move(MoverType.SELF, new Vec3(0, groundY36a - minY36a, 0));
                     if (_jumpPressed3a) isStillSwimmingJump = true;
                 } else if (isDipping && wouldWantCrawl && dippingDepth >= SWIM_CRAWL_WATER_BOTTOM_BORDER) {
                     if (dippingDepth >= SWIM_CRAWL_WATER_MEDIUM_BORDER) {
                         // (b) dipping → swimming/diving 전환 (원본 L2850-L2855)
                         heightOffset = -1F;
-                        player.move(MovementType.SELF,
-                                new Vec3d(0, -1.6F + dippingDepth, 0));
+                        player.move(MoverType.SELF,
+                                new Vec3(0, -1.6F + dippingDepth, 0));
                         isCrawling = false;
                     } else {
                         // (c) dipping → 얕은 물 crawl 전환 (원본 L2856-L2862)
                         heightOffset = -1F;
-                        player.move(MovementType.SELF, new Vec3d(0, -1D, 0));
+                        player.move(MoverType.SELF, new Vec3(0, -1D, 0));
                         wasCrawling = toCrawling();
                     }
                 }
@@ -3187,7 +3186,7 @@ public final class SmartMovingClientState {
                 if (isCrawlToggleEnabled) {
                     if (willStartCrawl) {
                         crawlToggled = true;
-                        ignoreNextStopSneakButtonPressed = MinecraftClient.getInstance().options.sneakKey.isPressed();
+                        ignoreNextStopSneakButtonPressed = Minecraft.getInstance().options.keyShift.isDown();
                     }
                     if (willStopCrawl) crawlToggled = false;
                 }
@@ -3203,12 +3202,12 @@ public final class SmartMovingClientState {
 
             // fadingPerspectiveFactor EMA 계산 (원본: SmartMovingSelf.tickEssential L1317-1336)
             // getLandMovementFactor() → 1.21.1: player.getMovementSpeed()
-            float landMovementFactor = player.getMovementSpeed();
+            float landMovementFactor = player.getSpeed();
             float perspectiveFactor = landMovementFactor;
             if (player.isSprinting()) perspectiveFactor /= 1.3F;
             perspectiveFactor = 0.1f + ((perspectiveFactor - 0.1f) * cfg.perspectiveSpeedFactor);
             if (cfg.perspectiveSpeedFactorMax > 0F) {
-                perspectiveFactor = net.minecraft.util.math.MathHelper.clamp(
+                perspectiveFactor = net.minecraft.util.Mth.clamp(
                         perspectiveFactor,
                         0.1f - cfg.perspectiveSpeedFactorMax * 0.1f,
                         0.1f + cfg.perspectiveSpeedFactorMax * 0.1f);
@@ -3336,11 +3335,11 @@ public final class SmartMovingClientState {
         feetEdgeBlock           = null;
     }
 
-    private static boolean canStandUp(ClientPlayerEntity player) {
-        Box standBox = player.getDimensions(EntityPose.STANDING)
-                             .getBoxAt(player.getPos())
-                             .contract(1.0E-7);
-        return player.getWorld().isSpaceEmpty(player, standBox);
+    private static boolean canStandUp(LocalPlayer player) {
+        AABB standBox = player.getDimensions(Pose.STANDING)
+                             .makeBoundingBox(player.position())
+                             .deflate(1.0E-7);
+        return player.level().noCollision(player, standBox);
     }
 
     /**
@@ -3350,12 +3349,12 @@ public final class SmartMovingClientState {
      * 사용처: B-17b canStandUp 분기 (원본 L2740) — isCrawlClimbing 해제 판정.
      * B-17b (세션 48).
      */
-    private static boolean isPlayerInSolidBetween(ClientPlayerEntity player, double y1, double y2) {
-        Box box = new Box(
+    private static boolean isPlayerInSolidBetween(LocalPlayer player, double y1, double y2) {
+        AABB box = new AABB(
                 player.getBoundingBox().minX, y1, player.getBoundingBox().minZ,
                 player.getBoundingBox().maxX, y2, player.getBoundingBox().maxZ
         );
-        return !player.getWorld().isSpaceEmpty(player, box);
+        return !player.level().noCollision(player, box);
     }
 
 
@@ -3394,11 +3393,11 @@ public final class SmartMovingClientState {
      *
      * B-42a (세션 117) — Phase 6 시작 원자.
      */
-    public static double getMaxPlayerSolidBetween(net.minecraft.client.network.AbstractClientPlayerEntity player,
+    public static double getMaxPlayerSolidBetween(net.minecraft.client.player.AbstractClientPlayer player,
                                                    double yMin, double yMax,
                                                    double horizontalTolerance) {
-        Box pb = player.getBoundingBox();
-        Box checkBox = new Box(
+        AABB pb = player.getBoundingBox();
+        AABB checkBox = new AABB(
                 pb.minX - horizontalTolerance, yMin, pb.minZ - horizontalTolerance,
                 pb.maxX + horizontalTolerance, yMax, pb.maxZ + horizontalTolerance);
 
@@ -3410,10 +3409,10 @@ public final class SmartMovingClientState {
         double maxXLimit = pb.maxX + horizontalTolerance;
         double minZLimit = pb.minZ - horizontalTolerance;
         double maxZLimit = pb.maxZ + horizontalTolerance;
-        for (net.minecraft.util.shape.VoxelShape shape
-                : player.getWorld().getBlockCollisions(player, checkBox)) {
+        for (net.minecraft.world.phys.shapes.VoxelShape shape
+                : player.level().getBlockCollisions(player, checkBox)) {
             if (shape.isEmpty()) continue;
-            for (Box box : shape.getBoundingBoxes()) {
+            for (AABB box : shape.toAabbs()) {
                 // 원본 L299-L306 `isCollided(box, yMin, yMax, horizontalTolerance)` 인라인
                 if (box.maxX >= minXLimit
                         && box.minX <= maxXLimit
@@ -3453,11 +3452,11 @@ public final class SmartMovingClientState {
      * B-42b (세션 118) — Phase 6 두 번째 원자.
      */
     // 🔴 (BUG D fix, 2026-05-13) signature 확장: ClientPlayerEntity → AbstractClientPlayerEntity.
-    public static double getMinPlayerSolidBetween(net.minecraft.client.network.AbstractClientPlayerEntity player,
+    public static double getMinPlayerSolidBetween(net.minecraft.client.player.AbstractClientPlayer player,
                                                    double yMin, double yMax,
                                                    double horizontalTolerance) {
-        Box pb = player.getBoundingBox();
-        Box checkBox = new Box(
+        AABB pb = player.getBoundingBox();
+        AABB checkBox = new AABB(
                 pb.minX - horizontalTolerance, yMin, pb.minZ - horizontalTolerance,
                 pb.maxX + horizontalTolerance, yMax, pb.maxZ + horizontalTolerance);
 
@@ -3467,10 +3466,10 @@ public final class SmartMovingClientState {
         double maxXLimit = pb.maxX + horizontalTolerance;
         double minZLimit = pb.minZ - horizontalTolerance;
         double maxZLimit = pb.maxZ + horizontalTolerance;
-        for (net.minecraft.util.shape.VoxelShape shape
-                : player.getWorld().getBlockCollisions(player, checkBox)) {
+        for (net.minecraft.world.phys.shapes.VoxelShape shape
+                : player.level().getBlockCollisions(player, checkBox)) {
             if (shape.isEmpty()) continue;
-            for (Box box : shape.getBoundingBoxes()) {
+            for (AABB box : shape.toAabbs()) {
                 if (box.maxX >= minXLimit
                         && box.minX <= maxXLimit
                         && box.maxY >= yMin
@@ -3514,26 +3513,26 @@ public final class SmartMovingClientState {
      * B-42c (세션 119) — Phase 6 세 번째 원자 (액체 경계 헬퍼).
      * 포커스 #2.6 A-1+A-2 (세션 2): lava + modded 분기 복원, §7 근사 B-42c-b 해소.
      */
-    private static float getLiquidBorder(ClientPlayerEntity player, int i, int j, int k) {
-        net.minecraft.util.math.BlockPos pos = new net.minecraft.util.math.BlockPos(i, j, k);
-        net.minecraft.fluid.FluidState fluid = player.getWorld().getFluidState(pos);
+    private static float getLiquidBorder(LocalPlayer player, int i, int j, int k) {
+        net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(i, j, k);
+        net.minecraft.world.level.material.FluidState fluid = player.level().getFluidState(pos);
 
         // 분기 1 (원본 L135-L136): empty → 0F
         if (fluid.isEmpty()) return 0F;
 
         // 분기 2 (원본 L135-L136 + L145-L146): water (water + flowing_water + Material.water 통합)
-        if (fluid.isIn(net.minecraft.registry.tag.FluidTags.WATER)) {
-            return fluid.getHeight(player.getWorld(), pos);
+        if (fluid.is(net.minecraft.tags.FluidTags.WATER)) {
+            return fluid.getHeight(player.level(), pos);
         }
 
         // 분기 3 + 4 (원본 L139-L140 + L142-L144): lava (lava + flowing_lava + Material.lava 통합)
         //   _lavaLikeWater ? getNormalWaterBorder : 0F
         //   1.21.1 fluid.getHeight 가 LavaFluid 도 올바른 높이 반환 (level 기반).
         //   포커스 #2.6 A-1: §7 근사 B-42c-b 해소 (lava 분기 복원, 세션 2).
-        if (fluid.isIn(net.minecraft.registry.tag.FluidTags.LAVA)) {
+        if (fluid.is(net.minecraft.tags.FluidTags.LAVA)) {
             SmartMovingConfig cfg = SmartMovingConfig.Config;
             // 🔴 (2026-05-22) overload(player) 사용 — Creative 모드 자동 true (원본 1.7.10 spec).
-            return cfg.isLavaLikeWaterEnabled(player) ? fluid.getHeight(player.getWorld(), pos) : 0F;
+            return cfg.isLavaLikeWaterEnabled(player) ? fluid.getHeight(player.level(), pos) : 0F;
         }
 
         // 분기 6 (원본 L147-L148): modded liquid (`material.isLiquid()` → 1F)
@@ -3555,12 +3554,12 @@ public final class SmartMovingClientState {
      *
      * B-42c (세션 119).
      */
-    public static double getMaxPlayerLiquidBetween(ClientPlayerEntity player,
+    public static double getMaxPlayerLiquidBetween(LocalPlayer player,
                                                     double yMin, double yMax) {
-        int i = net.minecraft.util.math.MathHelper.floor(player.getX());
-        int jMin = net.minecraft.util.math.MathHelper.floor(yMin);
-        int jMax = net.minecraft.util.math.MathHelper.floor(yMax);
-        int k = net.minecraft.util.math.MathHelper.floor(player.getZ());
+        int i = net.minecraft.util.Mth.floor(player.getX());
+        int jMin = net.minecraft.util.Mth.floor(yMin);
+        int jMax = net.minecraft.util.Mth.floor(yMax);
+        int k = net.minecraft.util.Mth.floor(player.getZ());
 
         for (int j = jMax; j >= jMin; j--) {   // 위에서 아래로 탐색
             float swimWaterBorder = getLiquidBorder(player, i, j, k);
@@ -3586,12 +3585,12 @@ public final class SmartMovingClientState {
      *
      * B-42c (세션 119).
      */
-    public static double getMinPlayerLiquidBetween(ClientPlayerEntity player,
+    public static double getMinPlayerLiquidBetween(LocalPlayer player,
                                                     double yMin, double yMax) {
-        int i = net.minecraft.util.math.MathHelper.floor(player.getX());
-        int jMin = net.minecraft.util.math.MathHelper.floor(yMin);
-        int jMax = net.minecraft.util.math.MathHelper.floor(yMax);
-        int k = net.minecraft.util.math.MathHelper.floor(player.getZ());
+        int i = net.minecraft.util.Mth.floor(player.getX());
+        int jMin = net.minecraft.util.Mth.floor(yMin);
+        int jMax = net.minecraft.util.Mth.floor(yMax);
+        int k = net.minecraft.util.Mth.floor(player.getZ());
 
         for (int j = jMin; j <= jMax; j++) {   // 아래에서 위로 탐색
             float swimWaterBorder = getLiquidBorder(player, i, j, k);
@@ -3622,8 +3621,8 @@ public final class SmartMovingClientState {
      *
      * B-7d (세션 127).
      */
-    public static boolean isInLiquid(ClientPlayerEntity player) {
-        Box pb = player.getBoundingBox();
+    public static boolean isInLiquid(LocalPlayer player) {
+        AABB pb = player.getBoundingBox();
         return getMaxPlayerLiquidBetween(player, pb.minY, pb.maxY) != pb.minY
             || getMinPlayerLiquidBetween(player, pb.minY, pb.maxY) != pb.maxY;
     }
@@ -3683,7 +3682,7 @@ public final class SmartMovingClientState {
         }
     }
 
-    public static SwimBorderValues computeSwimBorderValues(ClientPlayerEntity player) {
+    public static SwimBorderValues computeSwimBorderValues(LocalPlayer player) {
         // 🔵 (2026-05-20, BUG 2 fix #104) 박스 측정 좌표계 — entity.y 기준 STANDING 박스 직접 사용.
         //   원본 1.7.10 mechanism: handleSwimming L256 `j = floor(sp.boundingBox.minY)` 측정 시점 =
         //     swim 분기 진입 시 박스 (= heightOffset=0 잔존, = entity.y 기준 STANDING).
@@ -3695,9 +3694,9 @@ public final class SmartMovingClientState {
         //     hardcoded. 측정 = 원본 standing 박스 1:1.
         double standingMinY = player.getY();
         double standingMaxY = player.getY() + 1.8;
-        int i = net.minecraft.util.math.MathHelper.floor(player.getX());
-        int j = net.minecraft.util.math.MathHelper.floor(standingMinY);
-        int k = net.minecraft.util.math.MathHelper.floor(player.getZ());
+        int i = net.minecraft.util.Mth.floor(player.getX());
+        int j = net.minecraft.util.Mth.floor(standingMinY);
+        int k = net.minecraft.util.Mth.floor(player.getZ());
         double j_offset = standingMinY - j;
 
         double totalSwimWaterBorder      = getMaxPlayerLiquidBetween(player, standingMaxY - 1.8, standingMaxY + 1.2);
@@ -3737,9 +3736,9 @@ public final class SmartMovingClientState {
      *   원본 L2902 `canBackJump = ... && !isStandupSprintingOrRunning()`.
      * B-48b (세션 131).
      */
-    public boolean isStandupSprintingOrRunning(ClientPlayerEntity player) {
+    public boolean isStandupSprintingOrRunning(LocalPlayer player) {
         return (isFast || player.isSprinting())
-                && player.isOnGround()
+                && player.onGround()
                 && !isSliding
                 && !isCrawling;
     }
@@ -3758,10 +3757,10 @@ public final class SmartMovingClientState {
      * B-50 (세션 133). SmartStatisticsFactory + SmartStatisticsDatas Hashtable 캐시 등
      * 인프라 이식 없이 매 호출 계산 — 호출처 1곳 (isClimbSprintSpeed) 이라 비용 무시 가능.
      */
-    public static float getTickDistance(net.minecraft.entity.player.PlayerEntity player) {
-        double dx = player.getX() - player.prevX;
-        double dy = player.getY() - player.prevY;
-        double dz = player.getZ() - player.prevZ;
+    public static float getTickDistance(net.minecraft.world.entity.player.Player player) {
+        double dx = player.getX() - player.xo;
+        double dy = player.getY() - player.yo;
+        double dz = player.getZ() - player.zo;
         return (float) (Math.sqrt(dx * dx + dy * dy + dz * dz) * 4.0);
     }
 
@@ -3772,8 +3771,8 @@ public final class SmartMovingClientState {
      * 사용처: handleExhaustion Config.getFactor (원본 L1202/L1278) + L3043 `wasRunning = isRunning`.
      * B-22c (세션 42).
      */
-    public boolean isRunning(ClientPlayerEntity player) {
-        return player.isSprinting() && !isFast && (player.isOnGround() || vanilla());
+    public boolean isRunning(LocalPlayer player) {
+        return player.isSprinting() && !isFast && (player.onGround() || vanilla());
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -3815,8 +3814,8 @@ public final class SmartMovingClientState {
     // 🔴 (BUG D fix, 2026-05-13) signature 확장: ClientPlayerEntity → AbstractClientPlayerEntity.
     //   remote (= AbstractClientPlayerEntity, !ClientPlayerEntity) 에서도 gap 측정 가능 →
     //   비행 종료 시 self side standupIfPossible 1:1 매핑.
-    public static double getGapUnderneight(net.minecraft.client.network.AbstractClientPlayerEntity player) {
-        Box bb = player.getBoundingBox();
+    public static double getGapUnderneight(net.minecraft.client.player.AbstractClientPlayer player) {
+        AABB bb = player.getBoundingBox();
         // 🔴 yMax clamping 회피 fix: yMax = bb.minY + 0.5 (박스 발 위 0.5m 까지 검사).
         //   원본 yMax = bb.minY 였지만, getMaxPlayerSolidBetween 의 Math.min(result, yMax)
         //   clamping 때문에 박스 발이 솔리드 안 살짝 박힌 case (vanilla 충돌 처리 epsilon
@@ -3836,8 +3835,8 @@ public final class SmartMovingClientState {
      * B-N-standup-3 (세션 136) — B-42b 헬퍼 소비로 §7 근사 해소.
      */
     // 🔴 (BUG D fix, 2026-05-13) signature 확장: ClientPlayerEntity → AbstractClientPlayerEntity.
-    public static double getGapOverneight(net.minecraft.client.network.AbstractClientPlayerEntity player) {
-        Box bb = player.getBoundingBox();
+    public static double getGapOverneight(net.minecraft.client.player.AbstractClientPlayer player) {
+        AABB bb = player.getBoundingBox();
         return getMinPlayerSolidBetween(player, bb.maxY, bb.maxY + 1.1D, 0) - bb.maxY;
     }
 
@@ -3852,7 +3851,7 @@ public final class SmartMovingClientState {
      * hitbox 자체는 자동 복원하므로 `move` 는 바닥 스냅 전용 효과.
      * B-N-standup-3 (세션 136).
      */
-    public void standUp(ClientPlayerEntity player, double gapUnderneight) {
+    public void standUp(LocalPlayer player, double gapUnderneight) {
         // 🔴 원본 1:1 매핑 (SmartMovingSelf L2214-L2219):
         //   move(0, 1-gap, 0): entity.posY += (1-gap). 박스 평행이동.
         //   resetHeightOffset: boundingBox.minY -= -1 → 박스 minY = entity.posY_new.
@@ -3865,7 +3864,7 @@ public final class SmartMovingClientState {
         //   (Math.min(result, yMax) 에서 yMax=bb.minY) 때문에 박스 발이 솔리드 안 살짝 박힌
         //   case 에서 gap=0 잘못 산출 → 보정 부족 → 가라앉음. getGapUnderneight 의 yMax 를
         //   bb.minY+0.5 로 정정해 음수 gap 측정 가능 → 정확한 보정.
-        player.setPosition(player.getX(), player.getY() + (1D - gapUnderneight), player.getZ());
+        player.setPos(player.getX(), player.getY() + (1D - gapUnderneight), player.getZ());
         this.isCrawling    = false;
         this.isHeadJumping = false;
         resetHeightOffset();
@@ -3882,13 +3881,13 @@ public final class SmartMovingClientState {
      * 서기 공간 부족 시 슬라이딩(grab + slide 활성 or 헤드점프 착지) 또는 크롤링 전환.
      * B-N-standup-3 (세션 136).
      */
-    public void toSlidingOrCrawling(ClientPlayerEntity player, double gapUnderneight) {
+    public void toSlidingOrCrawling(LocalPlayer player, double gapUnderneight) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         // 원본 L2224: move(0, -gapUnderneight, 0, true)
-        player.move(MovementType.SELF, new Vec3d(0, -gapUnderneight, 0));
+        player.move(MoverType.SELF, new Vec3(0, -gapUnderneight, 0));
         // 원본 L2226-L2229: grabPressed || wasHeadJumping 이면 isSliding, 아니면 toCrawling
         if (cfg.slide && cfg.enabled
-                && (SmartMovingKeys.grab.isPressed() || this.wasHeadJumping)) {
+                && (SmartMovingKeys.grab.isDown() || this.wasHeadJumping)) {
             // 🔴 (2026-05-04 사용자 보고 — "비행 → grab+sneak 착지 슬라이딩 시 90° 꺾임 +
             //   엎드리기 애니"): 진입 시점에 isCrawling=true 잔존 (다른 path 가 set 한 것)
             //   할 수 있음. 원본은 standupIfPossible 호출 시점 isCrawling=false 보장 invariant.
@@ -3917,7 +3916,7 @@ public final class SmartMovingClientState {
      *
      * B-N-standup-3 해소 (세션 136): AABB 정밀 gap 측정 복원. 기존 `canStandUp` 근사 제거.
      */
-    public void standupIfPossible(ClientPlayerEntity player) {
+    public void standupIfPossible(LocalPlayer player) {
         if (this.heightOffset >= 0) return;
 
         double gapUnderneight = getGapUnderneight(player);
@@ -3962,7 +3961,7 @@ public final class SmartMovingClientState {
      *   `UpdatePlayerAbilitiesC2SPacket` 송신으로 server sync. flying field 직접 할당
      *   패턴은 MixinClientPlayerEntity L53 에서 이미 사용 중 (착지 후 flying 복원).
      */
-    public void standupIfPossible(ClientPlayerEntity player, boolean tryLanding, boolean restoreFromFlying) {
+    public void standupIfPossible(LocalPlayer player, boolean tryLanding, boolean restoreFromFlying) {
         if (this.heightOffset >= 0) return;
 
         double gapUnderneight = getGapUnderneight(player);
@@ -3975,8 +3974,8 @@ public final class SmartMovingClientState {
             // 포커스 #3 B-3 (세션 4): 원본 L2199 `sp.capabilities.isFlying = false` 매핑.
             //   1.21.1 PlayerAbilities.flying public field 직접 할당 + 서버 sync 패킷.
             player.getAbilities().flying = false;
-            player.networkHandler.sendPacket(
-                    new UpdatePlayerAbilitiesC2SPacket(player.getAbilities()));
+            player.connection.send(
+                    new ServerboundPlayerAbilitiesPacket(player.getAbilities()));
             restoreFromFlying = true;
         }
 
@@ -3988,9 +3987,9 @@ public final class SmartMovingClientState {
         //   inject 가 비행 직후 `isSlow=false` 등으로 false 반환 → `(sneak&&grab)=false` →
         //   standUp 분기 잘못 매치 → heightOffset reset → 슬라이딩 진입 안 됨.
         //   메모리 feedback_movementInput_vs_isSneaking.md 패턴 적용.
-        boolean sneakPressed = net.minecraft.client.MinecraftClient.getInstance()
-                .options.sneakKey.isPressed();
-        boolean grabPressed  = SmartMovingKeys.grab.isPressed();
+        boolean sneakPressed = net.minecraft.client.Minecraft.getInstance()
+                .options.keyShift.isDown();
+        boolean grabPressed  = SmartMovingKeys.grab.isDown();
 
         if (!groundClose && !sneakPressed) {
             // 🔴 fix #88 (2026-05-12): 헤드점프 종료 직후 블록 모서리 시나리오 잠김 BUG.
@@ -4013,11 +4012,11 @@ public final class SmartMovingClientState {
             if (_wasSmallBox && this.justEndedHeadJump
                     && !isHeadJumping && !isSliding && !isCrawling && !isCrawlClimbing
                     && !isSwimming_sm && !isDiving && !isFlying && !isLevitating) {
-                player.setPose(net.minecraft.entity.EntityPose.STANDING);
-                player.calculateDimensions();
-                player.setPosition(player.getX(), player.getY() + 1.0, player.getZ());
-                player.lastRenderY += 1.0;
-                player.prevY += 1.0;
+                player.setPose(net.minecraft.world.entity.Pose.STANDING);
+                player.refreshDimensions();
+                player.setPos(player.getX(), player.getY() + 1.0, player.getZ());
+                player.yOld += 1.0;
+                player.yo += 1.0;
             }
         } else if (standUpPossible && !(sneakPressed && grabPressed)) {
             standUp(player, gapUnderneight);
@@ -4033,8 +4032,8 @@ public final class SmartMovingClientState {
             //   mixin offset 차단 (height 1.8 ≥ 1) → 박스 발 = entity.y = ground 정상.
             if (!isHeadJumping && !isSliding && !isCrawling && !isCrawlClimbing
                     && !isSwimming_sm && !isDiving && !isFlying && !isLevitating) {
-                player.setPose(net.minecraft.entity.EntityPose.STANDING);
-                player.calculateDimensions();
+                player.setPose(net.minecraft.world.entity.Pose.STANDING);
+                player.refreshDimensions();
             }
         } else {
             // 🔴 비행 박스 → small 박스 전환 entity.y +1 보정 (사용자 보고 fix —
@@ -4095,14 +4094,14 @@ public final class SmartMovingClientState {
             //     박스 발 = entity.y = ground - 1m 박힘 → push 필수).
             if (wasSmallBox && this.isCrawling
                     && (wasFlying || wasLevitating)) {
-                player.calculateDimensions();
-                player.setPosition(player.getX(), player.getY() + 1.0, player.getZ());
-                player.lastRenderY += 1.0;
-                player.prevY += 1.0;
-                net.minecraft.client.render.Camera cam =
-                        net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
+                player.refreshDimensions();
+                player.setPos(player.getX(), player.getY() + 1.0, player.getZ());
+                player.yOld += 1.0;
+                player.yo += 1.0;
+                net.minecraft.client.Camera cam =
+                        net.minecraft.client.Minecraft.getInstance().gameRenderer.mainCamera();
                 if (cam != null) {
-                    float eye = player.getStandingEyeHeight();
+                    float eye = player.getEyeHeight();
                     ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setCameraY(eye);
                     ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setLastCameraY(eye);
                 }
@@ -4112,8 +4111,8 @@ public final class SmartMovingClientState {
             //   사용자 보고 잔존 덜컹은 vanilla 매핑 한계 (= baseTick prevY 갱신 race) — 별도
             //   사이클로 deferred. 회귀 (= 박스 박힘) 우선 fix.
             if (this.justEndedHeadJump && wasSmallBox && (this.isCrawling || this.isSliding)) {
-                player.calculateDimensions();
-                net.minecraft.util.math.Box bbAfter = player.getBoundingBox();
+                player.refreshDimensions();
+                net.minecraft.world.phys.AABB bbAfter = player.getBoundingBox();
                 // 🔴 fix #30 (2026-05-08, 사용자 보고 "슬라이딩→헤드점프→슬라이딩 뚝 끊김"):
                 //   fix #28 의 hardcoded +1.0 가정 = 헤드점프 진행 중 dim eye=1.62 (mixin 매치) →
                 //   entity.y = ground_top - 1. 그러나 슬라이딩→헤드점프 시나리오는 fix #29 의
@@ -4131,27 +4130,27 @@ public final class SmartMovingClientState {
                 //   박스 발 = entity.y+1m = ground (정상). 그러나 yMax=bbMin+1.5 가 1칸 공간 천장
                 //   블록 top 매치 → solidUnder=bbMin+1.5 (clamp) → stuck=true 잘못 → push +1m.
                 //   해결: mixin offset 활성 시 박스 정상 → push 가드 (MixinEntity 의 활성 식 1:1).
-                net.minecraft.entity.EntityDimensions _dim25 = player.getDimensions(player.getPose());
+                net.minecraft.world.entity.EntityDimensions _dim25 = player.getDimensions(player.getPose());
                 boolean isMixinOffsetActive = _dim25.height() < 1.0F
                         && (_dim25.eyeHeight() > 1.0F
-                            || player.getPose() == net.minecraft.entity.EntityPose.SLIDING);
+                            || player.getPose() == net.minecraft.world.entity.Pose.SLIDING);
                 boolean stuck = !isMixinOffsetActive && bbAfter.minY < solidUnder - 1.0E-5;
                 if (stuck) {
                     double pushY = 1.0;
-                    player.setPosition(player.getX(), player.getY() + pushY, player.getZ());
-                    player.lastRenderY += pushY;
-                    player.prevY += pushY;
+                    player.setPos(player.getX(), player.getY() + pushY, player.getZ());
+                    player.yOld += pushY;
+                    player.yo += pushY;
                 }
                 // cameraY 강제는 stuck 무관 — 진입 시점 시점 안정 위해 항상 강제.
-                net.minecraft.client.render.Camera cam =
-                        net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
+                net.minecraft.client.Camera cam =
+                        net.minecraft.client.Minecraft.getInstance().gameRenderer.mainCamera();
                 if (cam != null) {
-                    float eye = player.getStandingEyeHeight();
+                    float eye = player.getEyeHeight();
                     ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setCameraY(eye);
                     ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setLastCameraY(eye);
                 }
-                net.minecraft.util.math.Vec3d _v = player.getVelocity();
-                player.setVelocity(_v.x, 0.0, _v.z);
+                net.minecraft.world.phys.Vec3 _v = player.getDeltaMovement();
+                player.setDeltaMovement(_v.x, 0.0, _v.z);
                 player.fallDistance = 0F;
             }
         }
@@ -4164,7 +4163,7 @@ public final class SmartMovingClientState {
         //   호출 시점: 본 메서드 끝 — 가드 (heightOffset>=0) 미통과해 정상 처리된 경우만.
         //   호출 시점 abilities.flying=false → MixinEntity.sm_offsetBoundingBoxForFlying 가드
         //   미통과 → 박스 modify 미적용 → 박스 = (entity.y, entity.y+1.8) 정상 STANDING.
-        player.calculateDimensions();
+        player.refreshDimensions();
 
         // 🔴 가라앉음 안전망 (사용자 요청 — "위로 콜리전을 늘려서 원복" 보장):
         //   standUp 의 setPosition 보정 후에도 박스 발이 솔리드 안 박힐 가능성 (motion 처리
@@ -4185,7 +4184,7 @@ public final class SmartMovingClientState {
         //   fix #30 (L3851) 와 동일 패턴 — yMax 를 +1.5 로 늘려 clamp 회피.
         //
         //   추가: setPosition 후 lastRenderY/prevY 동기화 (= feedback_pushup_lastRenderY_prevY_sync).
-        Box bbAfter = player.getBoundingBox();
+        AABB bbAfter = player.getBoundingBox();
         double solidUnder = getMaxPlayerSolidBetween(player, bbAfter.minY - 1.0, bbAfter.minY + 1.5, 0);
         // 🔴 fix #65 (2026-05-10): fix #25 와 동일 가드. mixin offset 활성 시 안전망 push X.
         //   dump 분석: 1칸 공간 진입 시 mixin offset 활성 (= dimEye=1.62) → 박스 발 = ground 정상.
@@ -4196,7 +4195,7 @@ public final class SmartMovingClientState {
         //   가 진짜 mixin offset 차단 시나리오. dimEye 단독 검사 X — height 검사 추가.
         boolean isMixinOffsetActive_safety = player.getDimensions(player.getPose()).height() < 1.0F
                 && (player.getDimensions(player.getPose()).eyeHeight() > 1.0F
-                    || player.getPose() == net.minecraft.entity.EntityPose.SLIDING);
+                    || player.getPose() == net.minecraft.world.entity.Pose.SLIDING);
         // 🔴 fix #71 (2026-05-10, dump 분석 — 사용자 보고 "비행 → 1칸 공간 → 엎드리기 안됨"):
         //   기존 가드: bbMin < solidUnder → push (= 박힘 차단).
         //   BUG: 비행 → 1칸 공간 진입 시 fix #68 push +1m 후 entity.y=ground+1m (= 정상).
@@ -4209,9 +4208,9 @@ public final class SmartMovingClientState {
                 && _potentialPushY71 <= 1.0;
         if (stuckSafetyNet) {
             double pushY = solidUnder - bbAfter.minY;
-            player.setPosition(player.getX(), player.getY() + pushY, player.getZ());
-            player.lastRenderY += pushY;
-            player.prevY += pushY;
+            player.setPos(player.getX(), player.getY() + pushY, player.getZ());
+            player.yOld += pushY;
+            player.yo += pushY;
         }
     }
 
@@ -4225,16 +4224,16 @@ public final class SmartMovingClientState {
      * 추가 — isHeadJumping 해제 엣지 용. 두 복사본 모두 원본 L2232-L2243 동치.
      * B-24 (세션 53).
      */
-    public static void handleCrash(ClientPlayerEntity player, float startDistance, float factor) {
+    public static void handleCrash(LocalPlayer player, float startDistance, float factor) {
         // Phase E BUG-2 1:1 정정: 원본 L2234 `>= 2.0F` Stats 갱신 (정수 cm 거리)
         if (player.fallDistance >= 2.0F) {
-            player.increaseStat(Stats.FALL_ONE_CM, (int) Math.round(player.fallDistance * 100D));
+            player.awardStat(Stats.FALL_ONE_CM, (int) Math.round(player.fallDistance * 100D));
         }
         // Phase E BUG-2 1:1 정정: 원본 L2237 `>= startDistance` (>= 가 아닌 > 였음 — 경계값 1 tick 차이 fix)
         if (player.fallDistance >= startDistance) {
             // Phase E 1:1 정정: 원본 L2239 `(int)Math.ceil((fallDistance-startDistance)*factor)` 정수 데미지
             float damage = (float) Math.ceil((player.fallDistance - startDistance) * factor);
-            player.damage(player.getDamageSources().fall(), damage);
+            player.hurt(player.damageSources().fall(), damage);
             // 원본 L2240 `distanceClimbedModified = nextClimbDistance` (step sound 강제) — 별도 시스템 deferred
         }
         // Phase E BUG-1 1:1 정정: 원본 L2242 `sp.fallDistance = 0F` 함수 끝 무조건 reset 누락 fix
@@ -4327,19 +4326,19 @@ public final class SmartMovingClientState {
      *
      * @param player 현재 틱의 클라이언트 플레이어
      */
-    public void handleExhaustion(ClientPlayerEntity player) {
+    public void handleExhaustion(LocalPlayer player) {
         // 원본 L1184-L1188 이동 거리 (sp.lastTickPosX 등 → vanilla prevX/Y/Z)
-        double diffX = player.getX() - player.prevX;
-        double diffY = player.getY() - player.prevY;
-        double diffZ = player.getZ() - player.prevZ;
+        double diffX = player.getX() - player.xo;
+        double diffY = player.getY() - player.yo;
+        double diffZ = player.getZ() - player.zo;
         float horizontalMovement = (float) Math.sqrt(diffX * diffX + diffZ * diffZ);
         float movement = (float) Math.sqrt(horizontalMovement * horizontalMovement + (float)(diffY * diffY));
         int relevantMovementFactor = Math.round(movement * 100F);
 
         // 원본 L1858 isStanding = horizontalSpeedSquare < 0.0005
-        boolean onGround = player.isOnGround();
-        double vX = player.getVelocity().x;
-        double vZ = player.getVelocity().z;
+        boolean onGround = player.onGround();
+        double vX = player.getDeltaMovement().x;
+        double vZ = player.getDeltaMovement().z;
         double horizontalSpeedSquare = vX * vX + vZ * vZ;
         boolean isStanding = horizontalSpeedSquare < 0.0005;
         // 원본 L1190 isVerticalStill = Math.abs(diffY) < 0.007
@@ -4412,7 +4411,7 @@ public final class SmartMovingClientState {
      *
      * 호출: sm_travel_client 내 handleSwimming 반환 false 분기 (원본 handleLand L648).
      */
-    public void fromSwimmingOrDiving(ClientPlayerEntity player, boolean wasShortInWater) {
+    public void fromSwimmingOrDiving(LocalPlayer player, boolean wasShortInWater) {
         // 🔴 (2026-05-22 fix #150 v3) isShortInWater 식 정정 — dipping 잔존 시도 진입 가능 +
         //   매 frame 누적 BUG (= setPos 매 tick 호출 시 entity.y +1m 무한 상승) 방지.
         //   `isDipping && isCrawling` 가드로 한 번 진입 후 차단.
@@ -4446,7 +4445,7 @@ public final class SmartMovingClientState {
             // 🔴 (2026-05-22 fix #150) playerHeight = STANDING 강제 (원본 1.7.10 bb 항상 STANDING).
             //   우리 매핑 동적 박스 (= dim 잔존 시 0.8) 사용 시 분기 1 매치 X BUG. STANDING 강제로 일관.
             //   [project_crawl_reentry_complete] / [feedback_dynamic_pose_bb_check] 패턴.
-            float playerHeight = player.getDimensions(net.minecraft.entity.EntityPose.STANDING).height();
+            float playerHeight = player.getDimensions(net.minecraft.world.entity.Pose.STANDING).height();
             if (crawlStandUpCeiling - crawlStandUpBottom < playerHeight) {
                 // 분기 1 (L1377-L1383): 깊은 물 → 작은 구멍 크롤
                 isCrawling   = true;
@@ -4465,14 +4464,14 @@ public final class SmartMovingClientState {
                 //   1. setPos(y+1) + lastRenderY/prevY 동기화 — 박스 ground 위 정렬.
                 //   2. Camera cameraY = standingEyeHeight(crawling=0.62) 강제 — lerp 점프 차단.
                 //   3. mustCrawl=true 강제 — same-tick isCrawling 재계산 reset 차단.
-                player.calculateDimensions();
-                player.setPosition(player.getX(), player.getY() + 1.0, player.getZ());
-                player.lastRenderY += 1.0;
-                player.prevY += 1.0;
-                net.minecraft.client.render.Camera cam =
-                        net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
+                player.refreshDimensions();
+                player.setPos(player.getX(), player.getY() + 1.0, player.getZ());
+                player.yOld += 1.0;
+                player.yo += 1.0;
+                net.minecraft.client.Camera cam =
+                        net.minecraft.client.Minecraft.getInstance().gameRenderer.mainCamera();
                 if (cam != null) {
-                    float eye = player.getStandingEyeHeight();
+                    float eye = player.getEyeHeight();
                     ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setCameraY(eye);
                     ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setLastCameraY(eye);
                 }
@@ -4492,7 +4491,7 @@ public final class SmartMovingClientState {
                     heightOffset = -1F;
                 }
                 // 원본 L1402: move(0, crawlStandUpBottom - minY, 0, true)
-                player.move(MovementType.SELF, new Vec3d(0, crawlStandUpBottom - minY, 0));
+                player.move(MoverType.SELF, new Vec3(0, crawlStandUpBottom - minY, 0));
             } else {
                 // 🔴 (2026-05-22 fix #151) 사용자 보고: "지상 물 swim → 정상 ground 진출 시 지면 1칸 아래".
                 //   log 실측 cause: swim 시 mixin offset 활성 → entity.y = ground - 1 (= 박스 발 = ground).
@@ -4515,14 +4514,14 @@ public final class SmartMovingClientState {
                     //   사용자 visual = ground 1칸 아래 (= 박스 발 보단 visual 모델/콜리전).
                     //   해결: calculateDimensions 호출 → dim 즉시 STANDING (1.8) → 박스 = (ground, ground+1.8) 정상.
                     //   Camera 동기화 — 비행 패턴 [project_restoreFromFlying_complete] 1:1.
-                    player.setPosition(player.getX(), crawlStandUpBottom, player.getZ());
-                    player.lastRenderY += pushY;
-                    player.prevY += pushY;
-                    player.calculateDimensions();
-                    net.minecraft.client.render.Camera cam =
-                            net.minecraft.client.MinecraftClient.getInstance().gameRenderer.getCamera();
+                    player.setPos(player.getX(), crawlStandUpBottom, player.getZ());
+                    player.yOld += pushY;
+                    player.yo += pushY;
+                    player.refreshDimensions();
+                    net.minecraft.client.Camera cam =
+                            net.minecraft.client.Minecraft.getInstance().gameRenderer.mainCamera();
                     if (cam != null) {
-                        float eye = player.getStandingEyeHeight();
+                        float eye = player.getEyeHeight();
                         ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setCameraY(eye);
                         ((choco.ratel.smartmoving.mixin.client.MixinCamera) (Object) cam).sm_setLastCameraY(eye);
                     }
@@ -4538,7 +4537,7 @@ public final class SmartMovingClientState {
      * 상태가 이전 틱과 달라진 경우에만 전송 (lastSentBits 비교).
      * 원본: SmartMovingPlayerBase.updateEntityActionState() 끝부분 writeEntityState().
      */
-    public void sendStatePacket(ClientPlayerEntity player) {
+    public void sendStatePacket(LocalPlayer player) {
         if (!ClientPlayNetworking.canSend(SmartMovingNetwork.StatePayload.ID)) return;
 
         // 로컬 플레이어 인스턴스 필드 갱신 — sendStatePacket 호출 시점에 즉석 계산된 값을
@@ -4557,11 +4556,11 @@ public final class SmartMovingClientState {
         //   변경: sm_animateFalling 진입 조건 (= isFallingForReset) 과 동일 식 포함.
         //         local 에서 매 tick 계산 + packet 으로 remote sync → remote 의 sm.doFallingAnimation 도
         //         정확한 진입 조건 표현 (vanilla fallDistance 가 remote 미동기여서 자체 검사 불가).
-        doFallingAnimation = !player.isOnGround()
+        doFallingAnimation = !player.onGround()
                               && player.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
                               && !isClimbing && !isCrawlClimbing && !isCeilingClimbing
                               && !isSwimming_sm && !isDiving
-                              && !player.isTouchingWater();
+                              && !player.isInWater();
         // B-10d (세션 71): isLevitating 강제 false 제거. 원본 L505 `isLevitating = diving &&
         //   !diveUp && !diveDown && moveStrafe==0 && moveForward==0` (수중 정적 자세) 는
         //   updateSwimState (세션 71) 에서 이미 갱신됨. 로프 블록은 1.21.1 미구현이나 원본
@@ -4593,7 +4592,7 @@ public final class SmartMovingClientState {
         s.isFast               = isFast;
         s.isWallJumping        = isWallJumping;
         s.isRopeSliding        = isRopeSliding;
-        s.isSneakButtonPressed = player.isSneaking();
+        s.isSneakButtonPressed = player.isShiftKeyDown();
         s.isClimbCrawling      = isClimbCrawling;
         s.wasSelfSlideFire     = wasSelfSlideFire;  // fix #96 (remote 측 시각 fix #81/#94/#95 동기화)
 
@@ -4619,6 +4618,6 @@ public final class SmartMovingClientState {
      *         싱글플레이어/LAN 서버 시 non-null, 원격 서버 시 null.
      */
     public static boolean isConnectedToRemoteServer() {
-        return MinecraftClient.getInstance().getServer() == null;
+        return Minecraft.getInstance().getSingleplayerServer() == null;
     }
 }

@@ -1,8 +1,8 @@
 package choco.ratel.smartmoving.climbing;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.TrapdoorBlock;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.TrapDoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * 1-6: 천장 클라이밍 가능 블록 판정.
@@ -33,7 +33,7 @@ public final class CeilingClimbBlocks {
         if (state == null) return false;
 
         // tile.fenceIron → minecraft:iron_bars: 모든 상태 허용
-        if (state.isOf(Blocks.IRON_BARS)) return true;
+        if (state.is(Blocks.IRON_BARS)) return true;
 
         // 🔴 사용자 요구: fence ≡ iron_bars 동일 동작. 천장 클라이밍도 fence 추가.
         //   원본은 fence 천장 클라이밍 미지원 (_ceilingClimbConfigurationString 기본값에
@@ -43,8 +43,8 @@ public final class CeilingClimbBlocks {
 
         // tile.trapdoor/trapdoor_iron → TrapdoorBlock 계열: 닫혀있는 상태만 허용
         // 원본 meta 0-3 = OPEN=false에 해당
-        if (state.getBlock() instanceof TrapdoorBlock) {
-            return !state.get(TrapdoorBlock.OPEN);
+        if (state.getBlock() instanceof TrapDoorBlock) {
+            return !state.getValue(TrapDoorBlock.OPEN);
         }
 
         return false;

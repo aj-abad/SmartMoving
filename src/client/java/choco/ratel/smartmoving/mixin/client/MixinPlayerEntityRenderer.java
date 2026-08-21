@@ -1,20 +1,22 @@
 package choco.ratel.smartmoving.mixin.client;
 
 import choco.ratel.smartmoving.client.SmartMovingClientState;
+import choco.ratel.smartmoving.client.SmartMovingAvatarRenderState;
 import choco.ratel.smartmoving.client.SmartMovingRenderContext;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.entity.PlayerEntityRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RotationAxis;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.player.AvatarRenderer;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -29,9 +31,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * 12-6: getPositionOffset() — heightOffset 렌더 적용.
  * renderName(): 타인 플레이어 이름 태그 — 크롤 숨김 + heightOffset Y 보정.
  */
-@Mixin(PlayerEntityRenderer.class)
+@Mixin(AvatarRenderer.class)
 @Environment(EnvType.CLIENT)
 public class MixinPlayerEntityRenderer {
+
+    @Unique private AvatarRenderState sm_currentRenderState;
 
     // 🔴 (Phase 2 fix-3-1) mixin static 3 개 → SmartMovingClientState instance field 로 이동.
     //   기존 smBodyYawActive, smBodyYawOverride, smFlyingExtraYaw 가 mixin 의 single instance 라
@@ -51,10 +55,13 @@ public class MixinPlayerEntityRenderer {
      *       SmartMovingPlayerBase.getYOffset() → -0.125F
      *       SmartMovingRender L124-L125: 타인 플레이어 sneak+crawl → d1 += 0.125
      */
-    @Inject(method = "getPositionOffset(Lnet/minecraft/client/network/AbstractClientPlayerEntity;F)Lnet/minecraft/util/math/Vec3d;",
+    @Inject(method = "getRenderOffset(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;)Lnet/minecraft/world/phys/Vec3;",
             at = @At("HEAD"), cancellable = true)
-    private void sm_getPositionOffset(AbstractClientPlayerEntity entity, float tickDelta,
-                                       CallbackInfoReturnable<Vec3d> cir) {
+    private void sm_getPositionOffset(AvatarRenderState renderState,
+                                       CallbackInfoReturnable<Vec3> cir) {
+        if (!((Object) renderState instanceof SmartMovingAvatarRenderState smartState)) return;
+        AbstractClientPlayer entity = smartState.sm_getPlayer();
+        if (entity == null) return;
         // 🔴 (Phase 2 multi BUG-3) ClientPlayerEntity 분기 → 모든 player 통합.
         //   기존: self 만 isCrawling/isCrawlClimbing/isSliding 시 -1m 보정. remote 는 미적용 →
         //         사용자 보고 "슬라이딩 1블록 위 떠있음" + 엎드리기/CC 도 동일 BUG.
@@ -67,18 +74,18 @@ public class MixinPlayerEntityRenderer {
         //   isSliding 와 동일 패턴 (= entity.y origin) → 모델 root = entity.y +1.501m = 박스 안.
         //   feedback_sliding_entity_y_push_offset_zero.md 참조.
         if (sm.isHeadJumping && sm.heightOffset != 0f) {
-            cir.setReturnValue(Vec3d.ZERO);
+            cir.setReturnValue(Vec3.ZERO);
             return;
         }
 
         // 크롤링: SWIMMING 포즈 오프셋 대신 SM 크롤링 오프셋
         // 원본 SmartMovingRender L156-L161: heightOffset 적용 (= self+remote 모두).
         if (sm.isCrawling) {
-            cir.setReturnValue(new Vec3d(0D, -1.0D - entity.getScale() * 0.06D, 0D));
+            cir.setReturnValue(new Vec3(0D, -1.0D - entity.getScale() * 0.06D, 0D));
             return;
         }
         if (sm.isCrawlClimbing) {
-            cir.setReturnValue(new Vec3d(0D, -1.0D, 0D));
+            cir.setReturnValue(new Vec3(0D, -1.0D, 0D));
             return;
         }
         if (sm.isSliding) {
@@ -90,7 +97,7 @@ public class MixinPlayerEntityRenderer {
             //   isCrawling 분기 -1.06m 은 isCrawling 진입 시 entity.y unchange (= move 안 호출,
             //   원본 1:1) 라서 추가 -1m 보정 필요. isSliding 은 entity.y 이미 -1m push 됨 →
             //   추가 보정 X.
-            cir.setReturnValue(Vec3d.ZERO);
+            cir.setReturnValue(Vec3.ZERO);
             return;
         }
         // 🔵 (2026-05-20, fix #111 — fix #110 정정) swim/dive 모델 위치.
@@ -104,7 +111,7 @@ public class MixinPlayerEntityRenderer {
         //   슬라이딩의 경우 entity.y 자체 -1m push → ZERO offset 으로 박스 안 정렬.
         //   swim/dive 는 entity.y unchange + 박스 +1m up → ZERO offset 으로 동일 시각 정렬.
         if (sm.isSwimming_sm || sm.isDiving) {
-            cir.setReturnValue(Vec3d.ZERO);
+            cir.setReturnValue(Vec3.ZERO);
             return;
         }
 
@@ -122,10 +129,16 @@ public class MixinPlayerEntityRenderer {
      *
      * 원본: SmartMovingRender.rotatePlayer() → forwardRotation = Math.atan2(-vel.x, vel.z)
      */
-    @Inject(method = "setupTransforms", at = @At("HEAD"))
-    private void sm_captureBodyYaw(AbstractClientPlayerEntity player, MatrixStack matrices,
-                                    float animationProgress, float bodyYaw, float tickDelta, float scale,
+    @Inject(method = "setupRotations(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;FF)V", at = @At("HEAD"))
+    private void sm_captureBodyYaw(AvatarRenderState renderState, PoseStack matrices,
+                                    float bodyYaw, float scale,
                                     CallbackInfo ci) {
+        sm_currentRenderState = renderState;
+        if (!((Object) renderState instanceof SmartMovingAvatarRenderState smartState)) return;
+        AbstractClientPlayer player = smartState.sm_getPlayer();
+        if (player == null) return;
+        float tickDelta = smartState.sm_getTickDelta();
+        float animationProgress = renderState.ageInTicks;
         // 🔴 (Phase 2 fix-3-1) flag reset 도 player 별 instance — multiplayer 시 두 player 분리.
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
@@ -150,7 +163,7 @@ public class MixinPlayerEntityRenderer {
         // 🔴 (Phase 2 fix-3-2) ClientPlayerEntity 가드 제거 — 모든 player force/fade 분기 처리.
         //   force 값 (sm.stats.currentXxx) 은 fix-2 의 position delta 기반 stats 로 remote 도 정확.
         //   localPlayer 변수명 그대로 두지만 실제 = 모든 player (local + remote, AbstractClientPlayerEntity).
-        AbstractClientPlayerEntity localPlayer = player;
+        AbstractClientPlayer localPlayer = player;
         // 🔴 (Phase 2 fix-3-2) cfg.enabled 검사 self-only 화 — BUG-CONFIG-2 fix 와 일관성.
         //   self disabled → 자기 SM state 모두 false → 자동으로 vanilla.
         //   remote 는 cfg 무관 SM 분기 진입 → SM state 따라 force 적용.
@@ -198,9 +211,9 @@ public class MixinPlayerEntityRenderer {
             //     2) "키보드 좌우 이동 시 몸 경직" → vanilla force 0 무력화 안 해야.
             //     3) "마우스 회전 시 lag 가 없어짐" → fade 다시 활성화.
             //   해결: ModifyArg 가 force=0 안 하고 vanilla bodyYaw 에 fade 만 추가.
-            boolean isFalling = !localPlayer.isOnGround()
+            boolean isFalling = !localPlayer.onGround()
                     && localPlayer.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
-                    && !localPlayer.isTouchingWater();
+                    && !localPlayer.isInWater();
             if (isFalling) {
                 // 🔴 (2026-04-27) 낙하 매핑 변경 — standard 와 동일한 ModifyArg lerp 모드.
                 //   이전 (force=0 + 추가 R_y) 매핑은 vanilla setupTransforms 의 자연 회전을
@@ -306,9 +319,9 @@ public class MixinPlayerEntityRenderer {
 
             // entity.bodyYaw force — 원본 SmartMovingRender L148 1:1.
             //   vanilla netHeadYaw = (headYaw_lerped - bodyYaw_lerped) → bodyYaw=lerpedYaw 시 ≈ 0.
-            float lerpedYaw = localPlayer.prevYaw + (localPlayer.getYaw() - localPlayer.prevYaw) * tickDelta;
-            localPlayer.setBodyYaw(lerpedYaw);
-            localPlayer.prevBodyYaw = lerpedYaw;
+            float lerpedYaw = localPlayer.yRotO + (localPlayer.getYRot() - localPlayer.yRotO) * tickDelta;
+            localPlayer.setYBodyRot(lerpedYaw);
+            localPlayer.yBodyRotO = lerpedYaw;
             return;
         }
 
@@ -374,9 +387,9 @@ public class MixinPlayerEntityRenderer {
             //   효과: 비행 종료 → standard/falling 진입 시 vanilla netHeadYaw ≈ 0 →
             //   setAngles 의 head.yaw 점프 사라짐 (사용자 보고 "비행→낙하 사이 머리 끊김" 해소).
             //   세션 61 에서 제거됐던 코드를 원본 1:1 분석 후 복구.
-            float lerpedYaw = localPlayer.prevYaw + (localPlayer.getYaw() - localPlayer.prevYaw) * tickDelta;
-            localPlayer.setBodyYaw(lerpedYaw);
-            localPlayer.prevBodyYaw = lerpedYaw;
+            float lerpedYaw = localPlayer.yRotO + (localPlayer.getYRot() - localPlayer.yRotO) * tickDelta;
+            localPlayer.setYBodyRot(lerpedYaw);
+            localPlayer.yBodyRotO = lerpedYaw;
             return;
         }
 
@@ -461,10 +474,10 @@ public class MixinPlayerEntityRenderer {
             //       netHeadYaw = 0 → head.roll = 0 → 흔들림 X.
             //   smBodyYawOverride (= currentHorizontalAngle, ModifyArg) 는 setupTransforms 의
             //   bodyYaw 인자만 수정 → 모델 회전은 이동 방향 (별개). entity.bodyYaw force 와 무관.
-            float lerpedYaw = localPlayer.prevYaw
-                    + (localPlayer.getYaw() - localPlayer.prevYaw) * tickDelta;
-            localPlayer.setBodyYaw(lerpedYaw);
-            localPlayer.prevBodyYaw = lerpedYaw;
+            float lerpedYaw = localPlayer.yRotO
+                    + (localPlayer.getYRot() - localPlayer.yRotO) * tickDelta;
+            localPlayer.setYBodyRot(lerpedYaw);
+            localPlayer.yBodyRotO = lerpedYaw;
             return;
         }
 
@@ -473,7 +486,7 @@ public class MixinPlayerEntityRenderer {
         // isClimb/ClimbCrawling 은 원본 L308 forwardRotation/RadiantToAngle(라디안) 과 동등.
         // isCeilingClimb 의 `rotateY + horizontalAngle`(L476) 은 rotateY 공식 이식 필요 — 후속.
         sm.smBodyYawActive = true;
-        sm.smBodyYawOverride = localPlayer.prevYaw + (localPlayer.getYaw() - localPlayer.prevYaw) * tickDelta;
+        sm.smBodyYawOverride = localPlayer.yRotO + (localPlayer.getYRot() - localPlayer.yRotO) * tickDelta;
     }
 
     /**
@@ -483,15 +496,17 @@ public class MixinPlayerEntityRenderer {
      * B-17 확인: index=3 = bodyYaw (entity=0, matrices=1, animationProgress=2, bodyYaw=3, tickDelta=4, scale=5)
      */
     @ModifyArg(
-        method = "setupTransforms",
+        method = "setupRotations(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;FF)V",
         at = @At(value = "INVOKE",
-                 target = "Lnet/minecraft/client/render/entity/LivingEntityRenderer;setupTransforms(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/client/util/math/MatrixStack;FFFF)V"),
-        index = 3
+                 target = "Lnet/minecraft/client/renderer/entity/LivingEntityRenderer;setupRotations(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;FF)V"),
+        index = 2
     )
     private float sm_modifyBodyYaw(float bodyYaw) {
-        // 🔴 (Phase 2 fix-3-1) ModifyArg 인자에 entity 없음 → currentRenderTarget cursor 통해 sm 인스턴스 lookup.
-        SmartMovingClientState sm = SmartMovingClientState.currentRenderTargetSm();
-        if (sm == null) return bodyYaw;
+        AvatarRenderState renderState = sm_currentRenderState;
+        if (renderState == null
+                || !((Object) renderState instanceof SmartMovingAvatarRenderState smartState)
+                || smartState.sm_getPlayer() == null) return bodyYaw;
+        SmartMovingClientState sm = SmartMovingClientState.get(smartState.sm_getPlayer());
 
         // 🔴 fix #170 (2026-05-27): 인벤토리 화면 그리기 시점 fade lerp skip — vanilla bodyYaw 통과.
         //   사용자 보고: "인벤토리 창 좌상단에 보이는 플레이어 모델의 몸이 막 뒤틀리고 있어".
@@ -503,8 +518,8 @@ public class MixinPlayerEntityRenderer {
         //     변동 → head.yaw 매 frame 변동 = "막 뒤틀림" 시각.
         //   해결: 인벤토리 화면 시점 fade 적용 X (= vanilla bodyYaw 통과). prev 갱신 안 함 →
         //     일반 render 만 fade prev 누적 → oscillate 차단.
-        net.minecraft.client.MinecraftClient _mc = net.minecraft.client.MinecraftClient.getInstance();
-        if (_mc.currentScreen instanceof net.minecraft.client.gui.screen.ingame.InventoryScreen) {
+        net.minecraft.client.Minecraft _mc = net.minecraft.client.Minecraft.getInstance();
+        if (_mc.gui.screen() instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) {
             return bodyYaw;
         }
         // vanilla 1 frame lerped bodyYaw 캐시 (sm_modifyNetHeadYaw 의 head 보정에 사용).
@@ -537,6 +552,9 @@ public class MixinPlayerEntityRenderer {
             sm.smCachedBodyYawLaggedDeg = bodyYaw;
             result = bodyYaw;
         }
+        if (!sm.smCrawlMode && sm.smStandardFadeActive && !sm.smFallingFadeMode) {
+            renderState.yRot += sm.smCachedBodyYawNaturalDeg - sm.smCachedBodyYawLaggedDeg;
+        }
         return result;
     }
 
@@ -550,13 +568,18 @@ public class MixinPlayerEntityRenderer {
      * 원본: SmartMovingRender.rotatePlayer() → bipedOuter.rotateAngleY 설정
      *       SmartMovingModel.setRotationAngles() → bipedOuter.rotateAngleX 설정
      */
-    @Inject(method = "setupTransforms", at = @At("TAIL"))
-    private void sm_setupTransforms(AbstractClientPlayerEntity player, MatrixStack matrices,
-                                     float animationProgress, float bodyYaw, float tickDelta, float scale,
+    @Inject(method = "setupRotations(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;FF)V", at = @At("TAIL"))
+    private void sm_setupTransforms(AvatarRenderState renderState, PoseStack matrices,
+                                     float bodyYaw, float scale,
                                      CallbackInfo ci) {
+        if (!((Object) renderState instanceof SmartMovingAvatarRenderState smartState)) return;
+        AbstractClientPlayer player = smartState.sm_getPlayer();
+        if (player == null) return;
+        float tickDelta = smartState.sm_getTickDelta();
+        float animationProgress = renderState.ageInTicks;
         // 🔴 (Phase 1-A) ClientPlayerEntity 가드 제거 — 다른 player render 도 SM 자세 적용.
         //   localPlayer 변수명 그대로 두지만 실제 = 모든 player (local + remote).
-        AbstractClientPlayerEntity localPlayer = player;
+        AbstractClientPlayer localPlayer = player;
         SmartMovingClientState sm = SmartMovingClientState.get(localPlayer);
 
         // BUG-12 (세션 36): SM disabled 시 모든 SM 분기 skip + smOuterTiltX = 0 reset →
@@ -648,9 +671,9 @@ public class MixinPlayerEntityRenderer {
             matrices.translate(0f, pivotY, 0f);
             if (yawLerped != 0f) {
                 // vanilla scale(-1,-1,1) 의 Y axis 부호 반전 보정 — isFlying L786-L788 패턴.
-                matrices.multiply(RotationAxis.POSITIVE_Y.rotation(-yawLerped));
+                matrices.mulPose(Axis.YP.rotation(-yawLerped));
             }
-            matrices.multiply(RotationAxis.POSITIVE_X.rotation(-laggedTilt));
+            matrices.mulPose(Axis.XP.rotation(-laggedTilt));
             matrices.translate(0f, -pivotY, 0f);
             sm.smOuterTiltX = laggedTilt;
         } else {
@@ -683,7 +706,7 @@ public class MixinPlayerEntityRenderer {
             float pivotY = 1.5f - 3f / 16f;    // = 1.3125 (엎드리기와 동일 회전 중심)
 
             matrices.translate(0f, pivotY, 0f);
-            matrices.multiply(RotationAxis.POSITIVE_X.rotation(-tiltAngle));
+            matrices.mulPose(Axis.XP.rotation(-tiltAngle));
             matrices.translate(0f, -pivotY, 0f);
             sm.smOuterTiltX = tiltAngle;
 
@@ -767,8 +790,8 @@ public class MixinPlayerEntityRenderer {
             float zAngle = (float)(Math.cos(distance + Math.PI / 2) * (Math.PI / 64)) * walkFactor;
 
             matrices.translate(0f, pivotY, 0f);
-            matrices.multiply(RotationAxis.POSITIVE_X.rotation(-tiltAngle));   // 부호 반전 (scale -1,-1,1 보정)
-            matrices.multiply(RotationAxis.POSITIVE_Z.rotation(zAngle));        // L406 매핑 — 그대로 (scale commute)
+            matrices.mulPose(Axis.XP.rotation(-tiltAngle));   // 부호 반전 (scale -1,-1,1 보정)
+            matrices.mulPose(Axis.ZP.rotation(zAngle));        // L406 매핑 — 그대로 (scale commute)
             matrices.translate(0f, -pivotY, 0f);
             sm.smOuterTiltX = tiltAngle;
             // 🔴 bipedTorso.rotationPointY = 3F 매핑 — 부호 반전 (사용자 보고 fix — "여전히 살짝 떠있음",
@@ -809,7 +832,7 @@ public class MixinPlayerEntityRenderer {
             // 부모 R_x 매핑 (원본 L265 bipedTorso.X = bodyAngleX 1:1).
             // 부호 반전 (메모리 feedback_render_scale_negation.md): input -bodyAngleX → 시각 +bodyAngleX.
             matrices.translate(0f, 1.5f, 0f);
-            matrices.multiply(RotationAxis.POSITIVE_X.rotation(-bodyAngleX));
+            matrices.mulPose(Axis.XP.rotation(-bodyAngleX));
             matrices.translate(0f, -1.5f, 0f);
         }
         // 🔴 fade reset (2026-05-04): isCrawlClimbing 종료 시 모든 fade prev field reset →
@@ -863,9 +886,9 @@ public class MixinPlayerEntityRenderer {
             //   vanilla LivingEntityRenderer.render() L342: setupTransforms 후 scale(-1,-1,1) 적용
             //   → Y axis 반전 → POSITIVE_Y rotation mirror → 부호 반전 보정.
             if (yawLerped != 0f) {
-                matrices.multiply(RotationAxis.POSITIVE_Y.rotation(-yawLerped));
+                matrices.mulPose(Axis.YP.rotation(-yawLerped));
             }
-            matrices.multiply(RotationAxis.POSITIVE_X.rotation(-thetaLerped));
+            matrices.mulPose(Axis.XP.rotation(-thetaLerped));
             matrices.translate(0f, -1.5f, 0f);
 
             // fade prev 갱신 (다음 프레임 보간용)
@@ -914,7 +937,7 @@ public class MixinPlayerEntityRenderer {
             float thetaLerped = lerpFadeAngle(sm.smHeadJumpTiltX_prev, thetaTarget,
                                                sm.smHeadJumpFade_prevTime, animationProgress);
             matrices.translate(0f, 1.5f, 0f);
-            matrices.multiply(RotationAxis.POSITIVE_X.rotation(-thetaLerped));
+            matrices.mulPose(Axis.XP.rotation(-thetaLerped));
             matrices.translate(0f, -1.5f, 0f);
             sm.smHeadJumpTiltX_prev = thetaLerped;
             sm.smHeadJumpFade_prevTime = animationProgress;
@@ -996,13 +1019,16 @@ public class MixinPlayerEntityRenderer {
      *
      * sneakNameTag(스니킹 중 64 거리 기준 확장)은 MixinLivingEntityRenderer에서 처리.
      */
-    @Inject(method = "renderLabelIfPresent(Lnet/minecraft/client/network/AbstractClientPlayerEntity;Lnet/minecraft/text/Text;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;IF)V",
+    @Inject(method = "submitNameDisplay(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
             at = @At("HEAD"), cancellable = true)
-    private void sm_renderLabel(AbstractClientPlayerEntity entity, Text text,
-            MatrixStack matrices, VertexConsumerProvider consumers, int light, float tickDelta,
+    private void sm_renderLabel(AvatarRenderState renderState,
+            PoseStack matrices, SubmitNodeCollector nodeCollector, CameraRenderState cameraState,
             CallbackInfo ci) {
-        if (entity instanceof ClientPlayerEntity) return;
-        SmartMovingClientState sm = SmartMovingClientState.get(entity.getUuid());
+        if (!((Object) renderState instanceof SmartMovingAvatarRenderState smartState)) return;
+        AbstractClientPlayer entity = smartState.sm_getPlayer();
+        if (entity == null) return;
+        if (entity instanceof LocalPlayer) return;
+        SmartMovingClientState sm = SmartMovingClientState.get(entity.getUUID());
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         // 🔴 (2026-05-05) self → Config.enabled / remote → 항상 true.
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(entity)) return;
@@ -1019,7 +1045,7 @@ public class MixinPlayerEntityRenderer {
         }
         // 스니킹 중 sneakNameTag=true: 비스니킹 취급으로 이름 표시 → y -0.05F 보정
         // (원본: 스니킹→비스니킹 포즈 전환 시 이름 태그 위치 차이 보정)
-        else if (entity.isSneaking() && cfg.sneakNameTag) {
+        else if (entity.isShiftKeyDown() && cfg.sneakNameTag) {
             matrices.translate(0.0, -0.05, 0.0);
         }
     }
@@ -1056,9 +1082,9 @@ public class MixinPlayerEntityRenderer {
      *   input.jumping 으로 등가 (= ClientPlayerEntity.tickMovement 안 `jumping = input.jumping`).
      *   remote player 의 경우 isJumping field 동기화 X → false return (= 향후 packet sync 시 갱신).
      */
-    private static boolean sm_isPlayerJumping(net.minecraft.client.network.AbstractClientPlayerEntity player) {
-        if (player instanceof net.minecraft.client.network.ClientPlayerEntity localPlayer) {
-            return localPlayer.input.jumping;
+    private static boolean sm_isPlayerJumping(net.minecraft.client.player.AbstractClientPlayer player) {
+        if (player instanceof net.minecraft.client.player.LocalPlayer localPlayer) {
+            return localPlayer.input.keyPresses.jump();
         }
         return false;
     }
@@ -1096,19 +1122,29 @@ public class MixinPlayerEntityRenderer {
     //
     // private 메서드지만 Mixin 으로 인젝트 가능. renderRightArm/renderLeftArm 둘 다 이
     // private renderArm 으로 위임하므로 한 곳만 후킹하면 양쪽 모두 커버.
-    @Inject(method = "renderArm(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/network/AbstractClientPlayerEntity;Lnet/minecraft/client/model/ModelPart;Lnet/minecraft/client/model/ModelPart;)V",
+    @Inject(method = "renderHand(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/resources/Identifier;Lnet/minecraft/client/model/geom/ModelPart;Z)V",
             at = @At("HEAD"))
-    private void sm_renderArmHead(MatrixStack matrices, VertexConsumerProvider vc, int light,
-                                  AbstractClientPlayerEntity player, ModelPart arm, ModelPart sleeve,
+    private void sm_renderArmHead(PoseStack matrices, SubmitNodeCollector nodeCollector, int light,
+                                  Identifier texture, ModelPart arm, boolean showSleeve,
                                   CallbackInfo ci) {
         SmartMovingRenderContext.firstPersonArmRender = true;
+        ((choco.ratel.smartmoving.client.SmModelPartOverride)(Object) arm).sm_clearOverrideQuat();
     }
 
-    @Inject(method = "renderArm(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/network/AbstractClientPlayerEntity;Lnet/minecraft/client/model/ModelPart;Lnet/minecraft/client/model/ModelPart;)V",
+    @Inject(method = "renderHand(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/resources/Identifier;Lnet/minecraft/client/model/geom/ModelPart;Z)V",
             at = @At("RETURN"))
-    private void sm_renderArmReturn(MatrixStack matrices, VertexConsumerProvider vc, int light,
-                                    AbstractClientPlayerEntity player, ModelPart arm, ModelPart sleeve,
+    private void sm_renderArmReturn(PoseStack matrices, SubmitNodeCollector nodeCollector, int light,
+                                    Identifier texture, ModelPart arm, boolean showSleeve,
                                     CallbackInfo ci) {
         SmartMovingRenderContext.firstPersonArmRender = false;
+    }
+
+    @Inject(
+            method = "setupRotations(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;FF)V",
+            at = @At("RETURN")
+    )
+    private void sm_clearCurrentRenderState(AvatarRenderState state, PoseStack poseStack,
+                                            float bodyYaw, float scale, CallbackInfo ci) {
+        sm_currentRenderState = null;
     }
 }

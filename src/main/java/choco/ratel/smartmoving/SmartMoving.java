@@ -8,11 +8,11 @@ import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.registry.Registries;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.util.Identifier;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 
 public class SmartMoving implements ModInitializer {
 
@@ -42,7 +42,7 @@ public class SmartMoving implements ModInitializer {
         //   new tracker (= player) 가 tracked 를 tracking 시작 시점에 tracked 의 latest SM state 를 send.
         //   server-side broadcast dirty 검사와 함께 사용 → 변경 시만 broadcast 하면서 late join 도 안전.
         EntityTrackingEvents.START_TRACKING.register((trackedEntity, player) -> {
-            if (!(trackedEntity instanceof ServerPlayerEntity tracked)) return;
+            if (!(trackedEntity instanceof ServerPlayer tracked)) return;
             if (tracked == player) return;
             SmartMovingServer sm = SmartMovingServer.get(tracked);
             ServerPlayNetworking.send(player,
@@ -57,14 +57,14 @@ public class SmartMoving implements ModInitializer {
         //   client → server 트래픽 동일, server → clients broadcast 80-90% 절약.
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.StatePayload.ID,
             (payload, context) -> {
-                ServerPlayerEntity sender = context.player();
+                ServerPlayer sender = context.player();
                 SmartMovingServer sm = SmartMovingServer.get(sender);
                 sm.processStatePacket(sender, payload.state());
                 long state = payload.state();
                 if (state == sm.lastBroadcastBits) return;  // dirty 검사: 같은 state 면 broadcast skip.
                 sm.lastBroadcastBits = state;
                 context.server().execute(() -> {
-                    for (ServerPlayerEntity tracker : PlayerLookup.tracking(sender)) {
+                    for (ServerPlayer tracker : PlayerLookup.tracking(sender)) {
                         if (tracker != sender) {
                             ServerPlayNetworking.send(tracker, payload);
                         }
@@ -78,9 +78,9 @@ public class SmartMoving implements ModInitializer {
         //   를 우회하기 위한 우리 매핑 한정 추가.
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.StatsPayload.ID,
             (payload, context) -> {
-                ServerPlayerEntity sender = context.player();
+                ServerPlayer sender = context.player();
                 context.server().execute(() -> {
-                    for (ServerPlayerEntity tracker : PlayerLookup.tracking(sender)) {
+                    for (ServerPlayer tracker : PlayerLookup.tracking(sender)) {
                         if (tracker != sender) {
                             ServerPlayNetworking.send(tracker, payload);
                         }
@@ -112,14 +112,14 @@ public class SmartMoving implements ModInitializer {
         // Sound: SM 사운드 요청 수신 → 주변 플레이어에게 재생 (C-19)
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.SoundPayload.ID,
             (payload, context) -> {
-                ServerPlayerEntity sender = context.player();
-                SoundEvent event = Registries.SOUND_EVENT.get(Identifier.of(payload.soundId()));
+                ServerPlayer sender = context.player();
+                SoundEvent event = BuiltInRegistries.SOUND_EVENT.getValue(Identifier.parse(payload.soundId()));
                 if (event == null) return;
                 context.server().execute(() ->
-                    sender.getServerWorld().playSound(
+                    sender.level().playSound(
                         sender,
                         sender.getX(), sender.getY(), sender.getZ(),
-                        event, SoundCategory.PLAYERS,
+                        event, SoundSource.PLAYERS,
                         payload.volume(), payload.pitch()));
             });
     }

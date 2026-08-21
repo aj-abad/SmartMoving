@@ -1,9 +1,9 @@
 package choco.ratel.smartmoving.mixin.server;
 
 import choco.ratel.smartmoving.server.SmartMovingServer;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -25,14 +25,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 원본: SmartMovingServerPlayerBase.resetTicksForFloatKick()
  *       → Reflect.SetField(NetHandlerPlayServer, handler, "ticksForFloatKick", 0)
  */
-@Mixin(ServerPlayNetworkHandler.class)
+@Mixin(ServerGamePacketListenerImpl.class)
 public abstract class MixinServerPlayNetworkHandler {
 
     /** Yarn: field_14138 — 플레이어가 공중에 떠있는 틱 카운터. 80 초과 시 kick. */
-    @Shadow private int floatingTicks;
+    @Shadow private int aboveGroundTickCount;
 
     /** 처리 대상 플레이어 */
-    @Shadow public ServerPlayerEntity player;
+    @Shadow public ServerPlayer player;
 
     /**
      * tick() HEAD에서 SM 상태에 따라 floatingTicks를 리셋하고 낙하 거리를 초기화한다.
@@ -53,8 +53,8 @@ public abstract class MixinServerPlayNetworkHandler {
      * C-21: onPlayerMove HEAD — SM 이동 상태를 캐시.
      * 원본: NetHandlerPlayServer.processPlayer() 위치 검증 skip 패치.
      */
-    @Inject(method = "onPlayerMove", at = @At("HEAD"))
-    private void sm_onPlayerMove_head(PlayerMoveC2SPacket packet, CallbackInfo ci) {
+    @Inject(method = "handleMovePlayer", at = @At("HEAD"))
+    private void sm_onPlayerMove_head(ServerboundMovePlayerPacket packet, CallbackInfo ci) {
         if (player == null) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
         // 🔴 fix #89 (2026-05-12, BUG = "jump 차징 중 sneak 누름 → 1칸 띄어진 엎드리기"):
@@ -84,10 +84,10 @@ public abstract class MixinServerPlayNetworkHandler {
         //
         //   window 5 tick — server broadcast lag 측정 안정값. 검증 후 조정.
         if (_smWasInPhase && !curInPhase) {
-            _smPhaseExitTick = player.age;
+            _smPhaseExitTick = player.tickCount;
         }
-        boolean recentlyExited = (player.age - _smPhaseExitTick) >= 0
-                && (player.age - _smPhaseExitTick) <= 5;
+        boolean recentlyExited = (player.tickCount - _smPhaseExitTick) >= 0
+                && (player.tickCount - _smPhaseExitTick) <= 5;
         sm_suppressPositionCheck = curInPhase || recentlyExited;
         _smWasInPhase = curInPhase;
     }
@@ -106,7 +106,7 @@ public abstract class MixinServerPlayNetworkHandler {
      * 참고: 사이 sleeping check (offset 325, dload 25) 는 isSleeping=true 시점에 분기되며
      * 어차피 return 도달 경로라 distSq=0 영향 X.
      */
-    @ModifyVariable(method = "onPlayerMove", require = 0,
+    @ModifyVariable(method = "handleMovePlayer", require = 0,
         at = @At(value = "STORE", ordinal = 0),
         index = 25)
     private double sm_suppressDistanceSq(double original) {
@@ -128,7 +128,7 @@ public abstract class MixinServerPlayNetworkHandler {
      * 거기서도 SM phase 중 box 차이로 false positive 가능 → 기존 requestTeleport redirect
      * 가 안전망. updatePositionAndAngles 까지 진행되어 server 동기화 정상.
      */
-    @ModifyVariable(method = "onPlayerMove", require = 0,
+    @ModifyVariable(method = "handleMovePlayer", require = 0,
         at = @At(value = "STORE", ordinal = 1),
         index = 25)
     private double sm_suppressPostDistSq(double original) {
@@ -143,18 +143,18 @@ public abstract class MixinServerPlayNetworkHandler {
      * 참고: fix #101/#102 가 두 IF 분기 자체를 차단하므로 SM phase 중 이 redirect 가
      * 호출될 일은 거의 없음. 단 isPlayerNotCollidingWithBlocks=true edge case 의 안전망.
      */
-    @Redirect(method = "onPlayerMove", require = 0,
+    @Redirect(method = "handleMovePlayer", require = 0,
         at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/server/network/ServerPlayNetworkHandler;requestTeleport(DDDFF)V"))
-    private void sm_cancelTeleportForSmMove(ServerPlayNetworkHandler handler,
+            target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;teleport(DDDFF)V"))
+    private void sm_cancelTeleportForSmMove(ServerGamePacketListenerImpl handler,
             double x, double y, double z, float yaw, float pitch) {
         if (!sm_suppressPositionCheck) {
-            requestTeleport(x, y, z, yaw, pitch);
+            teleport(x, y, z, yaw, pitch);
         }
     }
 
     @Shadow
-    public abstract void requestTeleport(double x, double y, double z, float yaw, float pitch);
+    public abstract void teleport(double x, double y, double z, float yaw, float pitch);
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void sm_tick(CallbackInfo ci) {
@@ -168,7 +168,7 @@ public abstract class MixinServerPlayNetworkHandler {
 
         // 3-2: floatingTicks 리셋 (80틱 kick 방지)
         if (sm.resetTicksForFloatKick) {
-            floatingTicks = 0;
+            aboveGroundTickCount = 0;
         }
     }
 }
