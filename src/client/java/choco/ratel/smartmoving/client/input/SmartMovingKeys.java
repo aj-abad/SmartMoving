@@ -29,7 +29,7 @@ public class SmartMovingKeys {
             "key.smartmoving.grab",
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_R,
-            KeyMapping.Category.GAMEPLAY
+            CATEGORY_SMARTMOVING
         ));
         configToggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.smartmoving.config_toggle",

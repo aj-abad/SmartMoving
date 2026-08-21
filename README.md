@@ -38,6 +38,17 @@ Fabric 26.2 port of the classic [SmartMoving](https://www.curseforge.com/minecra
 
 For multiplayer, both server and client must have the mod installed.
 
+## Controls
+
+All bindings appear under **Options → Controls → Key Binds → Smart Moving**.
+
+| Action | Default key | Usage |
+|--------|-------------|-------|
+| Grab | `R` | Hold while climbing or grabbing an edge |
+| Toggle Smart Moving | `F9` | Enable or disable Smart Moving |
+| Increase speed | `O` | Increase the configured movement speed |
+| Decrease speed | `I` | Decrease the configured movement speed |
+
 ## Build
 
 ```bash
