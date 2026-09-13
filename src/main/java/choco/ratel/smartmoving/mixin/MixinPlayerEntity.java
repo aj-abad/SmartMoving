@@ -206,13 +206,14 @@ public abstract class MixinPlayerEntity {
 
         // isFalling 가드 (sm_setAnglesHead 와 동일 조건):
         //   !onGround && fallDistance > fallAnimationDistanceMinimum && !touchingWater &&
-        //   !abilities.flying.
+        //   !fallFlying && !abilities.flying.
         // SM 상태 (isClimbing 등) 는 SmartMovingClientState/Server 에 분리 저장이라 양측
         // 직접 참조 불가. 그러나 climbing 중에는 SmartMovingClimber 가 fallDistance=0 으로
         // reset 하므로 fallDistance > minimum 조건이 자연스레 climbing 제외.
         boolean isFalling = !self.onGround()
                 && self.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
                 && !self.isInWater()
+                && !self.isFallFlying()
                 && !self.getAbilities().flying;
         if (isFalling) return false;
 

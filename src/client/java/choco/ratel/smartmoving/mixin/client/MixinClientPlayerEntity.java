@@ -337,9 +337,10 @@ public abstract class MixinClientPlayerEntity {
      * isSneaking() 만 가로챘으나, 이 ClientPlayerEntity.tickMovement 의 isSneaking() 호출은
      * 별도라 그대로 통과 → inSneakingPose=true → getPositionOffset Y -0.125 적용.
      *
-     * 해결: tickMovement 안의 `isSneaking()` 호출 (offset 114) 만 redirect → 낙하 중 false
+     * 해결: tickMovement 안의 `isSneaking()` 호출 (offset 114) 만 redirect → 일반 낙하 중 false
      * 반환 → inSneakingPose 의 isSneaking() term 무력화 → inner = (!isSleeping &&
      * !canChangeIntoPose(STANDING)) 만 남음 → 일반 공중 낙하 시 false → inSneakingPose=false.
+     * 엘리트라 활공 중에는 redirect 결과를 바꾸지 않아 vanilla 자세 처리를 보존한다.
      *
      * 좁은 천장 시나리오 (canChangeIntoPose(STANDING)=false) 에서는 vanilla 가 자체 판단으로
      * inSneakingPose=true 강제 — vanilla 안전 fallback 으로 사용자 강제 STANDING 시 끼임 방지.
@@ -355,6 +356,7 @@ public abstract class MixinClientPlayerEntity {
         boolean isFalling = !self.onGround()
                 && self.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
                 && !self.isInWater()
+                && !self.isFallFlying()
                 && !self.getAbilities().flying;
         if (isFalling) return false;
 

@@ -211,8 +211,10 @@ public class MixinPlayerEntityRenderer {
             //     2) "키보드 좌우 이동 시 몸 경직" → vanilla force 0 무력화 안 해야.
             //     3) "마우스 회전 시 lag 가 없어짐" → fade 다시 활성화.
             //   해결: ModifyArg 가 force=0 안 하고 vanilla bodyYaw 에 fade 만 추가.
+            //   엘리트라 활공 중에는 vanilla FALL_FLYING 회전을 보존하기 위해 낙하 모드에서 제외.
             boolean isFalling = !localPlayer.onGround()
                     && localPlayer.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
+                    && !localPlayer.isFallFlying()
                     && !localPlayer.isInWater();
             if (isFalling) {
                 // 🔴 (2026-04-27) 낙하 매핑 변경 — standard 와 동일한 ModifyArg lerp 모드.

@@ -4556,8 +4556,10 @@ public final class SmartMovingClientState {
         //   변경: sm_animateFalling 진입 조건 (= isFallingForReset) 과 동일 식 포함.
         //         local 에서 매 tick 계산 + packet 으로 remote sync → remote 의 sm.doFallingAnimation 도
         //         정확한 진입 조건 표현 (vanilla fallDistance 가 remote 미동기여서 자체 검사 불가).
+        // 엘리트라 활공은 vanilla FALL_FLYING 자세가 우선이므로 낙하 애니메이션에서 제외한다.
         doFallingAnimation = !player.onGround()
                               && player.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
+                              && !player.isFallFlying()
                               && !isClimbing && !isCrawlClimbing && !isCeilingClimbing
                               && !isSwimming_sm && !isDiving
                               && !player.isInWater();
