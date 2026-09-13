@@ -61,10 +61,6 @@ public class SmartMovingClient implements ClientModInitializer {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
                 client.execute(() -> {
                     if (client.player == null) return;
-                    client.player.sendSystemMessage(buildBorderLine());
-                    client.player.sendSystemMessage(buildBrandLine());
-                    client.player.sendSystemMessage(buildLinksLine());
-                    client.player.sendSystemMessage(buildBorderLine());
                 }));
 
         // 클라이언트 접속 해제 시 상태 인스턴스 정리 + Config 복원

@@ -1,0 +1,11 @@
+{
+  "name": "helicopter",
+  "version": "0.27.0",
+  "private": true,
+  "description": "Build helpers for the THX Helicopter Fabric mod (Minecraft 26.2).",
+  "scripts": {
+    "build": "node scripts/deploy.mjs --no-copy",
+    "copy": "node scripts/deploy.mjs --no-build",
+    "deploy": "node scripts/deploy.mjs"
+  }
+}
