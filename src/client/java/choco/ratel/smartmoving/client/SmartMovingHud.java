@@ -102,12 +102,12 @@ public final class SmartMovingHud {
     }
 
     // icons.png에서 (iconX*9, iconY*9) 위치의 9×9 스프라이트를 (x, y)에 렌더.
-    // DrawContext.drawTexture 7-인자 형태: textureWidth/Height = 256 자동 가정.
+    // 26.2 blit 오버로드의 정수 좌표는 (x0, y0, x1, y1) 순서다.
     private static void drawIcon(GuiGraphicsExtractor context, int x, int y, int iconX, int iconY) {
         float u0 = (float) (iconX * ICON_SIZE) / 256.0F;
         float v0 = (float) (iconY * ICON_SIZE) / 256.0F;
         float u1 = (float) ((iconX + 1) * ICON_SIZE) / 256.0F;
         float v1 = (float) ((iconY + 1) * ICON_SIZE) / 256.0F;
-        context.blit(ICONS, x, y, ICON_SIZE, ICON_SIZE, u0, v0, u1, v1);
+        context.blit(ICONS, x, y, x + ICON_SIZE, y + ICON_SIZE, u0, v0, u1, v1);
     }
 }
