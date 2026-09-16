@@ -1053,10 +1053,10 @@ public class MixinPlayerEntityRenderer {
     }
 
     /**
-     * 🔴 fade 보간 헬퍼 (Flying Phase / 세션 49): 원본 ModelRotationRenderer.GetIntermediateAngle
-     *   1:1 매핑 (L347-L364).
+     * 🔴 Fade interpolation helper (Flying Phase / session 49): Original ModelRotationRenderer.GetIntermediateAngle
+     *   1:1 mapping (L347-L364).
      *
-     * 원본:
+     * Original:
      * <pre>
      *   private static float GetIntermediateAngle(float prev, float should, boolean fade,
      *                                              float lastTotalTime, float totalTime) {
@@ -1071,18 +1071,18 @@ public class MixinPlayerEntityRenderer {
      *   }
      * </pre>
      *
-     * 호출처 가드 (fadeIntermediate L317): `totalTime - prevTotalTime <= 2F` 시만 보간.
-     * Whole = 2π (라디안). Half = π. 큰 각도 차이 (반대편) 시 wrapping 처리.
+     * Call site guard (fadeIntermediate L317): interpolate only when `totalTime - prevTotalTime <= 2F`.
+     * Whole = 2π (radian). Half = π. Wrapping handling for large angle difference (opposite side).
      *
-     * 우리 매핑: fade 항상 활성 (비행 시 fadeRotateAngleX/Y = true). prevTime 미초기화 (-999) 시
-     *   즉시 적용 (보간 skip).
+     * Our mapping: fade always active (flying fadeRotateAngleX/Y = true). If prevTime uninitialized (-999)
+     *   apply immediately (interpolation skip).
      */
     @Unique
     /**
-     * 🔵 (fix #115) vanilla LivingEntity.jumping (= raw space bar) 검사 헬퍼.
-     *   LivingEntity.jumping = protected — 직접 access 불가. ClientPlayerEntity 의 경우
-     *   input.jumping 으로 등가 (= ClientPlayerEntity.tickMovement 안 `jumping = input.jumping`).
-     *   remote player 의 경우 isJumping field 동기화 X → false return (= 향후 packet sync 시 갱신).
+     * 🔵 (fix #115) vanilla LivingEntity.jumping (= raw space bar) check helper.
+     *   LivingEntity.jumping = protected — cannot access directly. For ClientPlayerEntity
+     *   equivalent to input.jumping (= inside ClientPlayerEntity.tickMovement `jumping = input.jumping`).
+     *   For remote player isJumping field not synced → return false (= future packet sync update).
      */
     private static boolean sm_isPlayerJumping(net.minecraft.client.player.AbstractClientPlayer player) {
         if (player instanceof net.minecraft.client.player.LocalPlayer localPlayer) {
@@ -1092,12 +1092,12 @@ public class MixinPlayerEntityRenderer {
     }
 
     private static float lerpFadeAngle(float prev, float target, float prevTime, float currentTime) {
-        // prevTime 미초기화 또는 2 ticks 이상 차이 → 즉시 적용 (보간 skip)
+        // prevTime uninitialized or 2+ ticks difference → apply immediately (interpolation skip)
         if (prevTime < -100f) return target;
         float deltaTime = currentTime - prevTime;
         if (deltaTime > 2f || deltaTime < 0f) return target;
         if (target == prev) return target;
-        // 큰 각도 차이 (반대편) wrapping — 원본 L352-L362
+        // Large angle difference (opposite side) wrapping — original L352-L362
         final float WHOLE = (float) (2.0 * Math.PI);
         final float HALF = (float) Math.PI;
         float p = prev, s = target;
@@ -1110,20 +1110,20 @@ public class MixinPlayerEntityRenderer {
         return p + (s - p) * deltaTime * 0.2f;
     }
 
-    // ── 1인칭 손 렌더 컨텍스트 마킹 ────────────────────────────────────────────
+    // ── First person arm render context marking ────────────────────────────────────────────
     //
-    // PlayerEntityRenderer.renderArm 은 HeldItemRenderer 가 1인칭 손을 그릴 때
+    // PlayerEntityRenderer.renderArm is called when HeldItemRenderer renders first person arm:
     //   model.setAngles(player, 0,0,0,0,0)
     //   arm.pitch = 0F; arm.render(...);
     //   sleeve.pitch = 0F; sleeve.render(...);
-    // 흐름으로 호출. 이 setAngles 호출 시 SM 의 sm_setAnglesHead/sm_setAngles 가
-    // 발동하면 1인칭 손이 SM 분기 자세로 덮여 사라지거나 이상해짐.
+    // flow. If SM's sm_setAnglesHead/sm_setAngles trigger on this setAngles call,
+    // first person arm disappears or becomes abnormal covered by SM branch pose.
     //
-    // HEAD 에서 firstPersonArmRender=true → sm_setAngles 가 즉시 return → 손은 vanilla
-    // 기본 자세. RETURN 에서 false 로 복원 → 같은 frame 의 3인칭 본체 렌더는 정상 SM 적용.
+    // At HEAD set firstPersonArmRender=true → sm_setAngles returns immediately → arm vanilla
+    // default pose. At RETURN restore false → same frame third person body render applies SM normally.
     //
-    // private 메서드지만 Mixin 으로 인젝트 가능. renderRightArm/renderLeftArm 둘 다 이
-    // private renderArm 으로 위임하므로 한 곳만 후킹하면 양쪽 모두 커버.
+    // private method but injectable via Mixin. Both renderRightArm/renderLeftArm delegate to
+    // private renderArm so hooking one place covers both.
     @Inject(method = "renderHand(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/resources/Identifier;Lnet/minecraft/client/model/geom/ModelPart;Z)V",
             at = @At("HEAD"))
     private void sm_renderArmHead(PoseStack matrices, SubmitNodeCollector nodeCollector, int light,
