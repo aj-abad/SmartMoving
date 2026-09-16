@@ -645,75 +645,75 @@ public abstract class MixinLivingEntityClient {
     }
 
     /**
-     * HorizontalAerodynamicDamping — 슬라이드→헤드점프 전환 직후 수평 감속 보정.
-     * 원본: SmartMovingBase.landMotion() (행 751-755) — isAerodynamic && !onGround && !isSliding 시
+     * HorizontalAerodynamicDamping — horizontal deceleration correction right after slide→head jump transition.
+     * Original: SmartMovingBase.landMotion() (lines 751-755) — when isAerodynamic && !onGround && !isSliding
      *       motionX/Z *= HorizontalAerodynamicDamping(0.999F)
      *
-     * 1.21.1: vanilla travel() 내 공기저항 0.91F 이후에 삽입.
-     * isAerodynamic=true일 때 vanilla가 적용한 0.91F를 되돌리고 0.999F를 적용.
+     * 1.21.1: Inserted after vanilla air resistance 0.91F in travel().
+     * When isAerodynamic=true reverse vanilla's 0.91F and apply 0.999F.
      * correction factor = 0.999F / 0.91F
      */
     @Inject(method = "travel", at = @At("TAIL"))
     private void sm_aerodynamicDamping(Vec3 movementInput, CallbackInfo ci) {
-        // 🔴 (2026-04-28) 임시 비활성. land + 점프 동작 검증 후 head jump 별도 매핑.
+        // 🔴 (2026-04-28) Temporarily disabled. Map head jump separately after land + jump action verification.
     }
 
     /**
-     * B-2 (세션 26): Land 이동 User 배율 이식. 원본 `SmartMovingSelf.java` L119
+     * B-2 (Session 26): Port Land movement user factor. Original `SmartMovingSelf.java` L119
      *   `speedFactor = getConfigSpeedFactor() * getPotionSpeedFactor() * ...`
-     * 의 `getConfigSpeedFactor()` 부분을 vanilla travel() 이 처리하는 Land 경로에 주입.
+     * Inject `getConfigSpeedFactor()` part into Land path processed by vanilla travel().
      *
-     * **옵션 A (Mixin inject on getMovementSpeed)** 선택: vanilla 의 `LivingEntity.
-     * getMovementSpeed()` HEAD inject 로 반환값에 `getConfigSpeedFactor(player, cfg)` 곱셈.
+     * **Option A (Mixin inject on getMovementSpeed)** chosen: vanilla `LivingEntity.
+     * getMovementSpeed()` HEAD inject multiply return value by `getConfigSpeedFactor(player, cfg)`.
      *
-     * 적용 범위:
-     *   - Land (걷기/달리기/스프린트/점프) — vanilla travel() 이 getMovementSpeed() 참조 → 영향
-     *   - 비행/수영/잠수/클라이밍 — SM 이 `sm_travel_client` 에서 vanilla travel() cancel
-     *     → getMovementSpeed 안 불림 → 영향 0 (각자 경로에서 getCombinedSpeedFactor 별도 적용)
+     * Application scope:
+     *   - Land (walk/run/sprint/jump) — vanilla travel() references getMovementSpeed() → impact
+     *   - Flying/swimming/diving/climbing — SM cancels vanilla travel() in `sm_travel_client`
+     *     → getMovementSpeed not called → 0 impact (each path applies getCombinedSpeedFactor separately)
      *
-     * Creative 게이트는 `Mover.getConfigSpeedFactor` 가 내부 `isCreative()` 로 처리 —
-     *   Creative 아니면 userSpeedFactor=1F → speedFactor(기본 1F) 만 반영. 체감 변화 0.
+     * Creative gate handled by `Mover.getConfigSpeedFactor` internally with `isCreative()` —
+     *   If not Creative then userSpeedFactor=1F → only speedFactor(default 1F) reflected. No felt change.
      *
-     * ⚠️ 이중 적용 주의: SM 경로 (Swimmer/Climber/Flyer) 는 getPotionSpeedFactor 에서
-     *   GENERIC_MOVEMENT_SPEED attribute 를 별도 읽음. 이 mixin 은 getMovementSpeed 반환값만
-     *   바꾸는데, getPotionSpeedFactor 는 attribute 를 직접 읽으므로 이중 곱 안 됨. OK.
+     * ⚠️ Double application caution: SM paths (Swimmer/Climber/Flyer) read
+     *   GENERIC_MOVEMENT_SPEED attribute separately in getPotionSpeedFactor. This mixin only
+     *   changes getMovementSpeed return value, but getPotionSpeedFactor reads attribute directly, so no double multiply. OK.
      *
-     * ClientPlayerEntity 만 대상 — 서버 플레이어는 server-side travel 처리 (클라→서버 동기).
+     * ClientPlayerEntity only — server players handled by server-side travel (client→server sync).
      */
     @Inject(method = "getSpeed", at = @At("HEAD"), cancellable = true)
     private void sm_getMovementSpeed(CallbackInfoReturnable<Float> cir) {
-        // 🔴 (2026-04-28) 비활성화 — handleLand 가 vanilla travel 을 cancel + 자체 식 적용
-        //   하므로 vanilla travel 의 getMovementSpeed 호출 경로 없음.
-        //   다른 서브시스템 (애니메이션/발자국/네트워크) 이 호출 시 sprint 1.154x 부수효과
-        //   → 원본보다 살짝 빠른 느낌의 가능성. handleLand 에서 sprintFactor 직접 적용하므로
-        //   여기서 추가 곱은 이중 적용 위험.
+        // 🔴 (2026-04-28) Disabled — handleLand cancels vanilla travel + applies own expression
+        //   so no getMovementSpeed call path in vanilla travel.
+        //   When other subsystems (animation/footstep/network) call, sprint 1.154x side effect
+        //   → possibility of feeling slightly faster than original. handleLand directly applies sprintFactor so
+        //   additional multiply here risks double application.
     }
 
     /**
-     * 6-2 (클라이언트): SM 크롤링 중 isInSwimmingPose() = false 강제.
+     * 6-2 (Client): Force isInSwimmingPose() = false during SM crawling.
      *
-     * SM 크롤링은 SWIMMING 포즈를 사용하지만, vanilla isInSwimmingPose()=true가 되면:
-     *   - setupTransforms Branch 2: X-90° 회전 + translate(0,-1,0.3) → 렌더 깨짐
-     *   - updateLeaningPitch(): leaningPitch가 1.0까지 상승 → 자동 회전 발생
-     *   - animateModel(): model.leaningPitch 반영 → setAngles 전 pitch 왜곡
+     * SM crawling uses SWIMMING pose, but if vanilla isInSwimmingPose()=true:
+     *   - setupTransforms Branch 2: X-90° rotation + translate(0,-1,0.3) → render broken
+     *   - updateLeaningPitch(): leaningPitch rises to 1.0 → automatic rotation occurs
+     *   - animateModel(): reflect model.leaningPitch → pitch distorted before setAngles
      *
-     * 클라이언트 측: ClientPlayerEntity 인스턴스 확인.
-     * 서버 측 → MixinLivingEntity.sm_isInSwimmingPose_server()
-     * Yarn: isInSwimmingPose (intermediary: method_20232 확인 완료)
+     * Client side: Check ClientPlayerEntity instance.
+     * Server side → MixinLivingEntity.sm_isInSwimmingPose_server()
+     * Yarn: isInSwimmingPose (intermediary: method_20232 verification complete)
      */
     @Inject(method = "isVisuallySwimming", at = @At("HEAD"), cancellable = true)
     private void sm_isInSwimmingPose_client(CallbackInfoReturnable<Boolean> cir) {
-        // 🔴 (Phase 2 multi BUG-2/2.5) ClientPlayerEntity 가드 → AbstractClientPlayerEntity.
-        //   기존: self only → remote 는 vanilla swimming pose 적용 → 90도 꺾임 + orphan SWIMMING.
-        //   변경: 모든 player 처리. sm 인스턴스 = entity uuid 기반.
+        // 🔴 (Phase 2 multi BUG-2/2.5) ClientPlayerEntity guard → AbstractClientPlayerEntity.
+        //   Issue: self only → remote applies vanilla swimming pose → 90° bent + orphan SWIMMING.
+        //   Change: handle all players. sm instance = entity uuid based.
         if (!((Object) this instanceof net.minecraft.client.player.AbstractClientPlayer player)) return;
-        // BUG-23 (세션 36): SM disabled 시 vanilla isInSwimmingPose 그대로 — sm.* 잔존 차단.
-        // 🔴 (Phase 2 fix-3-2) cfg.enabled → isSmRenderEnabled 로 self-only 화 (BUG-CONFIG-2 일관).
+        // BUG-23 (Session 36): When SM disabled, vanilla isInSwimmingPose as-is — block sm.* persistence.
+        // 🔴 (Phase 2 fix-3-2) cfg.enabled → isSmRenderEnabled for self-only (BUG-CONFIG-2 consistent).
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
-        // [6-2][8-3] 크롤링/수영/잠수/크롤클라이밍 중 setupTransforms Branch 2 진입 차단.
-        // isCrawling/isCrawlClimbing: SWIMMING 포즈 사용하되 vanilla -90° 자동 회전 방지
-        // isSwimming_sm/isDiving: SM 자체 body X 기울기 애니메이션과 충돌 방지
+        // [6-2][8-3] Block setupTransforms Branch 2 entry during crawling/swimming/diving/crawl climbing.
+        // isCrawling/isCrawlClimbing: Use SWIMMING pose but prevent vanilla -90° automatic rotation
+        // isSwimming_sm/isDiving: Prevent conflict with SM own body X lean angle animation
         if (sm.isCrawling || sm.isCrawlClimbing || sm.isSwimming_sm || sm.isDiving) {
             cir.setReturnValue(false);
             return;

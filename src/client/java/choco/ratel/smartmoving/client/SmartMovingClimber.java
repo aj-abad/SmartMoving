@@ -963,24 +963,24 @@ public final class SmartMovingClimber {
             // 🔴 (Session 145 BUG fix): skip setShouldClimbSpeed when hands.isRelevant() = false
             //   (original L1037 only `else if (handsClimbing.IsRelevant())` block has branch → maintain matched false).
 
-            // 🔴 원본 L1055-1058 isClimbHolding HoldMotion 분기 매핑 (sneak 키 가드).
-            //   원본 isClimbHolding = wantClimb && (sneak || crawlToggled) && isClimbing.
+            // 🔴 Original L1055-1058 isClimbHolding HoldMotion branch mapping (sneak key guard).
+            //   Original isClimbHolding = wantClimb && (sneak || crawlToggled) && isClimbing.
             //
-            // 🔴 사용자 요구 (handsClimbing.SINK 통합) — grab 키 가드 추가:
-            //   "iron_bars 위 잡고 그랩만 누르면 안떨어져야됨".
-            //   원본 동작:
-            //     일반 블록 grab → handsClimbing=BottomHold → wantClimbDown 분기 BottomHold +
-            //                   !feet → HoldMotion (자동 hold).
-            //     iron_bars/fence 위 잡기 → handsClimbing=Sink/TopHold → ToDown: TopHold→Sink,
-            //                              Sink→Sink → SinkDownMotion (떨어짐).
-            //   사용자 의도 = grab만으로 iron_bars hold → SINK 시 HoldMotion 강제.
+            // 🔴 User request (handsClimbing.SINK integration) — add grab key guard:
+            //   "when holding iron_bars, pressing grab alone should not fall".
+            //   Original behavior:
+            //     General block grab → handsClimbing=BottomHold → wantClimbDown branch BottomHold +
+            //                        !feet → HoldMotion (auto hold).
+            //     iron_bars/fence grab → handsClimbing=Sink/TopHold → ToDown: TopHold→Sink,
+            //                           Sink→Sink → SinkDownMotion (fall).
+            //   User intent = grab alone on iron_bars hold → Force HoldMotion on SINK.
             //
-            //   🔴 부작용 정정 (사용자 보고: 사다리 끝 도달 시 자동 hold).
-            //   사다리 끝 위 블록 (예: stone) 의 8방향 substitute 검사 결과 handsClimbing=SINK
-            //   매핑 → SINK 무조건 가드가 grab 안 누른 케이스에도 HoldMotion 발동 → 떨어지지
-            //   않고 그 자리 hold (사용자 보고).
-            //   해결: SINK 가드에 `grabPressed` 추가 — grab 키 누른 케이스만 hold (iron_bars
-            //   의도 유지) + 사다리 끝 grab 안 누름 케이스는 SINK_DOWN_MOTION 정상 적용 (천천히 내려옴).
+            //   🔴 Side effect fix (user report: auto hold when reaching ladder end).
+            //   Block above ladder end (e.g.: stone) 8-direction substitute check results handsClimbing=SINK
+            //   mapping → SINK unconditional guard triggers HoldMotion even when grab not pressed → fall not
+            //   and hold in place (user report).
+            //   Solution: Add `grabPressed` to SINK guard — hold only when grab key pressed (maintain iron_bars
+            //   intent) + when grab not pressed at ladder end, SINK_DOWN_MOTION applies normally (slow descend).
             boolean grabPressed_holdGuard = SmartMovingKeys.grab.isDown();
             if (sm.isClimbHolding || (handsClimbing == HandsClimbing.SINK && grabPressed_holdGuard)) {
                 value = HOLD_MOTION; isUp = true;
@@ -1008,59 +1008,59 @@ public final class SmartMovingClimber {
             }
         }
 
-        // 🔴 (세션 145 BUG fix): matched=false (어떤 sub-branch 도 매치 안 됨) 시 원본 1:1 —
-        //   setShouldClimbSpeed 호출 자체 skip. isClimbing 안 set + actualHandsClimbType /
-        //   actualFeetClimbType 갱신 안 함. 평지 크롤 풀림 BUG 직접 fix.
+        // 🔴 (Session 145 BUG fix): original 1:1 when matched=false (no sub-branch matches) —
+        //   skip setShouldClimbSpeed call itself. Don't set isClimbing + don't update actualHandsClimbType /
+        //   actualFeetClimbType. Directly fix flat ground crawl release BUG.
         if (!matched) {
             return;
         }
 
-        // 원본 L1522 factor = getCombinedSpeedFactor() + L1523-1524 isFast sprint factor.
+        // Original L1522 factor = getCombinedSpeedFactor() + L1523-1524 isFast sprint factor.
         double freeFactor = SmartMovingMover.getCombinedSpeedFactor(player, cfg);
         if (sm.isFast) {
             freeFactor *= cfg.sprintFactor;
         }
         setOnlyShouldClimbSpeed(player, sm, value, isUp, freeFactor);
 
-        // 🔴 원본 setShouldClimbSpeed 분기별 매핑 적용 (사용자 보고 2회차 후, 단계별 애니메이션 1:1).
-        //   원본 도메인: hands={NoGrab=0, UpGrab=1, MiddleGrab=2}, feet={NoStep=0, DownStep=1}.
-        //   sm_animateClimbing 의 분기도 같은 0/1/2 도메인으로 변경 (이전 ordinal 0~5 매핑 폐기).
+        // 🔴 Apply original setShouldClimbSpeed branch-specific mapping (after 2nd user report, step animation 1:1).
+        //   Original domain: hands={NoGrab=0, UpGrab=1, MiddleGrab=2}, feet={NoStep=0, DownStep=1}.
+        //   sm_animateClimbing branch also changed to same 0/1/2 domain (discard previous ordinal 0~5 mapping).
 
-        // 🔴 원본 SmartMovingSelf L1083-L1094 보정 매핑 (사용자 보고 — 진입 직후 다리 1자):
+        // 🔴 Original SmartMovingSelf L1083-L1094 correction mapping (user report — leg straight after entry):
         //   `if (handsClimbing == None) actualHands=NoGrab; else if (feetClimbing == None) actualFeet=NoStep;`
-        //   setShouldClimbSpeed 분기별 set 후 추가 보정 — 인스턴스가 None 인 케이스만 강제 0 set.
-        //   진입 직후 발 공중 (feetClimbing=NONE) 시점 → actualFeet=NoStep 유지 →
-        //   feetDistanceUpFactor=0 / feetDistanceSideFactor=0 → leg.pitch=0, leg.roll=0 → 다리 1자.
-        //   발이 벽에 닿으면 (feetClimbing 인스턴스 변경) 보정 미트리거 → actualFeet=DownStep 유지.
-        //   사용자 보고 "중간까지 다리 1자" 정확 일치.
+        //   Additional correction after setShouldClimbSpeed branch-specific set — force 0 only when instance is None.
+        //   Immediately after entry with feet airborne (feetClimbing=NONE) → maintain actualFeet=NoStep →
+        //   feetDistanceUpFactor=0 / feetDistanceSideFactor=0 → leg.pitch=0, leg.roll=0 → leg straight.
+        //   When feet touch wall (feetClimbing instance changes), correction not triggered → maintain actualFeet=DownStep.
+        //   User report "leg straight midway" matches exactly.
         if (handsClimbing == HandsClimbing.NONE) {
-            handsAnim = 0;  // NoGrab 강제
+            handsAnim = 0;  // Force NoGrab
         } else if (feetClimbing == FeetClimbing.NONE) {
-            feetAnim = 0;   // NoStep 강제 (else if 라 hands.None 시 feet 보정 안 함 — 원본 1:1)
+            feetAnim = 0;   // Force NoStep (else if so feet not corrected when hands.None — original 1:1)
         }
 
         sm.actualHandsClimbType = handsAnim;
         sm.actualFeetClimbType  = feetAnim;
 
-        // fallDistance 리셋 (클라이밍 중 낙하 데미지 방지)
+        // Reset fallDistance (prevent fall damage during climbing)
         player.fallDistance = 0;
 
-        // C-33: 클라이밍 중 exhaustion 증가 (피로 누적, 매 틱 1F 감소보다 큰 값)
+        // C-33: increase exhaustion during climbing (fatigue accumulation, greater than 1F decrease per tick)
         if (sm.isClimbing && cfg.climbExhaustion) {
             sm.exhaustion += 2.0F;
         }
 
-        // C-32: climbBackJump — isClimbHolding 상태에서 jump 시 뒤로 점프
+        // C-32: climbBackJump — backward jump when jump pressed in isClimbHolding state
         handleClimbBackJump(player, sm);
 
-        // C-32: handleCrash — 자유 클라이밍 낙하 데미지
+        // C-32: handleCrash — free climbing fall damage
         if (sm.isClimbing) handleCrash(player, cfg.freeClimbFallDamageStartDistance, cfg.freeClimbFallDamageFactor);
     }
 
     /**
-     * Smart 모드: 주어진 Y 레벨에서 인접 블록에 사다리/넝쿨이 있는지 확인한다.
-     * 원본: SmartMovingSelf isHandsLadderSubstitute / isFeetLadderSubstitute 판정.
-     * includeCenter=true → 현재 위치(ZZ)도 포함 (feetSubstitute 용).
+     * Smart mode: check if ladder/vine exists in adjacent blocks at given Y level.
+     * Original: SmartMovingSelf isHandsLadderSubstitute / isFeetLadderSubstitute judgment.
+     * includeCenter=true → include current position (ZZ) (for feetSubstitute).
      */
     private static boolean hasSubstituteLadderOrVine(Level world, int px, int py, int pz, boolean includeCenter) {
         if (includeCenter) {
@@ -1075,30 +1075,30 @@ public final class SmartMovingClimber {
     }
 
     /**
-     * 클라이밍 중 뒤로 점프 (climbBackJump).
-     * 원본: SmartMovingSelf.handleClimbing() isClimbHolding && jumpButton.StartPressed 분기.
+     * Backward jump during climbing (climbBackJump).
+     * Original: SmartMovingSelf.handleClimbing() isClimbHolding && jumpButton.StartPressed branch.
      *
-     * jumpAngle = rotationYaw + 180F (정면 반대 방향).
-     * cfg.climbJumpBackHead=false(기본): grab 미입력 → HEAD 점프, grab 입력 → 일반 뒤로 점프.
-     * continueWallJumping = !isHeadJumping — 뒤로 점프 후 연속 벽 점프 허용.
+     * jumpAngle = rotationYaw + 180F (opposite of front direction).
+     * cfg.climbJumpBackHead=false(default): grab not pressed → HEAD jump, grab pressed → normal backward jump.
+     * continueWallJumping = !isHeadJumping — allow continuous wall jump after backward jump.
      */
     private static void handleClimbBackJump(LocalPlayer player, SmartMovingClientState sm) {
-        // Phase H BUG-4 1:1 정정: 원본 L1060 `jumpButton.StartPressed` (점프 키 rising-edge).
-        //   기존 sm.jumpPending 은 sm_jump 인터셉트 시 set 되는 매 점프 시도 플래그 — 의미 다름.
-        //   1.21.1 측 sm.jumpKeyStartPressed (L1176 set: curJumpPressed && !prevJumpKeyPressed) 가 정확 매핑.
+        // Phase H BUG-4 1:1 fix: original L1060 `jumpButton.StartPressed` (jump key rising-edge).
+        //   Previous sm.jumpPending is a per-jump-attempt flag set during sm_jump interception — different meaning.
+        //   1.21.1 side sm.jumpKeyStartPressed (L1176 set: curJumpPressed && !prevJumpKeyPressed) is exact mapping.
         if (!sm.isClimbHolding || !sm.jumpKeyStartPressed) return;
 
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         boolean grabPressed = SmartMovingKeys.grab.isDown();
 
-        // Phase H BUG-2 1:1 정정: 원본 L1062 `handsOnly = feetClimbing != FeetClimbing.None`.
-        //   ★ 변수명 함정 (원본 그대로 보존): handsOnly==true 면 feet 도 등반 중 → 일반 ClimbBackHead/Up.
-        //                                       handsOnly==false 면 feet 안 등반 → ClimbBackHead/UpHandsOnly.
+        // Phase H BUG-2 1:1 fix: original L1062 `handsOnly = feetClimbing != FeetClimbing.None`.
+        //   ★ Variable name trap (preserve as original): handsOnly==true means feet also climbing → general ClimbBackHead/Up.
+        //                                                 handsOnly==false means feet not climbing → ClimbBackHead/UpHandsOnly.
         boolean handsOnly = sm.actualFeetClimbType != FeetClimbing.NONE.ordinal();
 
-        // Phase H BUG-1 1:1 정정: 원본 L1064-L1066 3중 ternary type 결정.
-        //   기존: 모든 분기 inline 동일 식 (vanilla 0.42 + 0.3 push). type 별 vertical/horizontal
-        //         factor 적용 누락 (climbBackUp/HeadJumpVerticalFactor 등). tryJump 호출로 정정.
+        // Phase H BUG-1 1:1 fix: original L1064-L1066 triple ternary type decision.
+        //   Previous: all branches same inline formula (vanilla 0.42 + 0.3 push). Missing type-specific vertical/horizontal
+        //            factor application (climbBackUp/HeadJumpVerticalFactor etc). Fixed by tryJump call.
         boolean useHead = cfg.climbJumpBackHead ? grabPressed : !grabPressed;
         int type;
         if (useHead) {

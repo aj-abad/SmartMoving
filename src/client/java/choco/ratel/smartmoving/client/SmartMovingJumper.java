@@ -697,11 +697,11 @@ public final class SmartMovingJumper {
      * Handle wall jump. Called before climbing handling inside sm_travel_client().
      * Original: SmartMovingSelf.handleWallJumping() L1946-1997.
      *
-     * 원본 진입 조건(L1450): `if (!wantWallJumping || NaN(horizontalCollisionAngle)) return;`
-     * → wantWallJumping 은 updateWallJumpState 에서 갱신된 값.
+     * Original entry condition (L1450): `if (!wantWallJumping || NaN(horizontalCollisionAngle)) return;`
+     * → wantWallJumping is value updated in updateWallJumpState.
      *
-     * 반사 각도 공식: reflectedAngle = horizontalCollisionAngle * 2 - movementAngle + 180
-     * jumpAngle = round(reflectedAngle / 90) * 90  (90° 단위 반올림)
+     * Reflection angle formula: reflectedAngle = horizontalCollisionAngle * 2 - movementAngle + 180
+     * jumpAngle = round(reflectedAngle / 90) * 90  (90° unit rounding)
      */
     public static void handleWallJumping(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
@@ -716,24 +716,24 @@ public final class SmartMovingJumper {
         float horizontalCollisionAngle = calculateSeparateCollisionAngle(player);
         if (Float.isNaN(horizontalCollisionAngle)) return;
 
-        // 🔴 fix #162 (2026-05-27): wasCollidedHorizontally=false 강제.
-        //   dump 정밀 분석 (docs/log_temp.txt t=1057~1063):
-        //     사용자 시나리오 (W hold + 양 벽 사이 jump 연타) 시점 매 tick wasColl=true 매치 →
-        //     jumpType=WALL_UP_SLIDE (=13) + jumpAngle=horizontalCollisionAngle (= 벽 법선) →
-        //     setYaw(법선) = 사용자 정면 = 같은 방향 → 시각 회전 X. WALL_UP_SLIDE → noVertical=true
-        //     → motionY 미적용 → 상승 X.
-        //   원본 vs 우리 매핑 timing 차이:
-        //     원본 1.7.10 handleWallJumping = moveEntity 후 호출 + L1993 set false → 같은 tick
-        //     vanilla move() 추가 호출 없음 → 다음 tick wasColl=false 유지 → 회전 분기 매치.
-        //     우리 매핑 handleWallJumping = travel HEAD → L700 set false → 같은 tick vanilla
-        //     travel 본체 → vanilla move() → horizontalCollision 다시 true → 다음 tick wasColl=true
-        //     → slide 분기 매치 → 회전 X.
-        //   해결: wasCollidedHorizontally=false 강제. 사용자 verbatim "벽점프 시 반대방향으로 몸이
-        //     회전 + 앞벽 뒤벽 앞벽 뒤벽 연속" 매치. 원본 spec 의 WALL_UP_SLIDE 분기 (= 박스 벽
-        //     sliding 시 수직 미적용) 는 1.21.1 매핑에서 매치 어려움 — 사용자 의도 우선.
+        // 🔴 fix #162 (2026-05-27): Force wasCollidedHorizontally=false.
+        //   Detailed dump analysis (docs/log_temp.txt t=1057~1063):
+        //     User scenario (W hold + jump repeat between two walls) each tick wasColl=true matches →
+        //     jumpType=WALL_UP_SLIDE (=13) + jumpAngle=horizontalCollisionAngle (= wall normal) →
+        //     setYaw(normal) = user facing = same direction → no visual rotation. WALL_UP_SLIDE → noVertical=true
+        //     → motionY not applied → no rise.
+        //   Original vs our mapping timing difference:
+        //     Original 1.7.10 handleWallJumping = called after moveEntity + L1993 set false → same tick
+        //     no additional vanilla move() call → next tick wasColl=false maintained → rotation branch matches.
+        //     Our mapping handleWallJumping = travel HEAD → L700 set false → same tick vanilla
+        //     travel body → vanilla move() → horizontalCollision becomes true again → next tick wasColl=true
+        //     → slide branch matches → no rotation.
+        //   Solution: Force wasCollidedHorizontally=false. User verbatim "body rotates opposite direction on wall jump
+        //     + front wall back wall front wall back wall repeat" matches. Original spec WALL_UP_SLIDE branch (= no vertical
+        //     when box sliding against wall) difficult to match in 1.21.1 mapping — user intent takes priority.
         boolean wasCollH = false;
 
-        // 원본 L1952-L1963: grab=true → WallHead/WallHeadSlide, grab=false → WallUp/WallUpSlide.
+        // Original L1952-L1963: grab=true → WallHead/WallHeadSlide, grab=false → WallUp/WallUpSlide.
         boolean grabPressed = SmartMovingKeys.grab.isDown();
         int jumpType;
         if (grabPressed) {

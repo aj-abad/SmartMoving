@@ -62,24 +62,24 @@ public class MixinPlayerEntityRenderer {
         if (!((Object) renderState instanceof SmartMovingAvatarRenderState smartState)) return;
         AbstractClientPlayer entity = smartState.sm_getPlayer();
         if (entity == null) return;
-        // 🔴 (Phase 2 multi BUG-3) ClientPlayerEntity 분기 → 모든 player 통합.
-        //   기존: self 만 isCrawling/isCrawlClimbing/isSliding 시 -1m 보정. remote 는 미적용 →
-        //         사용자 보고 "슬라이딩 1블록 위 떠있음" + 엎드리기/CC 도 동일 BUG.
-        //   변경: 모든 player 처리. 기존 remote +0.125 (= 지면 뚫림 방지) 는 별도 case.
+        // 🔴 (Phase 2 multi BUG-3) Unify ClientPlayerEntity branch → handle all players.
+        //   Previous: self only apply -1m correction when isCrawling/isCrawlClimbing/isSliding. remote not applied →
+        //             user report "sliding floating 1 block above" + crawling/CC also same BUG.
+        //   Change: process all players. Previous remote +0.125 (= prevent ground clipping) is separate case.
         SmartMovingClientState sm = SmartMovingClientState.get(entity);
 
-        // 헤드점프: 모델 origin = entity.y. 박스 처리 (mixin offset 활성 + POSE=SLIDING) 로
-        //   box.minY = entity.y +1m. 추가 -1m offset 적용 시 모델 머리가 박스 발 보다 0.5m 아래
-        //   = 박스 밖 아래 (사용자 보고 "1칸 낮음", 2026-05-11).
-        //   isSliding 와 동일 패턴 (= entity.y origin) → 모델 root = entity.y +1.501m = 박스 안.
-        //   feedback_sliding_entity_y_push_offset_zero.md 참조.
+        // Head jump: model origin = entity.y. Box handling (mixin offset active + POSE=SLIDING)
+        //   box.minY = entity.y +1m. When applying additional -1m offset model head is 0.5m below box feet
+        //   = below box (user report "1 block lower", 2026-05-11).
+        //   Same pattern as isSliding (= entity.y origin) → model root = entity.y +1.501m = inside box.
+        //   See feedback_sliding_entity_y_push_offset_zero.md.
         if (sm.isHeadJumping && sm.heightOffset != 0f) {
             cir.setReturnValue(Vec3.ZERO);
             return;
         }
 
-        // 크롤링: SWIMMING 포즈 오프셋 대신 SM 크롤링 오프셋
-        // 원본 SmartMovingRender L156-L161: heightOffset 적용 (= self+remote 모두).
+        // Crawling: SM crawling offset instead of SWIMMING pose offset
+        // Original SmartMovingRender L156-L161: apply heightOffset (= both self + remote).
         if (sm.isCrawling) {
             cir.setReturnValue(new Vec3(0D, -1.0D - entity.getScale() * 0.06D, 0D));
             return;
@@ -90,44 +90,44 @@ public class MixinPlayerEntityRenderer {
         }
         if (sm.isSliding) {
             // 🔴 fix #61 v3 (2026-05-10):
-            //   isSliding 진입 시 entity.y -= 1m (= move(0,-1,0) 효과, 원본 1.7.10 1:1).
-            //   mixin offset 가드 매치 → 박스 발 = entity.y + 1m = ground (정상).
-            //   vanilla render 식 = 모델 origin = entity.y + offsetY. offsetY=0 시 모델 발
-            //   = 박스 발 (= STANDING 시 entity.y=ground 와 동일 동작).
-            //   isCrawling 분기 -1.06m 은 isCrawling 진입 시 entity.y unchange (= move 안 호출,
-            //   원본 1:1) 라서 추가 -1m 보정 필요. isSliding 은 entity.y 이미 -1m push 됨 →
-            //   추가 보정 X.
+            //   On isSliding entry entity.y -= 1m (= move(0,-1,0) effect, original 1.7.10 1:1).
+            //   mixin offset guard matches → box feet = entity.y + 1m = ground (normal).
+            //   vanilla render formula = model origin = entity.y + offsetY. When offsetY=0 model feet
+            //   = box feet (= same behavior as STANDING when entity.y=ground).
+            //   isCrawling branch -1.06m because on isCrawling entry entity.y unchanged (= move not called,
+            //   original 1:1) so additional -1m correction needed. isSliding entity.y already -1m pushed →
+            //   no additional correction.
             cir.setReturnValue(Vec3.ZERO);
             return;
         }
-        // 🔵 (2026-05-20, fix #111 — fix #110 정정) swim/dive 모델 위치.
-        //   기존 fix #110 매핑 `-1.0 - scale*0.06` 은 isCrawling 패턴 차용이었으나 박스 차이 1m
-        //   고려 누락 → 모델이 박스보다 더 1m 아래 (= 사용자 보고 "1칸 아래" 잔존).
-        //   - isCrawling: 박스 = (entity.y, entity.y+0.8) (mixin offset 차단, eye=0.62).
-        //     모델 root 보정 = -1.06m → 모델 회전 후 박스 안 정렬.
-        //   - swim/dive: 박스 = (entity.y+1, entity.y+1.8) (mixin offset 활성, eye=1.62 fix #102).
-        //     박스가 1m 위로 push 됨 → 모델도 +1m 더 위로 = isCrawling 식 + 1m.
-        //   결과: -1.06 + 1.0 = -0.06 ≈ Vec3d.ZERO (= 슬라이딩 패턴 동일).
-        //   슬라이딩의 경우 entity.y 자체 -1m push → ZERO offset 으로 박스 안 정렬.
-        //   swim/dive 는 entity.y unchange + 박스 +1m up → ZERO offset 으로 동일 시각 정렬.
+        // 🔵 (2026-05-20, fix #111 — correct fix #110) swim/dive model position.
+        //   Previous fix #110 mapping `-1.0 - scale*0.06` borrowed isCrawling pattern but
+        //   missed box difference 1m → model 1m further below box (= user report "1 block lower" lingers).
+        //   - isCrawling: box = (entity.y, entity.y+0.8) (mixin offset blocked, eye=0.62).
+        //     model root correction = -1.06m → align inside box after model rotation.
+        //   - swim/dive: box = (entity.y+1, entity.y+1.8) (mixin offset active, eye=1.62 fix #102).
+        //     box pushed up 1m → model also +1m further up = isCrawling formula + 1m.
+        //   Result: -1.06 + 1.0 = -0.06 ≈ Vec3d.ZERO (= same as sliding pattern).
+        //   Sliding case: entity.y itself -1m pushed → align inside box with ZERO offset.
+        //   swim/dive: entity.y unchanged + box +1m up → align same visual with ZERO offset.
         if (sm.isSwimming_sm || sm.isDiving) {
             cir.setReturnValue(Vec3.ZERO);
             return;
         }
 
-        // 타인 플레이어 (B-14 / §16-22 / 원본 SmartMovingRender L124-L125):
-        // !isOwnPlayer && entity.isSneaking() && isCrawl → d1 += 0.125 (지면 뚫림 방지)
-        //   위 isCrawling 분기에서 이미 처리되므로 도달 X. (legacy 보존만)
+        // Other players (B-14 / §16-22 / original SmartMovingRender L124-L125):
+        // !isOwnPlayer && entity.isSneaking() && isCrawl → d1 += 0.125 (prevent ground clipping)
+        //   Already handled in isCrawling branch above so unreachable. (preserve legacy only)
     }
 
     /**
-     * [12-3] setupTransforms() HEAD 주입 — SM bodyYaw 오버라이드 계산.
+     * [12-3] setupTransforms() HEAD injection — SM bodyYaw override calculation.
      *
-     * isClimbing/isCrawlClimbing/isCeilingClimbing/isSwimming_sm/isDiving/isSliding/
-     * isHeadJumping/isCrawling 상태에서 forwardRotation(이동 방향 각도)으로 bodyYaw를 강제한다.
-     * 계산 결과는 smBodyYawActive/smBodyYawOverride에 저장하여 @ModifyArg가 읽는다.
+     * In isClimbing/isCrawlClimbing/isCeilingClimbing/isSwimming_sm/isDiving/isSliding/
+     * isHeadJumping/isCrawling states, force bodyYaw with forwardRotation (movement direction angle).
+     * Calculation results stored in smBodyYawActive/smBodyYawOverride for @ModifyArg to read.
      *
-     * 원본: SmartMovingRender.rotatePlayer() → forwardRotation = Math.atan2(-vel.x, vel.z)
+     * Original: SmartMovingRender.rotatePlayer() → forwardRotation = Math.atan2(-vel.x, vel.z)
      */
     @Inject(method = "setupRotations(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;FF)V", at = @At("HEAD"))
     private void sm_captureBodyYaw(AvatarRenderState renderState, PoseStack matrices,

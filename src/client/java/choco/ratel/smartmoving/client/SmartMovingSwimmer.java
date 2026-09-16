@@ -484,36 +484,36 @@ public final class SmartMovingSwimmer {
 
         // **B-9b Resolution (Session 129)**: Port original L306 `moveSwim` + A/B path determination.
         //   moveSwim = pitch < 0 && forward > 0 || pitch > 0 && forward < 0
-        //   (pitch 와 forward 부호 반대 — 위 보며 후진 또는 아래 보며 전진 = 입수 자세)
+        //   (opposite pitch and forward signs — looking up going backward or looking down going forward = entry posture)
         //   isPathA = diveUp || moveSwim || wantShallowSwim
-        //     A 경로: 능동적 수영 (< 1.4 dipping, < 1.9 swimming, else diving)
-        //     B 경로: 수동적 떠있기 (< 1.5 dipping, else diving — swimming 없음)
+        //     A path: active swimming (< 1.4 dipping, < 1.9 swimming, else diving)
+        //     B path: passive floating (< 1.5 dipping, else diving — no swimming)
         boolean moveSwim = (player.getXRot() < 0F && moveForward > 0F)
                         || (player.getXRot() > 0F && moveForward < 0F);
         boolean isPathA = diveUp || moveSwim || wantShallowSwim;
 
-        // **B-9b 상태 재분류 (세션 129)**: A/B 경로에 따라 isDipping/isSwimming_sm/isDiving
-        //   을 updateSwimState 의 A 경로 기본 분류에서 재조정. [0, 2] 구간에서만 재조정
-        //   (updateSwimState 는 A 경로 threshold 1.4/1.9 기본. B 경로는 1.5 + swimming 없음).
-        //   isCrawling||isClimbCrawling||isCrawlClimbing 강제 dipping (원본 L301) 은
-        //   updateSwimState L135 에서 이미 처리됨 — 여기선 수정 금지.
+        // **B-9b State reclassification (Session 129)**: Reclassify isDipping/isSwimming_sm/isDiving from
+        //   basic A path classification of updateSwimState based on A/B path. Only reclassify in [0, 2] range
+        //   (updateSwimState is default A path threshold 1.4/1.9. B path 1.5 + no swimming).
+        //   Forced dipping from isCrawling||isClimbCrawling||isCrawlClimbing (original L301) already
+        //   processed in updateSwimState L135 — do not modify here.
         double playerSwimWaterBorder9b = swimVals.playerSwimWaterBorder;
         boolean isForceDipping9b = sm.isCrawling || sm.isClimbCrawling || sm.isCrawlClimbing;
         if (!isForceDipping9b
                 && playerSwimWaterBorder9b >= 0 && playerSwimWaterBorder9b <= 2) {
             double offset9b = playerSwimWaterBorder9b + 0.1625D;
             if (isPathA) {
-                // A 경로 (원본 L307-L358): 1.4 / 1.9 threshold
+                // A path (original L307-L358): 1.4 / 1.9 threshold
                 sm.isDipping     = offset9b < 1.4D;
                 sm.isSwimming_sm = offset9b >= 1.4D && offset9b < 1.9D;
                 sm.isDiving      = offset9b >= 1.9D;
             } else {
-                // B 경로 (원본 L360-L398): 1.5 threshold, swimming 없음
+                // B path (original L360-L398): 1.5 threshold, no swimming
                 sm.isDipping     = offset9b < 1.5D;
                 sm.isSwimming_sm = false;
                 sm.isDiving      = offset9b >= 1.5D;
             }
-            // Config 게이트 재적용 (원본 L436-L441)
+            // Reapply Config gate (original L436-L441)
             if (!cfg.isSwimmingEnabled()) {
                 sm.isSwimming_sm = false;
                 sm.isDipping     = false;

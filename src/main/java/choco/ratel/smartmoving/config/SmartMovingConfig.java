@@ -967,99 +967,99 @@ public class SmartMovingConfig {
      */
     public float walkingExhautionLossFactor = 1F;
 
-    // ── Exhaustion/Hunger factor 2단계 (원본 getFactor L577-L592 행동상태 배율) ──
-    // ⚠️ 2단계는 `Exhaustion` 정타 (1단계 `Exhaution` 오타와 혼재). 원본 그대로 유지.
-    // ⚠️ `ceilClimbing` 축약 필드명 (`ceilingClimbing` 아님). 원본 그대로 유지.
-    // 난이도 체인 없음 — 전 난이도 동일(default = Easy).
+    // ── Exhaustion/Hunger factor stage 2 (original getFactor L577-L592 action state multiplier) ──
+    // WARNING: stage 2 uses `Exhaustion` correct spelling (mixed with stage 1 `Exhaution` typo). Kept as original.
+    // WARNING: `ceilClimbing` abbreviated field name (not `ceilingClimbing`). Kept as original.
+    // No difficulty chain — all difficulties identical (default = Easy).
 
     /**
-     * 원본 `_climbingHungerGainFactor` L431 = `PositiveFactor("move.hunger.climb.gain.factor")
-     *   .key("move.hunger.gain.climb.factor", _pre_sm_1_3)`. default=PF 기본(1F).
+     * Original `_climbingHungerGainFactor` L431 = `PositiveFactor("move.hunger.climb.gain.factor")
+     *   .key("move.hunger.gain.climb.factor", _pre_sm_1_3)`. default=PF default (1F).
      */
     public float climbingHungerGainFactor = 1F;
 
     /**
-     * 원본 `_climbingExhaustionLossFactor` L409 = `PositiveFactor("move.exhaustion.climb.loss.factor")`.
-     * default=PF 기본(1F).
+     * Original `_climbingExhaustionLossFactor` L409 = `PositiveFactor("move.exhaustion.climb.loss.factor")`.
+     * default=PF default (1F).
      */
     public float climbingExhaustionLossFactor = 1F;
 
     /**
-     * 원본 `_crawlingHungerGainFactor` L432 = `PositiveFactor("move.hunger.crawl.gain.factor")
-     *   .key("move.hunger.gain.crawl.factor", _pre_sm_1_3)`. default=PF 기본(1F).
+     * Original `_crawlingHungerGainFactor` L432 = `PositiveFactor("move.hunger.crawl.gain.factor")
+     *   .key("move.hunger.gain.crawl.factor", _pre_sm_1_3)`. default=PF default (1F).
      */
     public float crawlingHungerGainFactor = 1F;
 
     /**
-     * 원본 `_crawlingExhaustionLossFactor` L410 = `PositiveFactor("move.exhaustion.crawl.loss.factor")`.
-     * default=PF 기본(1F).
+     * Original `_crawlingExhaustionLossFactor` L410 = `PositiveFactor("move.exhaustion.crawl.loss.factor")`.
+     * default=PF default (1F).
      */
     public float crawlingExhaustionLossFactor = 1F;
 
     /**
-     * 원본 `_ceilClimbingHungerGainFactor` L433 = `PositiveFactor("move.hunger.climb.gain.ceiling.factor")
-     *   .key("move.hunger.gain.climb.ceiling.factor", _pre_sm_1_3)`. default=PF 기본(1F).
-     * ⚠️ 필드명 `ceilClimbing` 축약. 키 이름 `climb.gain.ceiling` 순서 (gain 이 ceiling 앞).
+     * Original `_ceilClimbingHungerGainFactor` L433 = `PositiveFactor("move.hunger.climb.gain.ceiling.factor")
+     *   .key("move.hunger.gain.climb.ceiling.factor", _pre_sm_1_3)`. default=PF default (1F).
+     * WARNING: field name `ceilClimbing` abbreviated. Key name order `climb.gain.ceiling` (gain before ceiling).
      */
     public float ceilClimbingHungerGainFactor = 1F;
 
     /**
-     * 원본 `_ceilClimbingExhaustionLossFactor` L408 = `PositiveFactor("move.exhaustion.climb.ceiling.loss.factor")`.
-     * default=PF 기본(1F). 키 이름 `climb.ceiling.loss` 순서 (ceiling 이 loss 앞).
+     * Original `_ceilClimbingExhaustionLossFactor` L408 = `PositiveFactor("move.exhaustion.climb.ceiling.loss.factor")`.
+     * default=PF default (1F). Key name order `climb.ceiling.loss` (ceiling before loss).
      */
     public float ceilClimbingExhaustionLossFactor = 1F;
 
     /**
-     * 원본 `_swimmingHungerGainFactor` L434 = `PositiveFactor("move.hunger.swim.gain.factor")
+     * Original `_swimmingHungerGainFactor` L434 = `PositiveFactor("move.hunger.swim.gain.factor")
      *   .key("move.hunger.gain.swim.factor", _pre_sm_1_3).defaults(1.5F)`. default=**1.5F**.
      */
     public float swimmingHungerGainFactor = 1.5F;
 
     /**
-     * 원본 `_swimmingExhaustionLossFactor` L412 = `PositiveFactor("move.exhaustion.swim.loss.factor")`.
-     * default=PF 기본(1F).
+     * Original `_swimmingExhaustionLossFactor` L412 = `PositiveFactor("move.exhaustion.swim.loss.factor")`.
+     * default=PF default (1F).
      */
     public float swimmingExhaustionLossFactor = 1F;
 
     /**
-     * 원본 `_divingHungerGainFactor` L435 = `PositiveFactor("move.hunger.dive.gain.factor")
+     * Original `_divingHungerGainFactor` L435 = `PositiveFactor("move.hunger.dive.gain.factor")
      *   .key("move.hunger.gain.dive.factor", _pre_sm_1_3).defaults(1.5F)`. default=**1.5F**.
      */
     public float divingHungerGainFactor = 1.5F;
 
     /**
-     * 원본 `_divingExhaustionLossFactor` L413 = `PositiveFactor("move.exhaustion.dive.loss.factor")`.
-     * default=PF 기본(1F).
+     * Original `_divingExhaustionLossFactor` L413 = `PositiveFactor("move.exhaustion.dive.loss.factor")`.
+     * default=PF default (1F).
      */
     public float divingExhaustionLossFactor = 1F;
 
     /**
-     * 원본 `_dippingHungerGainFactor` L436 = `PositiveFactor("move.hunger.dip.gain.factor")
+     * Original `_dippingHungerGainFactor` L436 = `PositiveFactor("move.hunger.dip.gain.factor")
      *   .key("move.hunger.gain.dip.factor", _pre_sm_1_3).defaults(1.5F)`. default=**1.5F**.
-     * ⚠️ 키에서 `dip` 축약 (dipping 아님).
+     * WARNING: key uses `dip` abbreviation (not dipping).
      */
     public float dippingHungerGainFactor = 1.5F;
 
     /**
-     * 원본 `_dippingExhaustionLossFactor` L411 = `PositiveFactor("move.exhaustion.dip.loss.factor")`.
-     * default=PF 기본(1F). 키에서 `dip` 축약.
+     * Original `_dippingExhaustionLossFactor` L411 = `PositiveFactor("move.exhaustion.dip.loss.factor")`.
+     * default=PF default (1F). Key uses `dip` abbreviation.
      */
     public float dippingExhaustionLossFactor = 1F;
 
     /**
-     * 원본 `_normalHungerGainFactor` L437 = `PositiveFactor("move.hunger.normal.gain.factor")
-     *   .key("move.hunger.gain.ground.factor", _pre_sm_1_3)`. default=PF 기본(1F).
-     * ⚠️ getFactor L589 onGround + L591 else 둘 다 참조 (의도된 중복).
+     * Original `_normalHungerGainFactor` L437 = `PositiveFactor("move.hunger.normal.gain.factor")
+     *   .key("move.hunger.gain.ground.factor", _pre_sm_1_3)`. default=PF default (1F).
+     * WARNING: getFactor L589 onGround + L591 else both referenced (intentional duplicate).
      */
     public float normalHungerGainFactor = 1F;
 
     /**
-     * 원본 `_normalExhaustionLossFactor` L414 = `PositiveFactor("move.exhaustion.normal.loss.factor")`.
-     * default=PF 기본(1F). getFactor L590/L592 onGround + else 둘 다 참조 (의도된 중복).
+     * Original `_normalExhaustionLossFactor` L414 = `PositiveFactor("move.exhaustion.normal.loss.factor")`.
+     * default=PF default (1F). getFactor L590/L592 onGround + else both referenced (intentional duplicate).
      */
     public float normalExhaustionLossFactor = 1F;
 
-    // ── handleExhaustion 기타 필드 (원본 SmartMovingSelf L849-L916 허기 공식) ─────
+    // ── handleExhaustion misc fields (original SmartMovingSelf L849-L916 hunger formula) ─────
 
     /**
      * 원본 `_alwaysHungerGain` L439 = `Positive("move.hunger.always.gain")

@@ -136,52 +136,52 @@ public abstract class MixinPlayerEntityClient {
         //   Original setHeightOffset(-1F) = boundingBox.minY +=1m + height -=1m + **posY unchanged**.
         //   camera = posY + 1.62F (STANDING eyeHeight). no camera change on entry (smooth).
         //
-        //   1차 시도: dim (0.6, 0.8, 1.62F) → MixinEntity.sm_offsetBoundingBoxForFlying 의
-        //     가드 (height<1 && eyeHeight>1) 매치 → 박스 +1m offset 자동 적용 → 박스 발 =
-        //     player.y +1m → onGround 검사 잘못 → 무한 루프 BUG (사용자 보고 "공중 1칸 hover" +
-        //     "착지 후 슬라이딩 안 됨").
+        //   1st attempt: dim (0.6, 0.8, 1.62F) → MixinEntity.sm_offsetBoundingBoxForFlying
+        //     guard (height<1 && eyeHeight>1) match → box +1m offset auto-applied → box bottom =
+        //     player.y +1m → onGround check wrong → infinite loop BUG (user report "hover 1 block in air" +
+        //     "no sliding after landing").
         //
-        //   2차 fix (현재): dim (0.6, **1.8**, 1.62F) — height STANDING 동일.
-        //     - offset 가드 미매치 (height>=1 → early return) → 박스 +1m offset 안 됨.
-        //     - 박스 = (player.y, player.y+1.8) = STANDING 박스 동일.
-        //     - 카메라 = player.y + 1.62F = STANDING 카메라 동일 (진입/종료 시각 변화 X).
-        //     - POSE = SLIDING (자세 모델만 납작), dim height=1.8 (박스만 STANDING).
-        //     - toSlidingOrCrawling 정상 작동 → 헤드점프 → grab+sneak hold → 슬라이딩 OK.
+        //   2nd fix (current): dim (0.6, **1.8**, 1.62F) — height same as STANDING.
+        //     - offset guard no match (height>=1 → early return) → box +1m offset not applied.
+        //     - box = (player.y, player.y+1.8) = STANDING box same.
+        //     - camera = player.y + 1.62F = STANDING camera same (no viewpoint change on entry/exit).
+        //     - POSE = SLIDING (only model pose flat), dim height=1.8 (only box STANDING).
+        //     - toSlidingOrCrawling works normally → headjump → grab+sneak hold → sliding OK.
         //
-        //   주의: 박스 발 = player.y (STANDING 동일) — 원본 박스 발 +1m 효과 없음.
-        //         좁은 공간 통과 시나리오는 추후 별도 fix 필요 시.
+        //   Note: box bottom = player.y (same as STANDING) — no +1m effect from original box.
+        //         narrow space passage scenarios may need separate fix later.
         if (sm.isHeadJumping) {
-            // 🔴 fix #26 revert (사용자 보고 "땅에 박혀서 안 나옴"):
-            //   `isHeadJumping || justEndedHeadJump` 분기가 dim eye=1.62 강제했지만 cached bb 갱신
-            //   안 됨 → toSlidingOrCrawling 의 gap=1.0 산출 (mixin 매치 cached bb 의 minY=ground+1)
-            //   → player.move(-1, 0) → 박스 -1m → cycle. revert.
-            // 🔴 fix #13 (2026-05-08, 사용자 보고 "콜리전 STANDING 그대로"):
-            //   fix #12 (height 1.8) 는 mixin offset 가드 미매치 효과로 무한 루프 차단했지만
-            //   박스 콜리전 = STANDING (1.8) 라 사용자 의도 (헤드점프 작은 박스) 어긋남.
-            //   진짜 fix: dim 을 작은 박스 (0.8) + eyeHeight 1.62 로 되돌리고, MixinEntity 의
-            //   offset 가드에 POSE=SLIDING 제외 추가 → mixin offset 차단 → 무한 루프 X +
-            //   박스 작아짐 + 카메라 STANDING.
+            // 🔴 fix #26 revert (user report "stuck in ground can't get out"):
+            //   `isHeadJumping || justEndedHeadJump` branch forced dim eye=1.62 but cached bb not updated
+            //   → toSlidingOrCrawling calculates gap=1.0 (mixin match cached bb minY=ground+1)
+            //   → player.move(-1, 0) → box -1m → cycle. revert.
+            // 🔴 fix #13 (2026-05-08, user report "collision STANDING unchanged"):
+            //   fix #12 (height 1.8) prevented infinite loop by mixin offset guard no match effect but
+            //   box collision = STANDING (1.8) contradicts user intent (headjump small box).
+            //   real fix: revert dim to small box (0.8) + eyeHeight 1.62, add POSE=SLIDING exception
+            //   to MixinEntity's offset guard → block mixin offset → no infinite loop +
+            //   box small + camera STANDING.
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
-        // 🔴 fix #59 (2026-05-10, dump 분석 — 사용자 보고 "여우무빙 시 EYEHEIGHT 콜리전 아래"):
-        //   isSliding 시 fix #56 의 POSE.SLIDING 가드로 mixin offset 활성 → 박스 +1m up.
-        //   그러나 dim eyeHeight=0.62 잔존 → 카메라 = entity.y + 0.62 → 박스 아래 0.38m.
-        //   1.7.10/1.12.2 의 setHeightOffset(-1) = boundingBox +1m up + position 변경 X.
-        //   카메라 정상 위치 = entity.y + 1.62 (= STANDING eyeHeight, 박스 안 정렬).
-        //   해결: isSliding 시 dim eyeHeight=1.62 → mixin offset (+1m) 와 정렬.
+        // 🔴 fix #59 (2026-05-10, dump analysis — user report "eye height below collision during fox movement"):
+        //   during isSliding fix #56's POSE.SLIDING guard activates mixin offset → box +1m up.
+        //   however dim eyeHeight=0.62 remains → camera = entity.y + 0.62 → 0.38m below box.
+        //   1.7.10/1.12.2's setHeightOffset(-1) = boundingBox +1m up + position unchanged.
+        //   correct camera position = entity.y + 1.62 (= STANDING eyeHeight, aligned with box).
+        //   Solution: isSliding dim eyeHeight=1.62 → align with mixin offset (+1m).
         if (sm.isSliding) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
-        // 🔵 (2026-05-20, Phase 0 검증 fix #102) swim/dive 별도 분기 — isSliding 패턴 1:1 차용.
-        //   원본 1.7.10 `setHeightOffset(-1F)` (L510-511 `if(isDiving||isSwimming)`) 효과 =
-        //     boundingBox.minY -= 1 (박스 +1m up) + height 0.8 + eyeHeight 변경 X (STANDING 1.62
-        //     잔존, position 변경 X). isSliding/isHeadJumping 매핑과 동일 의도.
-        //   기존 매핑 BUG: swim/dive 가 smSmall (eye=0.62) 에 들어가 박스 +1m up 차단 (mixin offset
-        //     가드 `eyeHeight>1 || pose==SLIDING` 통과 X) + 카메라 STANDING 보다 1m 낮음.
-        //   해결: isSliding 처럼 eye=1.62 강제 → mixin offset 가드 통과 (eye>1) → 박스 +1m up 자동
-        //     적용 → 박스 발 = entity.y + 1m + 카메라 = entity.y + 1.62 (STANDING 동일).
+        // 🔵 (2026-05-20, Phase 0 verification fix #102) swim/dive separate branch — adopt isSliding pattern 1:1.
+        //   Original 1.7.10 `setHeightOffset(-1F)` (L510-511 `if(isDiving||isSwimming)`) effect =
+        //     boundingBox.minY -= 1 (box +1m up) + height 0.8 + eyeHeight unchanged (STANDING 1.62
+        //     remains, position unchanged). same intent as isSliding/isHeadJumping mapping.
+        //   Existing mapping BUG: swim/dive enters smSmall (eye=0.62) blocks box +1m up (mixin offset
+        //     guard `eyeHeight>1 || pose==SLIDING` doesn't pass) + camera 1m below STANDING.
+        //   Solution: like isSliding force eye=1.62 → pass mixin offset guard (eye>1) → box +1m up auto-applied
+        //     → box bottom = entity.y + 1m + camera = entity.y + 1.62 (same as STANDING).
         if (sm.isSwimming_sm || sm.isDiving) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
@@ -192,21 +192,21 @@ public abstract class MixinPlayerEntityClient {
             return;
         }
 
-        // SLIDING POSE 가 vanilla 가 아닌 경로로 들어온 경우 (외부 모드 등) 보강 처리
+        // SLIDING POSE entered via non-vanilla path (external mods etc.) reinforcement handling
         if (pose == Pose.SLIDING) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(0.62F));
             return;
         }
 
-        // 🔴 orphan SWIMMING pose 가드 (2026-05-04 사용자 보고 — "1칸 진입 직전 슬라이딩 풀면
-        //   가끔 콜리전 정상 엎드리기보다 작음 + 애니메이션 STANDING"):
-        //   원인: 슬라이딩 → standing 1 frame 사이 server→client pose sync lag (1~4 frame)
-        //         로 pose=SWIMMING 잔존. SM smSmall 분기 (isCrawling/isCrawlClimbing/
-        //         isHeadJumping/isSliding/isSwimming_sm/isDiving) 모두 false → 위 분기 미매치
-        //         → vanilla SWIMMING dim (0.6×0.6) 통과 → 박스 0.6×0.8 보다 작음.
-        //         애니메이션은 SM 분기 모두 false 라 vanilla setAngles → STANDING 자세.
-        //   해결: pose=SWIMMING + smSmall 미매치 = orphan → STANDING dim 강제 (sync 풀리면
-        //         정상 standing). 메모리 feedback_smSmall_dim_omission.md 동일 패턴.
+        // 🔴 orphan SWIMMING pose guard (2026-05-04 user report — "sometimes before 1-block entry when releasing sliding,
+        //   collision smaller than normal crouch + animation STANDING"):
+        //   Root cause: server→client pose sync lag (1~4 frames) between sliding → standing 1 frame
+        //              pose=SWIMMING remains. all SM smSmall branches (isCrawling/isCrawlClimbing/
+        //              isHeadJumping/isSliding/isSwimming_sm/isDiving) false → above branch no match
+        //              → vanilla SWIMMING dim (0.6×0.6) passes → box smaller than 0.6×0.8.
+        //              animation all SM branches false so vanilla setAngles → STANDING pose.
+        //   Solution: pose=SWIMMING + smSmall no match = orphan → force STANDING dim (sync releases
+        //             normal standing). memory feedback_smSmall_dim_omission.md same pattern.
         if (pose == Pose.SWIMMING) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 1.8F).withEyeHeight(1.62F));
             return;

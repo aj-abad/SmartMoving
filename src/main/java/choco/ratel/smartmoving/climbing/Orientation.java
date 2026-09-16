@@ -554,84 +554,84 @@ public class Orientation {
         return state.is(BlockTags.CLIMBABLE);
     }
 
-    // ── Material / Solid 헬퍼 (원본 L2155-L2175, L2616-L2619) ──────────────
+    // ── Material / Solid Helpers (original L2155-L2175, L2616-L2619) ──────────
 
     /**
-     * 원본 L2616-L2619 `isSolid(Material material)` — `material.isSolid() && blocksMovement()`.
+     * Original L2616-L2619 `isSolid(Material material)` — `material.isSolid() && blocksMovement()`.
      *
-     * **§7 근사 이식 (B-19a1a-approx-3)**: 1.21.1 (1.19+) 에서 Material API 완전 제거.
-     * `state.isFullCube(world, pos)` = "풀큐브 충돌 형상" (opacity 무관) — 원본 의미인
-     * Material.isSolid("공간을 solid 로 채움") + blocksMovement("이동 막음") 와 등가.
+     * **§7 approximate port (B-19a1a-approx-3)**: Material API completely removed in 1.21.1 (1.19+).
+     * `state.isFullCube(world, pos)` = "full cube collision shape" (opacity irrelevant) — equivalent to
+     * original intent: Material.isSolid("fills space as solid") + blocksMovement("blocks movement").
      *
-     * 이전 매핑 `state.isSolidBlock` 은 opacity (불투명) 검사가 추가로 들어가 leaves /
-     * glass / ice 등 투명+풀큐브 블록을 누락 → 사용자 보고 "잎 블록 그랩 클라이밍 안 됨".
-     * 1.7.10 원본은 Material.leaves / Material.glass 모두 isSolid=true 로 그랩 가능했음.
+     * Previous mapping `state.isSolidBlock` additionally checks opacity (opaqueness), missing transparent+full-cube
+     * blocks like leaves/glass/ice → user report "leaf block grab climbing not working".
+     * 1.7.10 original had Material.leaves / Material.glass both isSolid=true for grabbing.
      */
     public static boolean isSolid(BlockState state, Level world, BlockPos pos) {
-        // 근사 이식 — 원본과 차이: Material API 제거 → state.isFullCube() (풀큐브 충돌, opacity 무관)
+        // Approximate port — difference from original: Material API removed → state.isFullCube() (full cube collision, opacity irrelevant)
         return state != null && state.isCollisionShapeFullBlock(world, pos);
     }
 
     /**
-     * 원본 L2155-L2175 `isFullEmpty(Block block)` — 블록이 플레이어 이동 비가로막음.
+     * Original L2155-L2175 `isFullEmpty(Block block)` — Block does not block player movement.
      *
-     * 원본 체크 순서:
+     * Original check order:
      *   (1) null → true
      *   (2) `!isSolid(material)` → empty
-     *   (3) 예외: standing_sign / wall_sign / pressure_plate → empty 로 승격
-     *   (4) 예외: ASGrapplingHook → empty
-     *   (5) 예외: ASRope → non-empty (solid 로 복귀)
+     *   (3) Exception: standing_sign / wall_sign / pressure_plate → elevated to empty
+     *   (4) Exception: ASGrapplingHook → empty
+     *   (5) Exception: ASRope → non-empty (reverted to solid)
      *
-     * **§7 근사 이식 (B-19a1a-approx-4)**: (4)(5) `hasASGrapplingHook`/`hasRopesPlus`
-     * 모드 호환 미이식 — 해당 모드 1.21.1 에 없음 → 체크 생략.
-     * (3) standing sign / wall sign 은 `AbstractSignBlock`/`WallSignBlock` 로 전수 감지.
-     * pressure plate 는 `PressurePlateBlock`.
+     * **§7 approximate port (B-19a1a-approx-4)**: (4)(5) `hasASGrapplingHook`/`hasRopesPlus`
+     * mod compatibility not ported — mods not available in 1.21.1 → check skipped.
+     * (3) standing sign / wall sign detected via `AbstractSignBlock`/`WallSignBlock`.
+     * Pressure plate via `PressurePlateBlock`.
      */
     public static boolean isFullEmpty(BlockState state, Level world, BlockPos pos) {
         if (state == null) return true;
         boolean empty = !isSolid(state, world, pos);
         if (!empty) {
             Block blk = state.getBlock();
-            if (blk instanceof SignBlock)     empty = true;  // standing_sign + wall_sign 통합
-            else if (blk instanceof WallSignBlock)    empty = true;  // 중복 안전
+            if (blk instanceof SignBlock)     empty = true;  // standing_sign + wall_sign unified
+            else if (blk instanceof WallSignBlock)    empty = true;  // redundancy safety
             else if (blk instanceof PressurePlateBlock) empty = true;
-            // 근사 이식 — 원본과 차이: hasASGrapplingHook/hasRopesPlus 모드 체크 생략
+            // Approximate port — difference from original: hasASGrapplingHook/hasRopesPlus mod check skipped
         }
         return empty;
     }
 
-    // ── World 접근 헬퍼 (원본 L2621-L2639) ──────────────────────────────────
+    // ── World Access Helpers (original L2621-L2639) ──────────────────────────
 
     /**
-     * 원본 L2621-L2624 `getBlock(int i, int j_offset, int k)`.
-     * `local_offset + j_offset` Y 좌표의 블록 반환.
+     * Original L2621-L2624 `getBlock(int i, int j_offset, int k)`.
+     * Returns block at Y coordinate `local_offset + j_offset`.
      */
     protected static BlockState getBlock(int i, int j_offset, int k) {
         return world.getBlockState(new BlockPos(i, local_offset + j_offset, k));
     }
 
     /**
-     * 원본 L2636-L2639 `getBaseBlockId(int j_offset)`. base 위치 (플레이어 위치) 블록 반환.
-     * 1.21.1 매핑: `Block` → `BlockState` (metadata 내장).
+     * Original L2636-L2639 `getBaseBlockId(int j_offset)`. Returns block at base position (player position).
+     * 1.21.1 mapping: `Block` → `BlockState` (metadata embedded).
      */
     protected static BlockState getBaseBlockId(int j_offset) {
         return world.getBlockState(new BlockPos(base_i, local_offset + j_offset, base_k));
     }
 
     /**
-     * 원본 `getRemoteBlockId(int j_offset)` — remote 위치 (인접 블록) 블록 반환.
-     * 1.21.1 매핑: BlockState.
+     * Original `getRemoteBlockId(int j_offset)` — Returns block at remote position (adjacent block).
+     * 1.21.1 mapping: BlockState.
      */
     protected static BlockState getRemoteBlockId(int j_offset) {
         return world.getBlockState(new BlockPos(remote_i, local_offset + j_offset, remote_k));
     }
 
-    // ── 기본 ladder/vine 체크 (원본 L1148-L1186) ────────────────────────────
+    // ── Basic Ladder/Vine Check (original L1148-L1186) ─────────────────────
 
     /**
-     * 원본 L1148-L1158 `isOnLadder(int j_offset)` — base 위치에 ladder 가 있는지.
+     * Original L1148-L1158 `isOnLadder(int j_offset)` — Whether ladder exists at base position.
      *   (1) `isLadder(baseBlock)` → true
-     *   (2) `isVine(baseBlock)` → false (vine 은 별도 체크)
+     *   (2) `isVine(baseBlock)` → false (vine checked separately)
      *   (3) `isClimbable(world, base_i, Y, base_k)` → true (Forge ladder hook)
      *   (4) → false
      */
@@ -644,29 +644,29 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1172-L1175 `isOnVine(int j_offset)` — base 위치에 vine 이 있는지.
+     * Original L1172-L1175 `isOnVine(int j_offset)` — Whether vine exists at base position.
      */
     protected static boolean isOnVine(int j_offset) {
         return isVine(getBaseBlockId(j_offset));
     }
 
     /**
-     * 원본 L1182-L1186 `isOnLadderOrVine(int j_offset)`.
-     * `isLadderOrVine(baseBlock) || isVine(grabBlock)` — base 의 ladder/vine 또는 이미
-     * 잡고 있는 grabBlock 이 vine 인 경우.
+     * Original L1182-L1186 `isOnLadderOrVine(int j_offset)`.
+     * `isLadderOrVine(baseBlock) || isVine(grabBlock)` — ladder/vine at base or already
+     * holding grabBlock that is vine.
      */
     protected static boolean isOnLadderOrVine(int j_offset) {
         return isLadderOrVine(getBaseBlockId(j_offset)) || isVine(grabBlock);
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a1b (세션 92) — front/back/rope/trapdoor 인스턴스 헬퍼
-    // 원본: Orientation.java L1160-L1180 (Behind), L1217-L1238 (Front/Back instance),
-    //       L1274-L1359 (orientation 역매핑), L1361-L1384 (Remote/TrapDoor orientation),
-    //       L1443-L1485 (Rope), L1513-L1541 (TrapDoor front)
+    // B-19a1b (session 92) — front/back/rope/trapdoor instance helpers
+    // Original: Orientation.java L1160-L1180 (Behind), L1217-L1238 (Front/Back instance),
+    //           L1274-L1359 (orientation reverse mapping), L1361-L1384 (Remote/TrapDoor orientation),
+    //           L1443-L1485 (Rope), L1513-L1541 (TrapDoor front)
     // ════════════════════════════════════════════════════════════════════════
 
-    // ── Ladder orientation 역매핑 (원본 L1274-L1359) ────────────────────────
+    // ── Ladder Orientation Reverse Mapping (original L1274-L1359) ───────────
 
     /**
      * 원본 L1325-L1359 `hasLadderOrientation(int i, int j_offset, int k)` — 이 Orientation

@@ -91,11 +91,11 @@ public abstract class MixinEntityClient {
     }
 
     /**
-     * isSneaking() 오버라이드 — SM 상태 기반 스니킹 판정.
-     * 원본: SmartMovingSelf.isSneaking() (SmartMovingPlayerBase.java, 1972-1981줄)
+     * isSneaking() override — SM state-based sneaking judgment.
+     * Original: SmartMovingSelf.isSneaking() (SmartMovingPlayerBase.java, lines 1972-1981)
      *
-     * isSneaking()은 Entity에 정의됨 — LivingEntity/PlayerEntity 오버라이드 없음, Entity Mixin에서 처리.
-     * Config 비활성 또는 탈것 탑승 시 vanilla에 위임.
+     * isSneaking() is defined in Entity — no override in LivingEntity/PlayerEntity, handled in Entity Mixin.
+     * Delegates to vanilla when Config inactive or riding a vehicle.
      */
     @Inject(method = "isShiftKeyDown", at = @At("HEAD"), cancellable = true)
     private void sm_isSneaking(CallbackInfoReturnable<Boolean> cir) {
@@ -107,33 +107,33 @@ public abstract class MixinEntityClient {
 
         if (sm.forceIsSneaking != null) { cir.setReturnValue(sm.forceIsSneaking); return; }
 
-        // 🔴 fix #75 (BUG #2, 2026-05-10, 사용자 보고 "weeping/twisting vines + sneak 진동"):
-        //   진동 사이클: pose toggle (STANDING ↔ CROUCHING) → 박스 height 토글 (1.8 ↔ 1.5)
-        //     → vanilla move/collision 결과 onGround 토글 → 우리 sm_isSneaking 의
-        //     `(isSlow && onGround)` 분기 결과 토글 → vanilla updatePose 가 isSneaking 따라
-        //     pose 토글 → 무한 사이클.
-        //   원본 SmartMovingSelf.isSneaking 식 자체는 1:1 매핑이지만 1.21.1 vanilla 의 박스
-        //   height 변경 → onGround 토글 quirk + weeping/twisting vines 의 isHoldingOntoLadder
-        //   특수 처리 결합으로 1.21.1 만 발생. 1.7.10 vanilla 에는 weeping/twisting vines 없음.
+        // Red circle fix #75 (BUG #2, 2026-05-10, user report "weeping/twisting vines + sneak vibration"):
+        //   Vibration cycle: pose toggle (STANDING ↔ CROUCHING) → box height toggle (1.8 ↔ 1.5)
+        //     → vanilla move/collision result onGround toggle → our sm_isSneaking's
+        //     `(isSlow && onGround)` branch result toggle → vanilla updatePose toggles pose based on isSneaking
+        //     → infinite cycle.
+        //   Original SmartMovingSelf.isSneaking formula itself is 1:1 mapped but 1.21.1 vanilla's box
+        //   height change → onGround toggle quirk + weeping/twisting vines's isHoldingOntoLadder
+        //   special handling combination causes this only in 1.21.1. 1.7.10 vanilla has no weeping/twisting vines.
         //
-        //   메모리 project_vine_animation_complete.md 의 의도 = "weeping/twisting vines 는
-        //   vanilla 동작 그대로". sm_isSneaking 도 해당 시나리오에서 vanilla 위임 → vanilla 의
-        //   안정된 SNEAKING flag (input.sneaking 그대로) 사용 → pose 안정 → 진동 X.
+        //   Memory project_vine_animation_complete.md's intent = "weeping/twisting vines behave
+        //   as vanilla". sm_isSneaking also delegates to vanilla in that scenario → use vanilla's
+        //   stable SNEAKING flag (input.sneaking as-is) → pose stable → no vibration.
         net.minecraft.world.level.block.Block _blockAtPos = player.level()
                 .getBlockState(player.blockPosition()).getBlock();
         if (_blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES
                 || _blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES_PLANT
                 || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES
                 || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT) {
-            return;  // override skip → vanilla isSneaking 그대로
+            return;  // override skip → vanilla isSneaking as-is
         }
 
-        // 🔴 fix #83 (2026-05-12, 사용자 보고 "슬라이딩 시 화면 흔들림 + 발소리 + 비행 토글 가능"):
-        //   1.21.1 vanilla bobbing/footstep/jump double-tap 비행 토글이 모두 isSneaking() 기반.
-        //   원본 식 (= isSliding 가드 없음) 그대로 매핑하면 슬라이딩 시 isSneaking()=false →
-        //   일반 walking 처리 → 사용자 보고 BUG.
-        //   1.21.1 매핑에서는 isSliding 시 isSneaking()=true 강제 + clipAtLedge override (fix #84)
-        //   로 step-back 부작용 차단.
+        // Red circle fix #83 (2026-05-12, user report "screen shake while sliding + footstep + flight toggle possible"):
+        //   1.21.1 vanilla bobbing/footstep/jump double-tap flight toggle all based on isSneaking().
+        //   Mapping original formula as-is (= without isSliding guard) results in isSneaking()=false during sliding →
+        //   normal walking processing → user reported BUG.
+        //   1.21.1 mapping forces isSneaking()=true during isSliding + clipAtLedge override (fix #84)
+        //   blocks step-back side effect.
         boolean result = (sm.isSlow && player.onGround())
                 || (!cfg.sneak && sm.wouldIsSneaking && sm.jumpCharge > 0)
                 || (!cfg.crawlOverEdge && sm.isCrawling && !sm.isClimbing)
@@ -142,18 +142,18 @@ public abstract class MixinEntityClient {
     }
 
     /**
-     * 🔴 사다리/덩굴 등반 + W + sneak 시 SNEAKING flag 설정 차단.
+     * Red circle block SNEAKING flag setting for ladder/vine climbing + W + sneak.
      *
-     * vanilla 1.21.1 자세 결정 (CROUCHING) 메커니즘이 SNEAKING flag 또는 input.sneaking
-     * 직접 사용 (정확한 method mapping 다름) → 우리 isSneaking() override 만으로 부족.
+     * vanilla 1.21.1 pose determination (CROUCHING) mechanism uses SNEAKING flag or input.sneaking
+     * directly (exact method mapping differs) → our isSneaking() override alone is insufficient.
      *
-     * Entity.setSneaking(boolean) 은 매 틱 vanilla 가 input.sneaking 으로 호출 →
-     * SNEAKING flag (DataTracker) 설정. 이 flag 자체를 차단하면 자세 결정 + isSneaking()
-     * + 모든 sneak 영향 일괄 차단.
+     * Entity.setSneaking(boolean) is called every tick by vanilla with input.sneaking →
+     * sets SNEAKING flag (DataTracker). Blocking this flag itself blocks pose determination + isSneaking()
+     * + all sneak effects uniformly.
      *
-     * 사용자 의도: "사다리 + W + sneak → 아무 동작 없이 그냥 등반".
-     *   - sm.isClimbing && forward > 0 && sneaking=true → setSneaking(true) 차단.
-     *   - 그 외 모든 케이스: vanilla 정상 처리.
+     * User intent: "ladder + W + sneak → no action, just climb".
+     *   - sm.isClimbing && forward > 0 && sneaking=true → block setSneaking(true).
+     *   - all other cases: vanilla normal processing.
      */
     @Inject(method = "setShiftKeyDown", at = @At("HEAD"), cancellable = true)
     private void sm_setSneaking(boolean sneaking, CallbackInfo ci) {
@@ -166,14 +166,14 @@ public abstract class MixinEntityClient {
     }
 
     /**
-     * pushOutOfBlocks: 서버→클라이언트 위치 동기화 직후 억제.
-     * 원본: SmartMovingSelf.pushOutOfBlocks (SmartMovingSelf.md L1263-1277)
+     * pushOutOfBlocks: suppress immediately after server→client position synchronization.
+     * Original: SmartMovingSelf.pushOutOfBlocks (SmartMovingSelf.md L1263-1277)
      *
-     * multiPlayerInitialized > 0이면 실행 취소 후 카운터 1 감소.
-     * 1.21.1: Entity.pushOutOfBlocks(double,double,double) — Entity에 정의됨.
+     * If multiPlayerInitialized > 0, cancel execution and decrement counter by 1.
+     * 1.21.1: Entity.pushOutOfBlocks(double,double,double) — defined in Entity.
      */
-    // fix #175 v1/v2/v3 모두 시도 — inject 자체 활성 X (= dump FIX175-CHECK 매치 0). revert.
-    // 다음 방향: main mixin (MixinEntity.sm_offsetBoundingBoxForFlying) 의 가드에 SM state 검사 추가.
+    // fix #175 v1/v2/v3 all attempted — inject itself not active (= dump FIX175-CHECK matches 0). revert.
+    // next direction: add SM state check to main mixin (MixinEntity.sm_offsetBoundingBoxForFlying) guard.
 
     @Inject(method = "moveTowardsClosestSpace(DDD)V", at = @At("HEAD"), cancellable = true)
     private void sm_pushOutOfBlocks(double x, double y, double z, CallbackInfo ci) {
