@@ -855,102 +855,103 @@ public final class SmartMovingClientState {
     //   Original isSlide branch (= rotateAngleX = Quarter applied instantly) visual 1:1.
     public boolean wasSelfSlideFire = false;
 
-    // 🔵 (2026-05-14, fix #98 위치 기반) REMOTE 측 헤드점프 종료 자세 visual hold flag (위치 기반).
-    //   사용자 보고 (3번 BUG): "리모트 콜리전이 땅에 닿기 전에 헤드점프 끝나버림".
-    //   원인: vanilla lerpPosAndRotation 가 REMOTE.y 를 분할 보간 → SmartMovingState packet 의
-    //     isHJ=false 도착 시점에 REMOTE.y > groundY (= 공중) 상태. 자세 즉시 standing → 공중에
-    //     standing 자세 → 사용자 시각 부자연.
-    //   메모리 패턴 정통 (사용자 지시 — 메모리 정독 후 적용):
-    //     - feedback_remote_phase_fix_ground_basis: ground top 직접 측정 (getMaxPlayerSolidBetween).
-    //     - project_remote_landing_sink_pattern: fix #92 = 잠긴 상태 (= ground 아래) 만 setPos.
-    //     - 공중 상태 (= ground 위) 시 = 자세 visual hold + 위치 자연 lerp.
-    //   fix: packet 처리 시 isHJ=true → false + 공중 상태 (= curY > groundY+0.005) 검출 시
-    //     hold=true + groundY 저장. 자세 visual hold 적용. hold 해제 = 위치 기반 (= 매 tick
-    //     REMOTE.y <= groundY+0.005 도달 시 hold=false). 사용자 원칙 "틱기반 답없다" 일치.
-    //   적용 위치: MixinPlayerEntityRenderer 의 X/Y 회전 분기 가드 OR 추가, reset 가드 !hold AND 추가.
-    //   해제 위치: MixinPlayerEntityClient.sm_tickStatsForRemote TAIL 의 위치 비교.
+    // 🔵 (2026-05-14, fix #98 position-based) REMOTE head jump exit pose visual hold flag (position-based).
+    //   User report (3x BUG): "remote collision ends head jump before reaching ground".
+    //   Cause: vanilla lerpPosAndRotation interpolates REMOTE.y in steps → at SmartMovingState packet
+    //     isHJ=false arrival, REMOTE.y > groundY (= airborne). pose immediately standing → standing
+    //     pose in air → user visual unnatural.
+    //   Memory pattern orthodox (user direction — applied after reading memory):
+    //     - feedback_remote_phase_fix_ground_basis: directly measure ground top (getMaxPlayerSolidBetween).
+    //     - project_remote_landing_sink_pattern: fix #92 = locked state (= below ground) only setPos.
+    //     - airborne state (= above ground) = pose visual hold + position natural lerp.
+    //   fix: on packet processing when isHJ=true → false + airborne state detected (= curY > groundY+0.005)
+    //     set hold=true + save groundY. apply pose visual hold. release hold = position-based (= each tick
+    //     when REMOTE.y <= groundY+0.005 reached set hold=false). matches user principle "tick-based no answer".
+    //   application location: MixinPlayerEntityRenderer X/Y rotation branch guard OR add, reset guard !hold AND add.
+    //   release location: MixinPlayerEntityClient.sm_tickStatsForRemote TAIL position comparison.
     public boolean smRemoteHJVisualHold = false;
     public double smRemoteHJExitGroundY = 0.0;
 
-    // 🔵 (2026-05-14, Option F fix #97) StatsPayload 동기화 — self → REMOTE.
-    //   self 의 sm.stats.currentVerticalAngle/HorizontalAngle 매 tick packet 으로 송신 → REMOTE 가
-    //     자체 stats.calculate 결과를 덮어쓰기.
-    //   원인: vanilla lerpPosAndRotation 가 REMOTE 의 위치를 5-tick 균등 분할 보간 → realDxYz 가
-    //     첫 4 tick 거의 0 + 마지막 1 tick spike → atan2 결과 thetaT 가 self trajectory 와 다른
-    //     흐름 → lerpFadeAngle 0.2 lerp 가 peak 추격 시간 부족 → REMOTE 헤드점프 마지막 회전 부족.
-    //   초기값 NaN — packet 받기 전 vanilla 자체 계산 사용 (= 회귀 차단).
-    //   set 위치: SmartMovingClient.java StatsPayload receiver (= packet 도착 시).
-    //   적용 위치: MixinPlayerEntityClient.sm_tickStatsForRemote TAIL (= stats.calculate 후).
+    // 🔵 (2026-05-14, Option F fix #97) StatsPayload sync — self → REMOTE.
+    //   self's sm.stats.currentVerticalAngle/HorizontalAngle sent each tick as packet → REMOTE
+    //     overrides own stats.calculate result.
+    //   Cause: vanilla lerpPosAndRotation interpolates REMOTE position in 5-tick equal division → realDxYz
+    //     nearly 0 first 4 ticks + spike on last tick → atan2 result thetaT flows differently from
+    //     self trajectory → lerpFadeAngle 0.2 lerp insufficient time to chase peak → REMOTE head jump
+    //     insufficient final rotation.
+    //   initial NaN — use vanilla own calculation before packet received (= regression block).
+    //   set location: SmartMovingClient.java StatsPayload receiver (= on packet arrival).
+    //   application location: MixinPlayerEntityClient.sm_tickStatsForRemote TAIL (= after stats.calculate).
     public float smRemoteStatsVerticalAngle_fromPacket = Float.NaN;
     public float smRemoteStatsHorizontalAngle_fromPacket = Float.NaN;
 
     /**
-     * 🔴 (2026-04-27) 낙하/기본 상태 fade lag — 비행 fade 패턴 그대로 차용 (head 만 vanilla).
-     * 비행과 별개 prev 필드 (서로 다른 시점 활성, 같은 필드 공유 시 분기 전환 시 lerp 부정확).
+     * 🔴 (2026-04-27) fall/standard state fade lag — adopt flight fade pattern as-is (head only vanilla).
+     * separate prev field from flight (active at different times, sharing same field causes inaccurate lerp on branch switch).
      */
     public float smStandardFadeYaw_prev = 0f;
     public float smStandardFadeYaw_prevTime = -999f;
 
     /**
-     * 🔴 D-4 종료 엣지 cleanup 추적 (사용자 보고 — 등반 종료 후 standing 시 몸통 분리 잔존):
-     *   D-4 분기 (NoGrab+non-NoStep) 진입 시 모든 노드 pivotZ=-6 set. 등반 종료 시 sm_animateClimbing
-     *   호출 안 됨 → reset 안 됨. reset 인프라 (sm_setAngles TAIL) 는 anySmState 활성 시만 진입 →
-     *   종료 엣지 frame 에 anySmState=false 면 진입 안 함 → pivotZ 잔존.
-     *   이전 frame 의 climbing 상태 추적 → 종료 엣지 (true → false) 한 번 모든 pivotZ=0 reset.
+     * 🔴 D-4 exit edge cleanup tracking (user report — body separation persists when standing after climbing ends):
+     *   On D-4 branch (NoGrab+non-NoStep) entry set all node pivotZ=-6. When climbing ends sm_animateClimbing
+     *   not called → reset not applied. reset infrastructure (sm_setAngles TAIL) enters only when anySmState active →
+     *   if anySmState=false on exit edge frame not entered → pivotZ persists.
+     *   Track climbing state from previous frame → exit edge (true → false) once reset all pivotZ=0.
      */
     public boolean smWasClimbingForCleanup = false;
 
     /**
-     * 🔴 isCrawling 종료 엣지 cleanup 추적 (사용자 보고 — 엎드림 해제 시 자세 잔존, 2026-05-03):
-     *   sm_animateCrawling 가 head.pivotZ=-2, head.roll, body.yaw/roll, leg.roll, arm.yaw/roll, scales 등
-     *   set. vanilla setAngles 는 이 값들 자동 reset 안 함 (= pivotZ/yaw/roll/scales 비reset).
-     *   isCrawling 종료 후 sm_animateCrawling 미호출 → 잔존 값으로 자세 고정 BUG.
-     *   해결: D-4 cleanup 패턴 따라 종료 엣지 (true → false) 한 번 모든 변경값 vanilla default reset.
+     * 🔴 isCrawling exit edge cleanup tracking (user report — pose persists when exiting crawl, 2026-05-03):
+     *   sm_animateCrawling sets head.pivotZ=-2, head.roll, body.yaw/roll, leg.roll, arm.yaw/roll, scales etc.
+     *   vanilla setAngles does not auto-reset these values (= pivotZ/yaw/roll/scales not reset).
+     *   after isCrawling ends sm_animateCrawling not called → pose stuck with persisted values BUG.
+     *   Solution: follow D-4 cleanup pattern reset all changed values to vanilla defaults once at exit edge (true → false).
      */
     public boolean smWasCrawlingForCleanup = false;
 
     /**
-     * 🔴 천장 등반 bodyYaw fade 보간 (사용자 보고 — 마우스 회전 시 몸통 회전 보간 원본과 다름):
-     *   원본 SmartRenderModel L209: bipedOuter.fadeRotateAngleY = true (기본).
-     *   원본 SmartMovingModel L310: bipedOuter.rotateAngleY = rotateY + horizontalAngle.
-     *   ModelRotationRenderer.fadeIntermediate 가 매 frame `prev + (target - prev) * deltaTime * 0.2F`
-     *   lerp 적용 → 마우스 회전 시 몸통 부드럽게 추적.
-     *   1.21.1 매핑: sm_captureBodyYaw 의 isCeilingClimbing 분기에 lerpFadeAngle 적용.
-     *   prev = 이전 frame lerped 라디안, prevTime = animationProgress (tick 단위).
+     * 🔴 ceiling climbing bodyYaw fade interpolation (user report — body rotation interpolation differs from original on mouse rotation):
+     *   Original SmartRenderModel L209: bipedOuter.fadeRotateAngleY = true (default).
+     *   Original SmartMovingModel L310: bipedOuter.rotateAngleY = rotateY + horizontalAngle.
+     *   ModelRotationRenderer.fadeIntermediate applies each frame `prev + (target - prev) * deltaTime * 0.2F`
+     *   lerp → body smoothly tracks on mouse rotation.
+     *   1.21.1 mapping: apply lerpFadeAngle in isCeilingClimbing branch of sm_captureBodyYaw.
+     *   prev = previous frame lerped radians, prevTime = animationProgress (tick units).
      */
     public float smCeilingYaw_prev = 0f;
     public float smCeilingFade_prevTime = -999f;
 
     /**
-     * 🔴 (세션 52b): partial tick 캐시 — setupTransforms 에서 저장 → setAngles 에서 사용.
-     * Mixin static field 제약 (private 만 허용) 우회 — SmartMovingClientState 에 저장.
-     * 원본 SmartRenderRender.renderPlayer L56-L57: getCurrentSpeed/getTotalDistance(renderPartialTicks)
-     * lerped 매핑용.
+     * 🔴 (session 52b): partial tick cache — stored in setupTransforms → used in setAngles.
+     * Workaround Mixin static field constraint (private only) — stored in SmartMovingClientState.
+     * Original SmartRenderRender.renderPlayer L56-L57: getCurrentSpeed/getTotalDistance(renderPartialTicks)
+     * for lerped mapping.
      */
     public static float globalCachedTickDelta = 0f;
 
     /**
-     * 🔴 (2026-04-27) 낙하/기본 상태 body fade 매핑 — 원본 SmartRenderModel L208/247
+     * 🔴 (2026-04-27) fall/standard state body fade mapping — original SmartRenderModel L208/247
      *   `bipedOuter.fadeIntermediate(totalTime)` 1:1 (factor 0.2 lag).
-     * 머리는 vanilla 그대로 (원본도 head 처리는 vanilla 동등 — actualRotation + netHeadYaw =
-     *   headYaw_raw absolute). 여기서는 setupTransforms bodyYaw 인자만 fade 적용.
-     * MixinPlayerEntityRenderer.sm_modifyBodyYaw 가 fade 계산 + 갱신.
+     * head remains vanilla (original head handling vanilla equivalent — actualRotation + netHeadYaw =
+     *   headYaw_raw absolute). here only setupTransforms bodyYaw parameter applies fade.
+     * MixinPlayerEntityRenderer.sm_modifyBodyYaw calculates + updates fade.
      */
-    // 🔴 (Phase 2 fix-3-1) static → instance: player 별 fade prev 분리.
-    //   원본 1.7.10 single player 환경에서는 static 으로 충분했으나, multiplayer 시
-    //   두 player 동시 SM 자세 시 마지막 entity 값으로 mixed → fade jitter (BUG-C 보조).
+    // 🔴 (Phase 2 fix-3-1) static → instance: separate fade prev per player.
+    //   Original 1.7.10 single player environment sufficient with static, but multiplayer when
+    //   two players with SM pose simultaneously mixed to last entity value → fade jitter (BUG-C secondary).
     public float smCachedAnimationProgress = 0f;
     public float smStandardBodyYawPrev = Float.NaN;
     public float smStandardFadeTimePrev = Float.NaN;
 
     /**
-     * 🔴 (2026-05-03) isCrawl 전용 flag — body fade lag 활성화 + head 보정 skip.
+     * 🔴 (2026-05-03) isCrawl dedicated flag — enable body fade lag + skip head correction.
      *
-     * 원본 SmartRender bipedOuter.fadeRotateAngleY = true → bodyYaw 0.2 lerp 적용 (= 부드러움).
-     * 단 isCrawl 의 head 매핑 (head.rotateAngleZ = -netHeadYaw / RadToAngle) 은 vanilla netHeadYaw
-     * (= bodyYaw_natural 기준) 사용해야 max 50° clamp 가 head.roll 에 그대로 반영됨.
-     * sm_modifyNetHeadYaw 의 head 보정 (netHeadYaw + bodyYaw_diff) 은 isCrawl 에서 max 깨짐 →
-     * smCrawlMode=true 시 보정 skip.
+     * Original SmartRender bipedOuter.fadeRotateAngleY = true → apply bodyYaw 0.2 lerp (= smooth).
+     * however isCrawl head mapping (head.rotateAngleZ = -netHeadYaw / RadToAngle) must use vanilla netHeadYaw
+     * (= bodyYaw_natural basis) for max 50° clamp to properly reflect on head.roll.
+     * sm_modifyNetHeadYaw head correction (netHeadYaw + bodyYaw_diff) breaks max in isCrawl →
+     * skip correction when smCrawlMode=true.
      */
     public boolean smCrawlMode = false;
 
@@ -1094,21 +1095,21 @@ public final class SmartMovingClientState {
     public float smCachedBodyYawLaggedDeg = 0f;
 
     /**
-     * 원본 ModelRotationRenderer.GetIntermediateAngle (L347-365) 1:1 매핑 (degrees 단위).
-     *   prev + (target - prev) * deltaT * 0.2F  (factor 0.2 lag).
-     *   ±180° wrap 처리 (짧은 방향 보간).
-     *   deltaT > 2F (또는 NaN/<=0) 가드 → 즉시 (lerp 없음).
+     * Original ModelRotationRenderer.GetIntermediateAngle (L347-365) 1:1 mapping (degrees).
+     *   prev + (target - prev) * deltaT * 0.2F  (0.2 lag factor).
+     *   ±180° wrap handling (interpolate shorter direction).
+     *   deltaT > 2F (or NaN/<=0) guard → immediate (no lerp).
      *
-     * 호출처: MixinPlayerEntityModelClient.sm_setAngles — body.yaw 에 fade adjustment.
-     *           머리는 vanilla 그대로 (사용자 "원본도 머리는 vanilla").
-     *           setupTransforms bodyYaw 인자 그대로 → head/arm/leg 부모 변환 영향 없음.
+     * Call site: MixinPlayerEntityModelClient.sm_setAngles — fade adjustment to body.yaw.
+     *            Head remains vanilla (user: "original also keeps head vanilla").
+     *            setupTransforms bodyYaw argument as-is → no impact on head/arm/leg parent transforms.
      */
     public float applyFadeAngleDegrees(float target) {
         float curTime = smCachedAnimationProgress;
         float prev = smStandardBodyYawPrev;
         float prevTime = smStandardFadeTimePrev;
 
-        // 첫 호출 또는 timeout (>2 ticks): 즉시 적용 + prev 갱신.
+        // First call or timeout (>2 ticks): apply immediately + update prev.
         if (Float.isNaN(prev) || Float.isNaN(prevTime)) {
             smStandardBodyYawPrev = target;
             smStandardFadeTimePrev = curTime;
@@ -1121,7 +1122,7 @@ public final class SmartMovingClientState {
             return target;
         }
 
-        // ±180° wrap (원본 L352-362, Whole=360, Half=180).
+        // ±180° wrap (original L352-362, Whole=360, Half=180).
         float p = prev, t = target;
         while (p >= 360F) p -= 360F;
         while (p < 0F)    p += 360F;
@@ -1130,7 +1131,7 @@ public final class SmartMovingClientState {
         if (t > p && t - p > 180F) p += 360F;
         if (t < p && p - t > 180F) t += 360F;
 
-        // 원본 L364: prev + (target - prev) * deltaT * 0.2F.
+        // Original L364: prev + (target - prev) * deltaT * 0.2F.
         float faded = p + (t - p) * deltaT * 0.2F;
         smStandardBodyYawPrev = faded;
         smStandardFadeTimePrev = curTime;
@@ -1139,77 +1140,77 @@ public final class SmartMovingClientState {
 
     // ── FOV / perspective ──────────────────────────────────────────────
     /**
-     * 속도 기반 FOV 배율의 EMA 누적값 (원본: SmartMovingSelf.fadingPerspectiveFactor).
-     * 초기값 -1F = "아직 미초기화" 표시 → 첫 틱에 landMovementFactor로 직접 초기화.
+     * EMA accumulated value of speed-based FOV multiplier (original: SmartMovingSelf.fadingPerspectiveFactor).
+     * Initial value -1F = "not yet initialized" marker → initialize directly with landMovementFactor on first tick.
      */
     public float fadingPerspectiveFactor = -1F;
 
     // ── isSneaking / forceIsSneaking ───────────────────────────────────
     /**
-     * 스니크 의도 여부 (토글 포함). 원본: wouldIsSneaking = wouldWantSneak && !wantSprint && !isClimbing.
-     * 1.21.1 구현에서는 isSlow와 동일.
+     * Whether sneak is intended (including toggle). Original: wouldIsSneaking = wouldWantSneak && !wantSprint && !isClimbing.
+     * In 1.21.1 implementation, same as isSlow.
      */
     public boolean wouldIsSneaking;
 
     /**
-     * isSneaking() 강제 재정의. null=미사용. true/false=강제 반환.
-     * 원본: SmartMovingSelf.forceIsSneaking (Boolean).
+     * Force override of isSneaking(). null=unused. true/false=force return.
+     * Original: SmartMovingSelf.forceIsSneaking (Boolean).
      */
     public Boolean forceIsSneaking = null;
 
     // ── flyWhileOnGround ───────────────────────────────────────────────
     /**
-     * beforeOnLivingUpdate에서 저장한 직전 capabilities.isFlying 값.
-     * afterOnLivingUpdate에서 flyWhileOnGround 복원 판정에 사용.
+     * Previous capabilities.isFlying value saved in beforeOnLivingUpdate.
+     * Used to determine flyWhileOnGround restoration in afterOnLivingUpdate.
      */
     public boolean wasCapabilitiesIsFlying;
 
     /**
-     * 직전 틱의 수평 충돌 여부 (벽점프 판정용).
-     * 원본: SmartMovingSelf.beforeOnUpdate() → wasCollidedHorizontally = sp.isCollidedHorizontally
-     * tickEssential()에서 vanilla physics 실행 전(HEAD)에 캡처 → 벽에 닿아 있던 이전 틱 상태를 반영.
-     * 1.21.1 대응: player.horizontalCollision
+     * Whether horizontal collision in previous tick (for wall jump determination).
+     * Original: SmartMovingSelf.beforeOnUpdate() → wasCollidedHorizontally = sp.isCollidedHorizontally
+     * Captured before vanilla physics runs in tickEssential (HEAD) → reflects state of previous tick when touching wall.
+     * 1.21.1 mapping: player.horizontalCollision
      */
     public boolean wasCollidedHorizontally;
 
     /**
-     * 슬라이드→헤드점프 전환 시 true — 공기역학적 수평 감쇠(0.999F) 적용.
-     * 원본: SmartMovingSelf.isAerodynamic (행 2533~2560)
-     * true 조건: isSliding && fallDistance > 0.05F 로 헤드점프 전환됐을 때만.
-     * false 조건: 헤드점프가 꺼질 때 / 슬라이딩 새로 시작할 때.
+     * True on slide→head jump transition — applies aerodynamic horizontal damping (0.999F).
+     * Original: SmartMovingSelf.isAerodynamic (lines 2533~2560)
+     * True condition: only when transitioned to head jump with isSliding && fallDistance > 0.05F.
+     * False condition: when head jump turns off / sliding starts anew.
      */
     public boolean isAerodynamic;
 
     // ── multiPlayerInitialized ─────────────────────────────────────────
     /**
-     * 서버→클라이언트 위치 동기화 직후 pushOutOfBlocks 억제 카운터.
-     * beforeSetPositionAndRotation에서 5로 세팅, pushOutOfBlocks 호출마다 1씩 감소.
-     * 원본: SmartMovingSelf.multiPlayerInitialized.
+     * Counter to suppress pushOutOfBlocks right after server→client position sync.
+     * Set to 5 in beforeSetPositionAndRotation, decrements by 1 on each pushOutOfBlocks call.
+     * Original: SmartMovingSelf.multiPlayerInitialized.
      */
     public int multiPlayerInitialized;
 
     /**
-     * 원본 SmartMovingSelf private 필드 `initialized` — 플레이어 첫 틱 실행 마커.
-     * 매 틱 tickEssential 에서 체크 후 초기 상태 판정 (원본 L2344 `!initialized` 가드).
-     * 한 번 true 되면 유지 (resetState 리셋만 false). B-31c-post (세션 113).
+     * Original SmartMovingSelf private field `initialized` — player first-tick execution marker.
+     * Checked in tickEssential each tick to determine initial state (original L2344 `!initialized` guard).
+     * Once true, maintains true (resetState only sets to false). B-31c-post (session 113).
      */
     public boolean initialized;
 
     // ── C-25: SmartStatistics ──────────────────────────────────────────
-    /** 이동 통계 인스턴스. move() TAIL 이후 calculate()로 갱신. */
+    /** Movement statistics instance. Updated with calculate() after move() TAIL. */
     public final SmartStatistics stats = new SmartStatistics();
 
-    // ── 인스턴스 관리 ─────────────────────────────────────────────────
+    // ── Instance management ─────────────────────────────────────────────
 
     /**
-     * 🔴 (Phase 2 fix-3-1) 현재 render 중인 player cursor.
-     *   ModifyArg 등 entity 인자 없는 mixin point 에서 player 별 instance 접근 위해 사용.
-     *   MixinLivingEntityRenderer.render HEAD 에서 set, TAIL 에서 clear. render 직렬 처리이므로
-     *   매 시점에 current render entity 한 명만 가리킴.
+     * 🔴 (Phase 2 fix-3-1) Current rendering player cursor.
+     *   Used to access per-player instances at mixin points without entity argument like ModifyArg.
+     *   Set in MixinLivingEntityRenderer.render HEAD, cleared in TAIL. Since rendering is serialized,
+     *   at each moment only one current render entity is referenced.
      */
     public static net.minecraft.client.player.AbstractClientPlayer currentRenderTarget;
 
-    /** currentRenderTarget 의 SmartMovingClientState instance. null 일 시 null 반환. */
+    /** SmartMovingClientState instance of currentRenderTarget. Return null if null. */
     public static SmartMovingClientState currentRenderTargetSm() {
         return currentRenderTarget == null ? null : get(currentRenderTarget);
     }
@@ -1220,12 +1221,12 @@ public final class SmartMovingClientState {
         return INSTANCES.computeIfAbsent(player.getUUID(), id -> new SmartMovingClientState());
     }
 
-    /** 🔴 Phase 1-A: 다른 player render 시 SM state 조회 — local + remote 모두 처리. */
+    /** 🔴 Phase 1-A: Query SM state when rendering other player — handles both local + remote. */
     public static SmartMovingClientState get(net.minecraft.client.player.AbstractClientPlayer player) {
         return INSTANCES.computeIfAbsent(player.getUUID(), id -> new SmartMovingClientState());
     }
 
-    /** 타 플레이어용 — UUID로 직접 조회/생성 (C-24: State 패킷 수신) */
+    /** For other players — direct lookup/creation by UUID (C-24: State packet reception) */
     public static SmartMovingClientState get(java.util.UUID uuid) {
         return INSTANCES.computeIfAbsent(uuid, id -> new SmartMovingClientState());
     }
@@ -1236,8 +1237,8 @@ public final class SmartMovingClientState {
 
     // ── 12-2: isAngleJumping() ───────────────────────────────────────────
     /**
-     * 방향 점프 중인지 여부.
-     * 원본은 side/back 코드 2~6만 사용했다. 전용 dodge 키는 전방을 포함한 1~8 방향을 사용한다.
+     * Whether currently performing directional jump.
+     * Original used only codes 2~6 for side/back. Dedicated dodge key uses 1~8 directions including forward.
      */
     public boolean isAngleJumping() {
         return angleJumpType >= 1 && angleJumpType <= 8;
@@ -1246,7 +1247,7 @@ public final class SmartMovingClientState {
     // ── C-24: processStatePacket() ────────────────────────────────────
 
     /**
-     * 타 플레이어 State 패킷의 long 비트필드에서 클라이언트가 필요한 비트를 추출한다.
+     * Extract client-required bits from long bit field of other player's State packet.
      * 원본: SmartMovingOther.processStatePacket(long state)
      * 렌더링/애니메이션에 사용되는 필드만 갱신한다.
      */
