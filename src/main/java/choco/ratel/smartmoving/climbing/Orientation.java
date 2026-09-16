@@ -1256,15 +1256,15 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1727-L1738 `isFenceGateFront(int metaData)` — fence gate 가 이 Orientation
-     * 탐색 방향과 정렬되어 있는지.
+     * Original L1727-L1738 `isFenceGateFront(int metaData)` — whether fence gate is aligned with
+     * this Orientation search direction.
      *
-     * 원본 `metadata % 4`:
+     * Original `metadata % 4`:
      *   0 = SOUTH facing, 1 = WEST, 2 = NORTH, 3 = EAST
-     *   NZ/PZ → 0 or 2 (EW 축 gate = SOUTH/NORTH facing) — 서쪽/동쪽에서 통과 가능
-     *   ZP/ZN → 1 or 3 (NS 축 gate = WEST/EAST facing) — 남쪽/북쪽에서 통과 가능
+     *   NZ/PZ → 0 or 2 (EW axis gate = SOUTH/NORTH facing) — passable from west/east
+     *   ZP/ZN → 1 or 3 (NS axis gate = WEST/EAST facing) — passable from south/north
      *
-     * 1.21.1 매핑: `FenceGateBlock.FACING` Direction. diagonal 방향은 false (원본과 동일).
+     * 1.21.1 mapping: `FenceGateBlock.FACING` Direction. Diagonal directions false (same as original).
      */
     private boolean isFenceGateFront(BlockState state) {
         if (!isFenceGate(state)) return false;

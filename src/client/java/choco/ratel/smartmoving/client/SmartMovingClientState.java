@@ -1638,14 +1638,13 @@ public final class SmartMovingClientState {
                     || SmartMovingClimber.isFacedToSolidVine(player, isClimbCrawling);
             wouldWantCrawl =
                     !player.getAbilities().flying &&
-                    !isSliding &&  // 🔴 (2026-05-04 사용자 보고 — "비행 → grab+sneak 착지 슬라이딩 90° 꺾임"):
-                    //   원본은 분기 1 (isCrawling 자가유지) + 분기 2 (grab rising edge) 모두
-                    //   sliding 진입 시점에 자연 false (grabHold 라 rising edge 안 발생 + 진입
-                    //   직전 isCrawling=false 잔존). 우리 매핑은 어떤 path 가 비행 종료 시 1
-                    //   tick isCrawling=true 만들어 분기 1 자가유지 → 슬라이딩 + isCrawling=true
-                    //   동시 잔존 → setupTransforms 가 sliding R_x(-π/2) + crawling R_x(-78.75°)
-                    //   둘 다 적용 (별도 if) → 90° 꺾임 + setAngles 가 isCrawling 분기 우선 →
-                    //   엎드리기 자세. 명시 가드로 cycle 자체 차단.
+                    !isSliding &&  // 🔴 (2026-05-04 user report — "flight → grab+sneak land sliding 90° bend"):
+                    //   Original both branch 1 (isCrawling self-maintain) + branch 2 (grab rising edge)
+                    //   naturally false at sliding entry point (no rising edge as grabHold + isCrawling=false
+                    //   remains before entry). Our mapping some path creates isCrawling=true for 1 tick on flight end
+                    //   → branch 1 self-maintain → sliding + isCrawling=true coexist → setupTransforms applies both
+                    //   sliding R_x(-π/2) + crawling R_x(-78.75°) (separate if) → 90° bend + setAngles prioritizes
+                    //   isCrawling branch → crouch pose. Explicit guard blocks cycle itself.
                     (
                         (isCrawling && (inputContinueCrawl || contextContinueCrawl))
                         ||
