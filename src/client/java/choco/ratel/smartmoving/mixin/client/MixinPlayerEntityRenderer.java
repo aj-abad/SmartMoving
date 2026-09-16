@@ -972,37 +972,37 @@ public class MixinPlayerEntityRenderer {
             sm.smOuterFade_prevTime = animationProgress;
         }
 
-        // 🔴 헤드점프 fade prev 매 frame 갱신 (= 비행 prev 갱신 패턴과 동일).
-        //   헤드점프/슬라이딩 외 분기에서 prev=0 reset → 다음 헤드점프 진입 시 자연 시작점
+        // 🔴 Head jump fade prev updated every frame (= flying prev update pattern identical).
+        //   Outside head jump/sliding branches prev=0 reset → next head jump entry natural start point
         //   (= standing).
-        //   슬라이딩 분기는 위 isSliding 분기에서 prev=Quarter 직접 set (여우무빙 자연 cycle).
-        // 🔴 fix #81 v3 (2026-05-12, 사용자 보고 "슬라이딩→비행 전환 시 애니메이션 뒤틀림"):
-        //   기존 wasSelfSlideFire reset = SmartMovingClientState L2222 의 헤드점프 종료 분기.
-        //   비행 전환 시 onGround=false 라 매치 X → 플래그 잔존 → 다음 헤드점프 발사 시
-        //   thetaTarget=π/2 잘못 강제 또는 비행 phase 시각 영향.
-        //   해결: 헤드점프/슬라이딩 외 분기 진입 시 (= 비행/standing/낙하 등) 플래그 reset.
-        // 🔵 (2026-05-14, fix #98 위치 기반) smRemoteHJVisualHold !hold AND 추가 — hold 중 reset 차단.
+        //   Sliding branch has prev=Quarter directly set above (smooth natural cycle).
+        // 🔴 fix #81 v3 (2026-05-12, user report "sliding→flying transition animation distortion"):
+        //   Existing wasSelfSlideFire reset = SmartMovingClientState L2222 head jump end branch.
+        //   Flying transition onGround=false no match → flag persists → next head jump fire
+        //   thetaTarget=π/2 incorrectly forced or flying phase visual effect.
+        //   Solution: Enter outside head jump/sliding branches (= flying/standing/falling etc) flag reset.
+        // 🔵 (2026-05-14, fix #98 position-based) smRemoteHJVisualHold !hold AND added — block reset during hold.
         if (!sm.isHeadJumping && !sm.isSliding && !sm.smRemoteHJVisualHold) {
             sm.smHeadJumpTiltX_prev = 0f;
             sm.smHeadJumpFade_prevTime = animationProgress;
             sm.wasSelfSlideFire = false;
         }
 
-        // 🔴 천장 등반 fade prev 매 frame 갱신 (비행 prev 갱신 패턴과 동일).
-        //   천장 등반 외 분기에서 prev = 직전 vanilla 또는 SM bodyYaw (라디안).
-        //   진입 첫 frame fade 자연 시작 (이전값 → target lerp).
+        // 🔴 Ceiling climb fade prev updated every frame (flying prev update pattern identical).
+        //   Outside ceiling climb branches prev = previous vanilla or SM bodyYaw (radian).
+        //   Entry first frame fade natural start (previous value → target lerp).
         if (!sm.isCeilingClimbing) {
             sm.smCeilingYaw_prev = (float) Math.toRadians(sm.smCachedBodyYawLaggedDeg);
             sm.smCeilingFade_prevTime = animationProgress;
         }
 
-        // 🔴 fix #91 (2026-05-13): 헤드점프 fade prev 매 frame 갱신 (= 비행 prev 갱신 패턴 동일).
-        //   헤드점프/RopeSliding 외 분기에서 prev = 직전 vanilla 또는 SM bodyYaw (라디안).
-        //   진입 첫 frame fade 자연 시작 (= 직전 자세 → currentHorizontalAngle target lerp).
-        //   메모리 feedback_fade_prev_pre_entry_pose.md 참조.
-        // 🔴 fix #95 (2026-05-13): smHeadJumpYawSnapDone reset — 외 분기 진입 시 false.
-        //   다음 헤드점프 진입 시 (= wasSelfSlideFire 매트릭스 매트릭스) 첫 frame snap 활성.
-        // 🔵 (2026-05-14, fix #98 위치 기반) smRemoteHJVisualHold !hold AND 추가 — hold 중 reset 차단.
+        // 🔴 fix #91 (2026-05-13): Head jump fade prev updated every frame (= flying prev update pattern identical).
+        //   Outside head jump/rope sliding branches prev = previous vanilla or SM bodyYaw (radian).
+        //   Entry first frame fade natural start (= previous pose → currentHorizontalAngle target lerp).
+        //   See feedback_fade_prev_pre_entry_pose.md.
+        // 🔴 fix #95 (2026-05-13): smHeadJumpYawSnapDone reset — reset on entering other branches.
+        //   Next head jump entry (= wasSelfSlideFire matrix check) first frame snap active.
+        // 🔵 (2026-05-14, fix #98 position-based) smRemoteHJVisualHold !hold AND added — block reset during hold.
         if (!sm.isHeadJumping && !sm.isRopeSliding && !sm.smRemoteHJVisualHold) {
             sm.smHeadJumpYaw_prev = (float) Math.toRadians(sm.smCachedBodyYawLaggedDeg);
             sm.smHeadJumpYawFade_prevTime = animationProgress;
@@ -1012,14 +1012,14 @@ public class MixinPlayerEntityRenderer {
     }
 
     /**
-     * renderName() 대응 — 타인 플레이어 이름 태그 Y 보정 + 크롤 중 이름 숨김.
+     * renderName() correspondence — other player name tag Y correction + hide name during crawl.
      *
-     * 원본: SmartMovingRender.renderName()
-     *   - isCrawling && !isClimbing && !crawlNameTag → 이름 숨김
+     * Original: SmartMovingRender.renderName()
+     *   - isCrawling && !isClimbing && !crawlNameTag → hide name
      *   - heightOffset == -1 → d1 -= 0.2F
-     *   - originalSneaking && sneakNameTag → d1 -= 0.05F (비스니킹 취급 시 y 보정)
+     *   - originalSneaking && sneakNameTag → d1 -= 0.05F (y correction when treating as non-sneaking)
      *
-     * sneakNameTag(스니킹 중 64 거리 기준 확장)은 MixinLivingEntityRenderer에서 처리.
+     * sneakNameTag (64 distance expansion during sneaking) handled in MixinLivingEntityRenderer.
      */
     @Inject(method = "submitNameDisplay(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
             at = @At("HEAD"), cancellable = true)
@@ -1032,21 +1032,21 @@ public class MixinPlayerEntityRenderer {
         if (entity instanceof LocalPlayer) return;
         SmartMovingClientState sm = SmartMovingClientState.get(entity.getUUID());
         SmartMovingConfig cfg = SmartMovingConfig.Config;
-        // 🔴 (2026-05-05) self → Config.enabled / remote → 항상 true.
+        // 🔴 (2026-05-05) self → Config.enabled / remote → always true.
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(entity)) return;
 
-        // 크롤 중 이름 숨김 (crawlNameTag=false)
+        // Hide name during crawl (crawlNameTag=false)
         if (sm.isCrawling && !sm.isClimbing && !cfg.crawlNameTag) {
             ci.cancel();
             return;
         }
 
-        // heightOffset == -1: 헤드점프 상태 이름 태그 y -0.2F 보정
+        // heightOffset == -1: head jump state name tag y -0.2F correction
         if (sm.heightOffset == -1f) {
             matrices.translate(0.0, -0.2, 0.0);
         }
-        // 스니킹 중 sneakNameTag=true: 비스니킹 취급으로 이름 표시 → y -0.05F 보정
-        // (원본: 스니킹→비스니킹 포즈 전환 시 이름 태그 위치 차이 보정)
+        // During sneaking sneakNameTag=true: treat as non-sneaking display name → y -0.05F correction
+        // (original: name tag position difference correction during sneaking→non-sneaking pose transition)
         else if (entity.isShiftKeyDown() && cfg.sneakNameTag) {
             matrices.translate(0.0, -0.05, 0.0);
         }
