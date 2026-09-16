@@ -1245,32 +1245,32 @@ public final class SmartMovingClimber {
         setShouldClimbSpeed(player, sm, climbValue, climbIsUp, combinedFactor);
 
         sm.isCeilingClimbing = true;
-        // B-38 (세션 58): 원본 L1170 `isCrawling = false` — handleCeilingClimbing 성공
-        // 분기 종료부에서 크롤 해제. 원본 L1162 isCeilingClimbing=true 와 함께 성공 분기
-        // 내부 (L1162-L1170 사이 속도 세팅 L571/fallDistance L575 완료 후) 배치.
+        // B-38 (Session 58): Original L1170 `isCrawling = false` — release crawl at end of
+        // successful handleCeilingClimbing branch. Placed inside successful branch with original L1162 isCeilingClimbing=true
+        // (between L1162-L1170 after speed setting L571/fallDistance L575 complete).
         sm.isCrawling = false;
     }
 
     /**
-     * 천장 블록까지의 갭 계산 (C-35).
-     * 원본: sp.boundingBox.maxY 기준, 위쪽으로 첫 솔리드 블록 Y - bb.maxY.
-     * jgap이 클수록 방이 높음 → 천장 클라이밍 속도 증가.
+     * Calculate gap to ceiling block (C-35).
+     * Original: based on sp.boundingBox.maxY, first solid block Y upward - bb.maxY.
+     * Larger jgap means taller room → ceiling climbing speed increases.
      */
     private static double computeJgap(LocalPlayer player) {
-        // 🔴 원본 SmartMovingSelf L1147-1149 정밀 1:1:
+        // 🔴 Original SmartMovingSelf L1147-1149 precise 1:1:
         //   double jgap = 1D - jd + j;
         //   if (bottomCeilingClimbing) jgap++;
         //
-        //   jd = bb.maxY (사용자 머리 y), j = floor(jd).
-        //   jgap = 1 - jd + j = (다음 정수 경계) - jd = 사용자 머리에서 다음 블록 경계까지 거리.
-        //   bottomCeilingClimbing (= bottomBlock supports() true) 시 jgap += 1.
+        //   jd = bb.maxY (player head y), j = floor(jd).
+        //   jgap = 1 - jd + j = (next integer boundary) - jd = distance from player head to next block boundary.
+        //   During bottomCeilingClimbing (= bottomBlock supports() true) jgap += 1.
         //
-        //   anchor 평형점 (motionY=0.08, jgap > 1.115 ~ 1.2) 으로 수렴:
-        //     - 사용자 매달림 시 maxY = fence.y → jgap = 1 → case 3 → 떨어짐
-        //     - 떨어지면서 bottom climbing 활성 + jgap 점차 1.116 진입 → case 2 → 정지
-        //     - 평형점 = maxY = fence.y - 0.116 (사용자 머리가 fence 의 0.116 아래)
+        //   Anchor equilibrium (motionY=0.08, jgap > 1.115 ~ 1.2) convergence:
+        //     - When player hangs maxY = fence.y → jgap = 1 → case 3 → fall
+        //     - While falling bottom climbing activates + jgap gradually enters 1.116 → case 2 → stop
+        //     - Equilibrium = maxY = fence.y - 0.116 (player head 0.116 below fence)
         //
-        //   이전 식 (collision shape 거리 계산) 은 원본과 결과 다름 → 평형점 안 잡힘.
+        //   Previous formula (collision shape distance calculation) differs from original → can't hold equilibrium.
         Level world = player.level();
         AABB bb = player.getBoundingBox();
         int px = (int) Math.floor(player.getX());
@@ -1280,7 +1280,7 @@ public final class SmartMovingClimber {
         int j = (int) Math.floor(jd);
         double jgap = 1D - jd + j;
 
-        // 원본 L1148-1149: bottomCeilingClimbing 시 jgap += 1
+        // Original L1148-1149: during bottomCeilingClimbing jgap += 1
         BlockState bottomState = world.getBlockState(new BlockPos(px, j + 1, pz));
         if (CeilingClimbBlocks.supports(bottomState)) {
             jgap += 1.0D;

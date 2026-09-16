@@ -381,15 +381,15 @@ public abstract class MixinPlayerEntityClient {
                            dx, dy, dz,
                            remote.getYRot());
 
-        // 🔵 (2026-05-14, Option F fix #97) StatsPayload 동기화 — self → REMOTE.
-        //   자체 계산 (= 위 stats.calculate) 결과 중 currentVerticalAngle/HorizontalAngle 만
-        //   packet 값으로 덮어쓰기 (= self trajectory 100% 일치).
-        //   원인: vanilla lerpPosAndRotation 5-tick 분할이 REMOTE realDxYz 평탄화 →
-        //     atan2 결과 thetaT 가 self 와 다른 흐름 → fade peak 추격 시간 부족.
-        //   다른 field (currentSpeed/totalHorizontalDistance/EMA 등) 는 자체 계산 유지 — 이동
-        //     관련 swing/walkFactor 등 안전.
-        //   초기값 NaN (= packet 받기 전) 시 자체 계산 사용 → 회귀 차단.
-        //   prevHorizontalAngle 도 함께 set (= 다음 tick atan NaN fallback 시 안정).
+        // 🔵 (2026-05-14, Option F fix #97) StatsPayload sync — self → REMOTE.
+        //   only override currentVerticalAngle/HorizontalAngle from calculation result (= above stats.calculate)
+        //   with packet values (= self trajectory 100% match).
+        //   Root cause: vanilla lerpPosAndRotation 5-tick split flattens REMOTE realDxYz →
+        //     atan2 result thetaT differs from self flow → fade peak pursuit time insufficient.
+        //   other fields (currentSpeed/totalHorizontalDistance/EMA etc.) maintain own calculation — movement
+        //     related swing/walkFactor etc. safe.
+        //   NaN initial value (= before packet received) use own calculation → prevent regression.
+        //   also set prevHorizontalAngle (= stable on next tick atan NaN fallback).
         if (!Float.isNaN(sm.smRemoteStatsVerticalAngle_fromPacket)) {
             sm.stats.currentVerticalAngle = sm.smRemoteStatsVerticalAngle_fromPacket;
         }
@@ -398,21 +398,21 @@ public abstract class MixinPlayerEntityClient {
             sm.stats.prevHorizontalAngle = sm.smRemoteStatsHorizontalAngle_fromPacket;
         }
 
-        // 🔵 (2026-05-14, fix #98 v4) REMOTE 헤드점프 자세 visual hold 위치 기반 해제 (잠긴 cause 정정).
-        //   set 위치: SmartMovingClient.java packet 처리 안 공중 상태 (= prevY > groundY+0.005) 검출.
-        //   해제 조건 v4: REMOTE.y >= smRemoteHJExitGroundY-0.005 (= ground 위 도달 = 회복 완료).
+        // 🔵 (2026-05-14, fix #98 v4) REMOTE headjump pose visual hold release position-based (correct locked cause).
+        //   set location: SmartMovingClient.java packet process detects airborne state (= prevY > groundY+0.005).
+        //   v4 release condition: REMOTE.y >= smRemoteHJExitGroundY-0.005 (= reached ground = recovery complete).
         //
-        //   v3 (= getY <= groundY+0.005) 잘못: 잠긴 상태 (= REMOTE.y < ground) 도 매치 → 활성 즉시 해제.
-        //     dump 검증 cycle 1-5: prevY > groundY (공중) + getY < groundY (잠긴 lerp 진행 중) →
-        //     hold 활성 + 즉시 해제 → 효과 X.
+        //   v3 (= getY <= groundY+0.005) incorrect: also matches locked state (= REMOTE.y < ground) → release immediately active.
+        //     dump validation cycle 1-5: prevY > groundY (airborne) + getY < groundY (locked lerp in progress) →
+        //     hold active + release immediately → no effect.
         //
-        //   v4 해제 식 분석:
-        //     - server.y trajectory: 잠긴 시점 (71) → push +1m 도달 (72=ground) → 잔존 (= self side standUp 후).
-        //     - REMOTE.y lerp 가 srvY 추격: 처음 잠긴 시도 (71 도달 진행) → srvY 갱신 (72) → 회복 추격 (72).
-        //     - 해제 시점 = REMOTE.y >= groundY-0.005 (= ground 이상) → 회복 완료.
-        //     - 잠긴 진행 중 (= getY < groundY): 해제 안 함 → hold 유지 → 자세 visual 유지.
+        //   v4 release formula analysis:
+        //     - server.y trajectory: locked moment (71) → push +1m reach (72=ground) → residual (= after self standUp).
+        //     - REMOTE.y lerp pursues srvY: initial locked attempt (71 reach progress) → srvY updates (72) → recovery pursuit (72).
+        //     - release moment = REMOTE.y >= groundY-0.005 (= at or above ground) → recovery complete.
+        //     - locked in progress (= getY < groundY): no release → maintain hold → maintain pose visual.
         //
-        //   사용자 원칙 "틱기반 답없다" 일치 — 위치 기반만.
+        //   user principle "tick-based no answer" matches — position-based only.
         if (sm.smRemoteHJVisualHold) {
             if (remote.getY() >= sm.smRemoteHJExitGroundY - 0.005) {
                 sm.smRemoteHJVisualHold = false;
@@ -422,10 +422,10 @@ public abstract class MixinPlayerEntityClient {
     }
 
     /**
-     * 🔴 (Phase 2 multi BUG-10) sm_correctOnUpdate 의 remote 버전 — 이동 방향 bodyYaw 보정.
-     *   self (ClientPlayerEntity) 는 MixinClientPlayerEntity.sm_correctOnUpdate 가 처리.
-     *   remote 도 동일 식 적용 → wasd 누름 시 "몸통 이동 방향 치우침" 동작 일관.
-     *   원본 SmartMovingBase.correctOnUpdate(isSmall) 동일 식. 0.02~0.05 m/tick 느린 이동 보정.
+     * 🔴 (Phase 2 multi BUG-10) remote version of sm_correctOnUpdate — correct bodyYaw per movement direction.
+     *   self (ClientPlayerEntity) handled by MixinClientPlayerEntity.sm_correctOnUpdate.
+     *   apply same formula to remote → consistent "body direction skew" behavior when pressing wasd.
+     *   original SmartMovingBase.correctOnUpdate(isSmall) same formula. correct slow movement 0.02~0.05 m/tick.
      */
     @Inject(method = "tick", at = @At("TAIL"))
     private void sm_correctOnUpdateRemote(CallbackInfo ci) {
@@ -464,6 +464,6 @@ public abstract class MixinPlayerEntityClient {
         for (; remote.yBodyRot - remote.yBodyRotO >= 180F; remote.yBodyRotO += 360F) {}
     }
 
-    // 🔴 (BUG D fix, 2026-05-13) sm_handleRemoteFlyingExitYSync 제거. SmartMovingClient packet
-    //   lambda 안 "비행 종료 분기" 가 대체. self side standupIfPossible 의 분기 1/2/3 1:1 매핑.
+    // 🔴 (BUG D fix, 2026-05-13) remove sm_handleRemoteFlyingExitYSync. SmartMovingClient packet
+    //   lambda "flight exit branch" replaces it. 1:1 mapping of self side standupIfPossible branches 1/2/3.
 }

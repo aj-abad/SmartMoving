@@ -135,17 +135,17 @@ public abstract class MixinClientPlayerEntity {
         if (!cfg.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
-        // Phase E BUG-3 1:1 정정: 원본 L2367-L2370 setIsJumpingField 5-AND 식의 부정 (= setJumping(false) 조건).
-        //   원본 식 (양수): movementInput.jump && !isCrawling && !isSliding
+        // Phase E BUG-3 1:1 correction: Negation of original L2367-L2370 setIsJumpingField 5-AND expression (= setJumping(false) condition).
+        //   Original expression (positive): movementInput.jump && !isCrawling && !isSliding
         //                && !(headJumpEnabled && grab && sprint)
         //                && !(jumpChargeEnabled && wouldIsSneaking && onGround && isStanding)
         //                && !blockJumpTillButtonRelease
-        //   부정 (= jumping false 강제): isCrawling || isSliding
-        //                || (headJumpEnabled && grab && sprint)         ★ 차징 시작 가능 시점부터 차단
-        //                || (jumpChargeEnabled && wouldIsSneaking && onGround && isStanding)  ★ 동일
+        //   Negation (= force jumping false): isCrawling || isSliding
+        //                || (headJumpEnabled && grab && sprint)         ★ Block from charge start possible time
+        //                || (jumpChargeEnabled && wouldIsSneaking && onGround && isStanding)  ★ Same
         //                || blockJumpTillButtonRelease
-        //   기존 단순화 (isHeadJumping / jumpCharge>0) 는 "이미 발사/차징 중" 상태만 가드 → 시작 frame
-        //   에 vanilla 점프 발사 잠재 가능. 1:1 복원.
+        //   Existing simplification (isHeadJumping / jumpCharge>0) only guards "already fired/charging" state → on start frame
+        //   vanilla jump fire potentially possible. 1:1 restore.
         boolean shouldBlock =
                 sm.isCrawling
              || sm.isSliding
@@ -160,13 +160,13 @@ public abstract class MixinClientPlayerEntity {
     @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_tickMovementYawRestore(CallbackInfo ci) {
         LocalPlayer player = (LocalPlayer)(Object)this;
-        // 비행 진입 엣지 (HEAD: abilFly=false, TAIL: abilFly=true) 만 검사.
+        // Check only flying entry edge (HEAD: abilFly=false, TAIL: abilFly=true).
         boolean flyEntryEdge = !sm_abilFlyAtTickStart && player.getAbilities().flying;
         if (!flyEntryEdge) return;
-        // 비행 진입 엣지 시점의 모든 yaw 변경 = vanilla 자동 보정 (사용자 mouse 입력 X).
-        // 임계값 1° (부동소수점 잡음 회피, 그 외 모든 vanilla 자동 회전 catch).
-        // 사용자 mouse 입력은 별도 메서드 (changeLookDirection) 라 tick 안 yaw 변경 X →
-        // 안전하게 모든 변화 복구.
+        // All yaw changes at flying entry edge point = vanilla automatic correction (no user mouse input).
+        // Threshold 1° (avoid floating-point noise, catch all other vanilla automatic rotations).
+        // User mouse input is separate method (changeLookDirection) so no yaw change inside tick →
+        // safely restore all changes.
         float currentYaw = player.getYRot();
         float diff = currentYaw - sm_yawAtTickStart;
         while (diff > 180F) diff -= 360F;
@@ -180,15 +180,15 @@ public abstract class MixinClientPlayerEntity {
 
 
     /**
-     * 🔴 사다리/덩굴 등반 중 sneak 자세 변경 차단.
+     * 🔴 Block sneak pose change while climbing ladder/vine.
      *
-     * 원본 SmartMovingSelf.isSneaking() L3226-3232:
+     * Original SmartMovingSelf.isSneaking() L3226-3232:
      *   return ... || (!_crawlOverEdge && isCrawling && !isClimbing) || ...;
-     * 원본 1.7.10 vanilla 자세 = isSneaking() 결과 직접 사용 → SM override false →
-     * 자세 STANDING. **W 무관 모든 사다리 등반 케이스 자세 변경 X**.
+     * Original 1.7.10 vanilla pose = directly uses isSneaking() result → SM override false →
+     * pose STANDING. **No pose change in all ladder climbing cases regardless of W**.
      *
-     * 1.21.1 vanilla 자세 결정 source 추적 불가 → 모든 sneak source 일괄 reset.
-     * 가드: sm.isClimbing 만 (W 무관 — 원본 1:1).
+     * 1.21.1 vanilla pose decision source tracking impossible → reset all sneak sources together.
+     * Guard: only sm.isClimbing (regardless of W — 1:1 original).
      */
     @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_resetSneakInClimb(CallbackInfo ci) {

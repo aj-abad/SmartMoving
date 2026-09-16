@@ -891,18 +891,18 @@ public class Orientation {
     // ── Stair (original L1544-L1615) ────────────────────────────────────────
 
     /**
-     * 원본 L2059-L2063 `isStairCompact(Block)`.
+     * Original L2059-L2063 `isStairCompact(Block)`.
      *
-     * **§7 근사** (B-19a1c1-approx-1): 원본 `_knownCompactStairBlocks` (mod 추가 stair
-     * 리스트) 체크 생략 — 해당 모드 1.21.1 미이식. vanilla StairsBlock 만 감지.
+     * **§7 approximate** (B-19a1c1-approx-1): Original `_knownCompactStairBlocks` (mod-added stair
+     * list) check skipped — mods not ported to 1.21.1. Only vanilla StairsBlock detected.
      */
     public static boolean isStairCompact(BlockState state) {
-        // 근사 이식 — 원본과 차이: _knownCompactStairBlocks (mod stair) 제외
+        // Approximate port — difference from original: _knownCompactStairBlocks (mod stair) excluded
         return state != null && state.getBlock() instanceof StairBlock;
     }
 
     /**
-     * 원본 L1612-L1615 `isTopStairCompact(int stairMetadata)` — `(metadata & 4) != 0`.
+     * Original L1612-L1615 `isTopStairCompact(int stairMetadata)` — `(metadata & 4) != 0`.
      * 1.21.1: `StairsBlock.HALF == BlockHalf.TOP`.
      */
     public static boolean isTopStairCompact(BlockState state) {
@@ -910,17 +910,17 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1568-L1588 `isStairCompactFront(int stairMetadata)` — `metadata & 3` 를 facing
-     * 방향으로 해석하여 이 Orientation 과 매치되는지.
+     * Original L1568-L1588 `isStairCompactFront(int stairMetadata)` — Interprets `metadata & 3` as
+     * facing direction and checks if it matches this Orientation.
      *
-     * 원본 매핑 (`metadata & 3`):
+     * Original mapping (`metadata & 3`):
      *   0 = EAST  → PZ
      *   1 = WEST  → NZ
      *   2 = SOUTH → ZP
      *   3 = NORTH → ZN
      *
-     * 1.21.1 매핑: `StairsBlock.FACING` Direction 직접 비교.
-     * diagonal 은 2 방향 OR.
+     * 1.21.1 mapping: `StairsBlock.FACING` Direction compared directly.
+     * Diagonal is 2-direction OR.
      */
     public boolean isStairCompactFront(BlockState state) {
         if (!isStairCompact(state)) return false;
@@ -937,7 +937,7 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1590-L1610 `isStairCompactBack` — facing 이 탐색 **반대** 방향인 경우.
+     * Original L1590-L1610 `isStairCompactBack` — When facing is search **opposite** direction.
      */
     public boolean isStairCompactBack(BlockState state) {
         if (!isStairCompact(state)) return false;
@@ -953,22 +953,22 @@ public class Orientation {
         return false;
     }
 
-    /** 원본 L1556-L1560 — `isTopStairCompact && isStairCompactFront`. */
+    /** Original L1556-L1560 — `isTopStairCompact && isStairCompactFront`. */
     public boolean isTopStairCompactFront(BlockState state) {
         return isTopStairCompact(state) && isStairCompactFront(state);
     }
 
-    /** 원본 L1562-L1566 — `isTopStairCompact && isStairCompactBack`. */
+    /** Original L1562-L1566 — `isTopStairCompact && isStairCompactBack`. */
     public boolean isTopStairCompactBack(BlockState state) {
         return isTopStairCompact(state) && isStairCompactBack(state);
     }
 
-    /** 원본 L1550-L1554 — `!isTopStairCompact && isStairCompactFront` (bottom half + front). */
+    /** Original L1550-L1554 — `!isTopStairCompact && isStairCompactFront` (bottom half + front). */
     public boolean isBottomStairCompactFront(BlockState state) {
         return isStairCompact(state) && !isTopStairCompact(state) && isStairCompactFront(state);
     }
 
-    /** 원본 L1544-L1548 — `!isTopStairCompact && !isStairCompactBack`. */
+    /** Original L1544-L1548 — `!isTopStairCompact && !isStairCompactBack`. */
     public boolean isBottomStairCompactNotBack(BlockState state) {
         return isStairCompact(state) && !isTopStairCompact(state) && !isStairCompactBack(state);
     }

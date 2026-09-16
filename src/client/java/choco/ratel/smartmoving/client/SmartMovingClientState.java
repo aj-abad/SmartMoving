@@ -1310,14 +1310,13 @@ public final class SmartMovingClientState {
         //   After handleCrash branch set, blocks auto transition for N ticks.
         if (this.slideToHeadCooldown > 0) this.slideToHeadCooldown--;
 
-        // H-15 (세션 22): 2상태 토글 강제 복원. 원본 `initializeForGameIfNeccessary` 가
-        // setKeys({"e","m","h"}) 로 configKeys 를 덮어써 configToggle 이 4상태 순환하는
-        // 문제 — 사용자 결정 "disabled↔enabled 2상태" 에 위배. tickEssential 의 호출
-        // 제거. `configKeys = DEFAULT_KEYS = {null}` 초기값 유지되어 toggle() 이 2상태
-        // (0 ↔ -1) 로만 순환. F 섹션 메서드는 코드상 유지 (후속 포커스
-        // `focus_10_config_toggle_cleanup.md` 에서 잉여 코드 일괄 정리).
+        // H-15 (Session 22): Forced restoration of 2-state toggle. Original `initializeForGameIfNeccessary`
+        // overwrites configKeys with setKeys({"e","m","h"}), causing configToggle to cycle through 4 states —
+        // violates user decision "disabled↔enabled 2-state". Removed tickEssential call. `configKeys = DEFAULT_KEYS = {null}`
+        // initial value maintained, so toggle() cycles through 2-state only (0 ↔ -1). Section F methods kept in code
+        // (subsequent focus `focus_10_config_toggle_cleanup.md` will clean up all redundant code).
         //
-        // 원본 호출 (보존만, 실행 안 함):
+        // Original call (preserved only, not executed):
         //   MinecraftClient client = MinecraftClient.getInstance();
         //   if (SmartMovingConfig.Config == SmartMovingConfig.INSTANCE
         //           && client.interactionManager != null) {
@@ -1325,9 +1324,9 @@ public final class SmartMovingClientState {
         //               client.interactionManager.getCurrentGameMode().getId());
         //   }
 
-        // 원본 Button.update() 대응 — 이번 틱 키 엣지 감지.
-        // jumpButton.StartPressed / StopPressed / sneakButton.StartPressed / StopPressed 대응.
-        // sm_travel_client 내 여러 핸들러에서 재참조 가능.
+        // Corresponds to original Button.update() — key edge detection this tick.
+        // Corresponds to jumpButton.StartPressed / StopPressed / sneakButton.StartPressed / StopPressed.
+        // Can be re-referenced in multiple handlers inside sm_travel_client.
         var opts = Minecraft.getInstance().options;
         boolean curJumpPressed = opts.keyJump.isDown();
         jumpKeyStartPressed = curJumpPressed && !prevJumpKeyPressed;
@@ -1339,17 +1338,17 @@ public final class SmartMovingClientState {
         sneakKeyStopPressed  = !curSneakPressed && prevSneakKeyPressed;
         prevSneakKeyPressed = curSneakPressed;
 
-        // B-48a (세션 131): sprintKey 엣지 필드 — sneakKey 패턴 그대로 적용.
-        // 원본 sprintButton.StartPressed / StopPressed 대응.
+        // B-48a (Session 131): sprintKey edge field — apply sneakKey pattern as-is.
+        // Corresponds to original sprintButton.StartPressed / StopPressed.
         boolean curSprintPressed = opts.keySprint.isDown();
         sprintKeyStartPressed = curSprintPressed && !prevSprintKeyPressed;
         sprintKeyStopPressed  = !curSprintPressed && prevSprintKeyPressed;
         prevSprintKeyPressed = curSprintPressed;
 
-        // B-46 (세션 66): 원본 `grabButton.StartPressed` 이식.
-        // 🔴 (세션 145 BUG-1+2 진짜 원인): `KeyBinding.wasPressed()` 의 timesPressed 카운터가
-        //   누적되어 grabJust=true 가 40+ 틱 stuck → isCrawling 진동/풀림 BUG.
-        //   sprintKey/sneakKey/jumpKey 와 동일 rising-edge 패턴으로 통일.
+        // B-46 (Session 66): Port original `grabButton.StartPressed`.
+        // 🔴 (Session 145 BUG-1+2 real cause): `KeyBinding.wasPressed()` timesPressed counter
+        //   accumulates causing grabJust=true stuck for 40+ ticks → isCrawling oscillation/release BUG.
+        //   Unified to same rising-edge pattern as sprintKey/sneakKey/jumpKey.
         boolean curGrabPressed = SmartMovingKeys.grab.isDown();
         grabJustPressed = curGrabPressed && !prevGrabKeyPressed;
         prevGrabKeyPressed = curGrabPressed;

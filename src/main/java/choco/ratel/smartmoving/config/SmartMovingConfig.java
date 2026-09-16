@@ -1219,54 +1219,54 @@ public class SmartMovingConfig {
      */
     public boolean enabled = true;
 
-    // ── B 단계 Phase 1 헬퍼 (세션 39) — 원본 SmartMovingClientConfig.java ────────
-    // 원본 `enabled` 패턴 (리서치 L428):
-    //   SM 비활성 시 vanilla 동작 허용 → `|| !enabled` (isSneakingEnabled 등)
-    //   SM 전용 기능 → `&& enabled` (isSwim/Diving/Sprinting 등)
+    // ── B Phase Phase 1 helper (session 39) — original SmartMovingClientConfig.java ────────
+    // Original `enabled` pattern (research L428):
+    //   Allow vanilla behavior when SM disabled → `|| !enabled` (isSneakingEnabled etc)
+    //   SM-only features → `&& enabled` (isSwim/Diving/Sprinting etc)
 
     /**
-     * 원본 SmartMovingClientConfig L69 `isSneakingEnabled() = _sneak.value || !enabled`.
-     * **OR 패턴** — SM 비활성 시에도 vanilla sneak 허용.
-     * 사용처: wantSneak (원본 L2588-L2590) → isSlow 공식 (원본 L2718).
-     * B-2 의존.
+     * Original SmartMovingClientConfig L69 `isSneakingEnabled() = _sneak.value || !enabled`.
+     * **OR pattern** — allow vanilla sneak even when SM disabled.
+     * Usage: wantSneak (original L2588-L2590) → isSlow formula (original L2718).
+     * Depends on B-2.
      */
     public boolean isSneakingEnabled() {
         return sneak || !enabled;
     }
 
     /**
-     * 원본 SmartMovingClientConfig L95 `isSprintingEnabled() = _sprint.value && enabled`.
-     * **AND 패턴** — SM 비활성 시 SM sprint 비허용.
-     * 사용처: wantSprint 6조건 OR (원본 L2595-L2615) → wouldIsSneaking (L2712).
-     * B-3a 의존.
+     * Original SmartMovingClientConfig L95 `isSprintingEnabled() = _sprint.value && enabled`.
+     * **AND pattern** — disallow SM sprint when SM disabled.
+     * Usage: wantSprint 6-condition OR (original L2595-L2615) → wouldIsSneaking (L2712).
+     * Depends on B-3a.
      */
     public boolean isSprintingEnabled() {
         return sprint && enabled;
     }
 
     /**
-     * 원본 SmartMovingClientConfig L87 `isSwimmingEnabled() = _swim.value && enabled`.
-     * 사용처: handleSwimming 진입 게이트 (원본 L239/L438) — useStandard 진입 판정.
-     * B-7 / B-8 의존.
+     * Original SmartMovingClientConfig L87 `isSwimmingEnabled() = _swim.value && enabled`.
+     * Usage: handleSwimming entry gate (original L239/L438) — useStandard entry determination.
+     * Depends on B-7 / B-8.
      */
     public boolean isSwimmingEnabled() {
         return swim && enabled;
     }
 
     /**
-     * 원본 SmartMovingClientConfig L88 `isDivingEnabled() = _dive.value && enabled`.
-     * 사용처: handleSwimming 진입 게이트 + dive 분류 활성화 판정.
-     * B-7 / B-8 의존.
+     * Original SmartMovingClientConfig L88 `isDivingEnabled() = _dive.value && enabled`.
+     * Usage: handleSwimming entry gate + dive classification enable determination.
+     * Depends on B-7 / B-8.
      */
     public boolean isDivingEnabled() {
         return dive && enabled;
     }
 
     /**
-     * 원본 SmartMovingClientConfig L87-L90 `isLavaLikeWaterEnabled() = _lavaLikeWater.value && enabled`.
-     * 사용처: Swimmer.updateSwimState 진입 조건 (원본 L232 `Config.isLavaLikeWaterEnabled()
-     * && sp.handleLavaMovement()`). B-7c 에서 복원. Lava 를 물처럼 수영/잠수 가능한지.
-     * B-7b (세션 127).
+     * Original SmartMovingClientConfig L87-L90 `isLavaLikeWaterEnabled() = _lavaLikeWater.value && enabled`.
+     * Usage: Swimmer.updateSwimState entry condition (original L232 `Config.isLavaLikeWaterEnabled()
+     * && sp.handleLavaMovement()`). Restored in B-7c. Whether lava can be swam/dived like water.
+     * B-7b (session 127).
      */
     public boolean isLavaLikeWaterEnabled() {
         return lavaLikeWater && enabled;

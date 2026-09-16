@@ -629,20 +629,20 @@ public final class SmartMovingSwimmer {
             sm.heightOffset = -1F;
 
         } else { // isDiving
-            // **B-9d 해소 (세션 129, B-9e 갱신 세션 130)**: 원본 L349-L358 (A 경로 diving
-            //   [1.9, 2]) + L370-L397 (B 경로 diving 10단계 [1.5, 2]) + L400-L412 ((2, ∞)
-            //   구간 diving) 모두 복원.
-            //   A 경로: diveUp / diveDown / default = moveSwim ? 0.04 : 0.02
-            //   B 경로: diveDown / offset 10단계 (< 1.8 -0.02 ~ else 0.01)
-            //   (2, ∞): diveUp 시 isFast+playerSwimWaterBorder<2.5+isAir(j+3) → 0.11/sprintFactor
+            // **B-9d Resolution (Session 129, B-9e update Session 130)**: Restore original L349-L358 (A path diving
+            //   [1.9, 2]) + L370-L397 (B path diving 10-step [1.5, 2]) + L400-L412 ((2, ∞)
+            //   range diving) all.
+            //   A path: diveUp / diveDown / default = moveSwim ? 0.04 : 0.02
+            //   B path: diveDown / offset 10-step (< 1.8 -0.02 ~ else 0.01)
+            //   (2, ∞): on diveUp if isFast+playerSwimWaterBorder<2.5+isAir(j+3) → 0.11/sprintFactor
             //          / else → 0.01+0.1*sf / diveDown → 0.01-0.1*sf / default → 0.01
             double motionYDiff = 0D;
             double offset9d = sm.dippingDepth + 0.1625D;
             double psw9e = swimVals.playerSwimWaterBorder;
             if (psw9e > 2) {
-                // **B-9e 해소 (세션 130)**: (2, ∞) 구간 diving (원본 L400-L412)
+                // **B-9e Resolution (Session 130)**: (2, ∞) range diving (original L400-L412)
                 if (diveUp) {
-                    // 원본 L404: isFast && psw < 2.5 && isAirBlock(i, j + 3, k) → 스프린트 점프 부스트
+                    // Original L404: isFast && psw < 2.5 && isAirBlock(i, j + 3, k) → sprint jump boost
                     if (sm.isFast && psw9e < 2.5D
                             && player.level().isEmptyBlock(new net.minecraft.core.BlockPos(
                                     swimVals.i, swimVals.j + 3, swimVals.k))) {
@@ -656,7 +656,7 @@ public final class SmartMovingSwimmer {
                     motionYDiff = 0.01D;
                 }
             } else if (isPathA) {
-                // A 경로 diving (원본 L349-L358)
+                // A path diving (original L349-L358)
                 if (diveUp) {
                     motionYDiff = 0.05D * (sm.isFast ? cfg.sprintFactor : 1F);
                 } else if (diveDown) {
@@ -665,7 +665,7 @@ public final class SmartMovingSwimmer {
                     motionYDiff = moveSwim ? 0.04D : 0.02D;
                 }
             } else {
-                // B 경로 diving (원본 L370-L397) — offset 10단계
+                // B path diving (original L370-L397) — offset 10-step
                 if (diveDown) {
                     motionYDiff = 0.01D - 0.1D * speedFactor;
                 } else if (offset9d < 1.8D)  motionYDiff = -0.02D;
@@ -681,20 +681,20 @@ public final class SmartMovingSwimmer {
                 else                        motionYDiff = 0.01D;
             }
 
-            // 🔵 (BUG 4 fix #106) diving levitating 분기 별도 처리 + damping 순서 정정.
-            //   원본 L489-496:
+            // 🔵 (BUG 4 fix #106) Separate handling for diving levitating branch + correct damping order.
+            //   Original L489-496:
             //     if(diving) {
             //         if(diveUp || diveDown || levitating)
-            //             motionY = (motionY + motionYDiff) * 0.6;  // 강한 수직 제어 + 수평 0
+            //             motionY = (motionY + motionYDiff) * 0.6;  // Strong vertical control + horizontal 0
             //         else
             //             moveFlying((float)motionYDiff, ..., _diveControlVertical);
-            //         moveFlying = false;  // 후속 horizontal moveFlying 차단
+            //         moveFlying = false;  // Block subsequent horizontal moveFlying
             //     }
-            //   기존 매핑 BUG: levitating 분기 없이 항상 5인자 moveFlying → 가만히 + jump 홀딩 시
-            //     surface 도달 안 됨 (= 사용자 보고 (5) "호흡 안 차감 위치 수면" 미달성).
-            //   해결: (a) diveUp || diveDown || levitating → (motionY + diff) * 0.6 식 + 수평 damping
-            //           만 (= moveFlying 호출 X). (b) 일반 → 5인자 moveFlying (= 마우스 방향 이동).
-            //   damping 순서도 정정: motion *= 0.83 (먼저) → fly 가산 (= 원본 L450 → L494).
+            //   Existing mapping BUG: No levitating branch, always 5-arg moveFlying → stay still + jump hold not
+            //     reaching surface (= user report (5) "breath not consumed water surface position" not achieved).
+            //   Solution: (a) diveUp || diveDown || levitating → (motionY + diff) * 0.6 formula + horizontal damping
+            //           only (= moveFlying not called). (b) Normal → 5-arg moveFlying (= mouse direction movement).
+            //   Also correct damping order: motion *= 0.83 (first) → add fly (= original L450 → L494).
             motionX *= DAMPING_DIVING;
             motionY *= DAMPING_DIVING;
             motionZ *= DAMPING_DIVING;
