@@ -63,14 +63,14 @@ public abstract class MixinLivingEntity {
     }
 
     /**
-     * 3-7: afterOnLivingUpdate() — isSmall 시 아이템 습득 범위 Y+0.25F 확장.
-     * 크롤링 중 바닥에 가까워 기본 AABB로 닿지 않는 아이템을 획득할 수 있도록 보정.
-     * 원본: SmartMovingServer.afterOnLivingUpdate() / SmallSizeItemGrabHeight = 0.25F
+     * 3-7: afterOnLivingUpdate() — extend item pickup range Y+0.25F when isSmall.
+     * During crawling, nearby-ground items unreachable with default AABB are now obtainable.
+     * Original: SmartMovingServer.afterOnLivingUpdate() / SmallSizeItemGrabHeight = 0.25F
      *
-     * 알고리즘:
-     *   offsetBox  = playerBox + (1, 0.25, 1) — Y방향 0.25 확장
-     *   standardBox = offsetBox.expand(0, -0.25, 0) — Y 원상복구
-     *   offsetBox에만 있고 standardBox에는 없는 엔티티 → onPlayerCollision
+     * Algorithm:
+     *   offsetBox  = playerBox + (1, 0.25, 1) — Y-direction 0.25 extension
+     *   standardBox = offsetBox.expand(0, -0.25, 0) — Y restored
+     *   Entities in offsetBox only and not in standardBox → onPlayerCollision
      */
     @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_afterTickMovement(CallbackInfo ci) {
@@ -92,11 +92,11 @@ public abstract class MixinLivingEntity {
         }
     }
 
-    // ── C-23: tickStatusEffects() HEAD/TAIL — 포션 업데이트 사이클 역전 처리 ──
-    // 원본: beforeUpdatePotionEffects→afterAddMovingHungerBatch,
-    //       afterUpdatePotionEffects→beforeAddMovingHungerBatch (의도적 역전, A-28 확인)
-    // HEAD: afterAddMovingHungerBatch (depth 감소)
-    // TAIL: beforeAddMovingHungerBatch (depth 증가)
+    // ── C-23: tickStatusEffects() HEAD/TAIL — potion update cycle reversal handling ──
+    // Original: beforeUpdatePotionEffects→afterAddMovingHungerBatch,
+    //           afterUpdatePotionEffects→beforeAddMovingHungerBatch (intentional reversal, see A-28)
+    // HEAD: afterAddMovingHungerBatch (depth decrease)
+    // TAIL: beforeAddMovingHungerBatch (depth increase)
 
     @Inject(method = "tickEffects", at = @At("HEAD"))
     private void sm_beforeTickStatusEffects(CallbackInfo ci) {
@@ -111,12 +111,12 @@ public abstract class MixinLivingEntity {
     }
 
     /**
-     * 3-5: isInsideWall() 억제.
-     * 크롤링 종료 직후 crawlingCooldown 틱 동안 블록 내부 판정을 억제하여
-     * 크롤링 출구에서 플레이어가 벽 안에 갇히는 현상을 방지한다.
+     * 3-5: Suppress isInsideWall().
+     * Suppress inside-wall detection for crawlingCooldown ticks after crawling ends
+     * to prevent player from being stuck in wall at crawling exit.
      *
-     * isInsideWall()은 LivingEntity에서 마지막으로 override되므로 여기서 inject.
-     * ServerPlayerEntity에는 선언되어 있지 않아 MixinServerPlayerEntity에서 inject 불가.
+     * isInsideWall() is last overridden in LivingEntity, so inject here.
+     * Not declared in ServerPlayerEntity, so cannot inject in MixinServerPlayerEntity.
      */
     @Inject(method = "isInWall", at = @At("HEAD"), cancellable = true)
     private void sm_isInsideWall(CallbackInfoReturnable<Boolean> cir) {

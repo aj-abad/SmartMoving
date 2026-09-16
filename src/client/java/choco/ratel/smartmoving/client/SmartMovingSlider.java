@@ -12,15 +12,15 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 클라이언트 측 슬라이딩 물리 로직.
- * 원본: SmartMovingSelf.landMotion() 슬라이딩 분기, SmartMoving.spawnParticles() 이식.
+ * Client-side sliding physics logic.
+ * Original: SmartMovingSelf.landMotion() sliding branch, SmartMoving.spawnParticles() ported.
  *
- * 포함 항목:
- *   9-4: handleSliding() — 슬라이딩 감쇠 공식 + strafe 강제 회전 + travel() 대체
- *   9-5: spawnSlidingParticle() — BlockState 기반 파티클 생성
+ * Included items:
+ *   9-4: handleSliding() — sliding damping formula + strafe forced rotation + travel() replacement
+ *   9-5: spawnSlidingParticle() — BlockState-based particle spawning
  *
- * 종료 조건 (sneak 떼기 / 속도 임계) 은 SmartMovingClientState 메인 tick 의
- * SlideToHeadJumping 다음 위치에서 처리한다. 원본 L2563-L2567 1:1.
+ * Exit conditions (sneak release / speed threshold) handled at SlideToHeadJumping next position
+ * in SmartMovingClientState main tick. Original L2563-L2567 1:1.
  */
 @Environment(EnvType.CLIENT)
 public final class SmartMovingSlider {
@@ -30,18 +30,18 @@ public final class SmartMovingSlider {
     // ── [9-4] handleSliding ──────────────────────────────────────────────────
 
     /**
-     * 슬라이딩 수평 감쇠를 적용한다.
-     * vanilla travel()을 대체하여 직접 move()를 호출한다.
+     * Apply sliding horizontal damping.
+     * Replace vanilla travel() by calling move() directly.
      *
-     * 감쇠 공식 (원본 SmartMovingSelf.landMotion() L729 isSliding 분기):
+     * Damping formula (original SmartMovingSelf.landMotion() L729 isSliding branch):
      *   damping = 1 / (((1/slip - 1) / 25) * _slideSlipperinessFactor + 1) * 0.98F
-     *   - slip: 발 아래 블록의 slipperiness (얼음=0.98, 일반=0.6)
-     *   - _slideSlipperinessFactor: Config 값 (기본 1.0F)
-     *   - 0.98F: 공기 저항 유사 계수
+     *   - slip: slipperiness of block below feet (ice=0.98, normal=0.6)
+     *   - _slideSlipperinessFactor: Config value (default 1.0F)
+     *   - 0.98F: air resistance-like coefficient
      *
-     * 종료 조건은 SmartMovingClientState 메인 tick 에서 처리 (원본 L2563-L2567 1:1).
+     * Exit conditions handled in SmartMovingClientState main tick (original L2563-L2567 1:1).
      *
-     * @return true if SM이 처리 (travel() cancel 대상)
+     * @return true if SM handles it (travel() cancel target)
      */
     public static boolean handleSliding(LocalPlayer player, SmartMovingClientState sm) {
         if (!sm.isSliding) return false;
@@ -52,11 +52,11 @@ public final class SmartMovingSlider {
         }
 
         Vec3 vel = player.getDeltaMovement();
-        // 발 아래 블록 slipperiness
+        // Block slipperiness below feet
         BlockState below = player.level().getBlockState(player.getOnPos());
         float slip = below.getBlock().getFriction();
 
-        // 원본 감쇠 공식
+        // Original damping formula
         float damping = 1F / (((1F / slip - 1F) / 25F) * cfg.slideSlipperinessFactor + 1F) * 0.98F;
 
         double newVx = vel.x * damping;

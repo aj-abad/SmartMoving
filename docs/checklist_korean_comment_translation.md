@@ -50,7 +50,7 @@
 
 - [ ] src/main/java/choco/ratel/smartmoving/mixin/MixinAvatarDimensions.java
 - [ ] src/main/java/choco/ratel/smartmoving/mixin/MixinEntity.java
-- [ ] src/main/java/choco/ratel/smartmoving/mixin/MixinLivingEntity.java
+- [x] src/main/java/choco/ratel/smartmoving/mixin/MixinLivingEntity.java
 - [x] src/main/java/choco/ratel/smartmoving/mixin/MixinLivingEntityServer.java
 - [ ] src/main/java/choco/ratel/smartmoving/mixin/MixinPlayerEntity.java
 
