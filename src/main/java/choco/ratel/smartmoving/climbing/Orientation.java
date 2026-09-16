@@ -782,26 +782,26 @@ public class Orientation {
         return isVine(getRemoteBlockId(j_offset));
     }
 
-    // ── Rope / WallRope — §7 B-19a1b-approx-2 전체 false 근사 ──────────────
+    // ── Rope / WallRope — §7 B-19a1b-approx-2 All-false Approximate ────────
 
     /**
-     * 원본 L1443-L1446 `isRope(int j_offset)` — `fcRopeBlock` (BetterThanWolves) /
-     * `blockRopeCentral` (RopesPlus) 모드 블록 체크.
+     * Original L1443-L1446 `isRope(int j_offset)` — Checks `fcRopeBlock` (BetterThanWolves) /
+     * `blockRopeCentral` (RopesPlus) mod blocks.
      *
-     * **§7 근사 이식** (B-19a1b-approx-2): 해당 모드 1.21.1 에 미이식 → 전체 false.
+     * **§7 approximate port** (B-19a1b-approx-2): Mods not ported to 1.21.1 → all false.
      */
     protected static boolean isRope(int j_offset) {
-        // 근사 이식 — 원본과 차이: BetterThanWolves/RopesPlus 모드 블록 미이식
+        // Approximate port — difference from original: BetterThanWolves/RopesPlus mod blocks not ported
         return false;
     }
 
     /**
-     * 원본 L1470-L1475 `isOnWallRope(int j_offset)` — `blockRope` (ASRope) 벽타기 로프 블록.
+     * Original L1470-L1475 `isOnWallRope(int j_offset)` — `blockRope` (ASRope) wall-climbing rope block.
      *
-     * **§7 근사 이식** (B-19a1b-approx-2): ASRope 모드 1.21.1 에 미이식 → 전체 false.
+     * **§7 approximate port** (B-19a1b-approx-2): ASRope mod not ported to 1.21.1 → all false.
      */
     protected static boolean isOnWallRope(int j_offset) {
-        // 근사 이식 — 원본과 차이: ASRope 모드 블록 미이식
+        // Approximate port — difference from original: ASRope mod blocks not ported
         return false;
     }
 

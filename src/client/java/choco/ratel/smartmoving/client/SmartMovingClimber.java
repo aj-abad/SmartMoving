@@ -1164,29 +1164,29 @@ public final class SmartMovingClimber {
 
         if (!cfg.ceilingClimbing) return;
 
-        // C-33: ceiling climb exhaustion 체크
-        // 원본: exhaustion<=stop && (wasCeilingClimbing||exhaustion<=start)
+        // C-33: ceiling climb exhaustion check
+        // Original: exhaustion<=stop && (wasCeilingClimbing||exhaustion<=start)
         if (cfg.ceilingClimbExhaustion) {
             boolean allowed = sm.exhaustion <= cfg.ceilingClimbExhaustionStop
                     && (sm.isCeilingClimbing || sm.exhaustion <= cfg.ceilingClimbExhaustionStart);
             if (!allowed) return;
         }
 
-        // C-34: wantClimbCeiling 조건 — grab 키 + !isCrawling + !isSneaking
-        // 원본: grabButton.Pressed && !wantCrawlNotClimb && !isSneaking() && !disabled
+        // C-34: wantClimbCeiling condition — grab key + !isCrawling + !isSneaking
+        // Original: grabButton.Pressed && !wantCrawlNotClimb && !isSneaking() && !disabled
         boolean wantClimbCeiling = SmartMovingKeys.grab.isDown()
                 && !sm.isCrawling && !player.isShiftKeyDown();
         if (!wantClimbCeiling) return;
 
-        // 조건: !isClimbing && (!isCrawling || conflict) && !isCrawlClimbing
+        // Condition: !isClimbing && (!isCrawling || conflict) && !isCrawlClimbing
         if (sm.isClimbing || sm.isCrawlClimbing) return;
 
-        // 🔴 (2026-04-27) 천장 블록 종류 검사 — 원본 SmartMovingSelf L1139-1145 1:1.
-        //   원본: topBlock = supportsCeilingClimbing(i, j, k);
-        //         bottomBlock = supportsCeilingClimbing(i, j+1, k);
-        //         if (topBlock != null || bottomBlock != null) { ... }
-        //   기본 dictionary (SmartMovingConfig L142): iron bars + closed trapdoor.
-        //   기존 CeilingClimbBlocks.supports(state) 헬퍼 호출 — 이미 dictionary 이식됨.
+        // 🔴 (2026-04-27) Ceiling block type check — original SmartMovingSelf L1139-1145 1:1.
+        //   Original: topBlock = supportsCeilingClimbing(i, j, k);
+        //            bottomBlock = supportsCeilingClimbing(i, j+1, k);
+        //            if (topBlock != null || bottomBlock != null) { ... }
+        //   Base dictionary (SmartMovingConfig L142): iron bars + closed trapdoor.
+        //   Use CeilingClimbBlocks.supports(state) helper — dictionary already ported.
         Level world = player.level();
         AABB bb = player.getBoundingBox();
         int px = (int) Math.floor(player.getX());
