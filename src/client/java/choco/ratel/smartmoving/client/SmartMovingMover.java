@@ -147,13 +147,33 @@ public final class SmartMovingMover {
     }
 
     /**
-     * 감속 입력 배율 (크롤링/스니킹/아이템사용/천장클라이밍).
+     * 감속 입력 배율 (크롤링/스니킹/천장클라이밍).
      * 팩터들은 순서대로 누적 곱셈 적용.
+     *
+     * 🔴 fix (third-party gun mod compatibility, 2026-09-13): item-use 항 제거.
+     *
+     * 이전엔 여기서 `if (player.isUsingItem()) f *= 0.2F` 로 아이템 사용 중 감속을 자체
+     * 하드코딩했음. 이는 위 sneak 항목의 "BUG-sneak속도" (MixinClientPlayerEntity 참고)
+     * 와 같은 계열의 이중 감속 버그: vanilla `LocalPlayer.modifyInput()` 가 `isUsingItem()`
+     * 시 이미 해당 아이템의 실제 `DataComponents.USE_EFFECTS` → `speedMultiplier()` 를
+     * xxa/zza 에 곱해 놓고 (LivingEntity.aiStep: L3055 applyInput → L3101 movementInput 구성
+     * → L3109 travel() 호출), 그 movementInput 이 그대로 sm_travel_client 의 HEAD 를 거쳐
+     * handleLand/climbing/swimming 까지 전달됨. 여기서 하드코딩 0.2F 를 또 곱하면:
+     *   1. 이중 적용 — vanilla 몫 × SM 몫 (기본 아이템 기준 0.2×0.2=0.04, 즉 vanilla 활
+     *      당길 때 예상보다 훨씬 심하게 감속).
+     *   2. 아이템별 실제 배율 무시 — 모든 아이템이 무조건 0.2배 취급됨. 총기 mod 처럼
+     *      아이템마다 다른 `speedMultiplier` (예: 0.8/0.9/1.0 — 1.0 은 "조준 중에도 감속
+     *      없음"을 의도한 값) 를 등록해 둔 경우, 그 값이 완전히 무시되고 전부 균일하게
+     *      과하게 느려짐 (감속이 아예 없어야 할 아이템까지 0.2배로 묶임).
+     *
+     * sneak 은 vanilla `isMovingSlowly()` 자체를 sm_blockVanillaSlowDown 로 차단해 이중
+     * 적용을 막지만, item-use 감속은 `isMovingSlowly()` 와 무관한 별도 vanilla 분기라 그
+     * 차단이 적용되지 않음 — 따라서 vanilla 쪽을 막는 대신 SM 쪽 재적용을 제거해 vanilla
+     * 계산(이미 movementInput 에 반영됨) 하나만 남긴다.
      */
     public static float getSlowInputSpeedFactor(LocalPlayer player, SmartMovingClientState sm,
                                                  SmartMovingConfig cfg) {
         float f = 1.0F;
-        if (player.isUsingItem()) f *= 0.2F;
         if (sm.isCrawling) f *= cfg.crawlFactor;
         else if (player.isShiftKeyDown()) f *= cfg.sneakFactor;
         if (sm.isCeilingClimbing) f *= cfg.ceilingClimbingSpeedFactor;
