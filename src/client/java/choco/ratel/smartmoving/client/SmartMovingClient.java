@@ -27,18 +27,18 @@ import java.net.URI;
 public class SmartMovingClient implements ClientModInitializer {
 
     /**
-     * 🔴 (2026-05-05 사용자 보고 — "a 콘피그 off 시 a 측에서 모두 vanilla 보임"):
-     *   render-path 의 `Config.enabled` 검사가 자기 client cfg → a disabled 시 자기 측에서
-     *   모든 player render 의 SM 분기 차단 → 모두 vanilla. remote 측은 자기 cfg=true 라 정상.
-     *   해결: render-path enabled 검사를 self-only 로 한정.
-     *     - self → 자기 Config.enabled
-     *     - remote → 항상 true (= 자기 cfg 무관, remote 의 SM state 자체 분기)
-     *   self 가 disabled 면 자기 SM state 모두 false (= state update / packet 송신 stop) 라
-     *   remote 측에서 자기는 자동으로 vanilla 표시 (= 정확).
+     * 🔴 (2026-05-05 user report — "when player a's config is off, everything appears vanilla on player a's side"):
+     *   The `Config.enabled` check in render-path blocks all SM branching for player rendering when self's client cfg is disabled
+     *   → everything appears vanilla. Remote side is correct since their cfg=true.
+     *   Solution: Limit render-path enabled check to self-only.
+     *     - self → own Config.enabled
+     *     - remote → always true (= independent of own cfg, uses remote's SM state itself for branching)
+     *   When self is disabled, all own SM states are false (= state update/packet transmission stops) so
+     *   remote sees self as vanilla automatically (= correct).
      */
     public static boolean isSmRenderEnabled(net.minecraft.world.entity.Entity entity) {
         if (SmartMovingConfig.Config.enabled) return true;
-        // 자기 cfg disabled — remote player 만 통과 (= vanilla cfg 무관 + remote 의 SM 분기 정상).
+        // Own cfg disabled — only allow remote players (= independent of vanilla cfg + remote SM branching works correctly).
         if (!(entity instanceof AbstractClientPlayer ap)) return false;
         return ap != Minecraft.getInstance().player;
     }
@@ -53,40 +53,40 @@ public class SmartMovingClient implements ClientModInitializer {
     }
 
     private static void registerConnectionEvents() {
-        // 월드 / 서버 접속 시 채팅창에 브랜드 + 링크 메시지 전송 (self only).
-        // 1줄: ──────────────  (상단 테두리)
-        // 2줄: [SmartMoving] by View-Studio
-        // 3줄: [GitHub]  ·  [Support ☕]
-        // 4줄: ──────────────  (하단 테두리)
+        // When joining world/server, send brand + link message to chat (self only).
+        // Line 1: ──────────────  (top border)
+        // Line 2: [SmartMoving] by View-Studio
+        // Line 3: [GitHub]  ·  [Support ☕]
+        // Line 4: ──────────────  (bottom border)
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
                 client.execute(() -> {
                     if (client.player == null) return;
                 }));
 
-        // 클라이언트 접속 해제 시 상태 인스턴스 정리 + Config 복원
+        // On client disconnect, clean up state instance + restore Config
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             if (client.player != null) {
                 SmartMovingClientState.remove(client.player);
             }
-            // 서버 설정 전환을 복원 — 다음 서버 접속까지 클라이언트 설정 사용
+            // Restore server config switch — use client config until next server join
             SmartMovingConfig.Config = SmartMovingConfig.INSTANCE;
-            // 원본 SmartMovingServerConfig.reset() 대응 — SERVER_CONFIG 인스턴스 초기화.
-            // 다음 서버 접속 시 이전 서버 설정 잔류 방지.
+            // Corresponds to original SmartMovingServerConfig.reset() — initialize SERVER_CONFIG instance.
+            // Prevents lingering server config on next server join.
             SmartMovingConfig.resetServerConfig();
         });
     }
 
-    /** 월드 접속 시 채팅에 표시할 브랜드 + 링크 메시지. */
+    /** Brand + link message to display in chat when joining world. */
     private static final String GITHUB_URL = "https://github.com/View-Studio/SmartMoving";
     private static final String SUPPORT_URL = "https://ko-fi.com/viewstudio";
 
-    /** 가로 테두리 선 (상/하) — 공백 + strikethrough 으로 끊김 없는 연속 선. */
+    /** Horizontal border lines (top/bottom) — continuous lines without breaks using spaces + strikethrough. */
     private static Component buildBorderLine() {
         return Component.literal(" ".repeat(40))
                 .withStyle(s -> s.withColor(ChatFormatting.DARK_GRAY).withStrikethrough(true));
     }
 
-    /** 1줄: 브랜드 + 작성자. */
+    /** Line 1: Brand + Author. */
     private static Component buildBrandLine() {
         MutableComponent tag = Component.literal("[SmartMoving]")
                 .withStyle(s -> s.withColor(ChatFormatting.GOLD));
@@ -100,7 +100,7 @@ public class SmartMovingClient implements ClientModInitializer {
         return Component.empty().append(tag).append(by).append(author);
     }
 
-    /** 2줄: 클릭 가능한 GitHub + Support 링크. */
+    /** Line 2: Clickable GitHub + Support links. */
     private static Component buildLinksLine() {
         MutableComponent sep = Component.literal("  ·  ").withStyle(s -> s.withColor(ChatFormatting.DARK_GRAY));
 
@@ -124,8 +124,8 @@ public class SmartMovingClient implements ClientModInitializer {
     }
 
     private static void registerClientReceivers() {
-        // State: 다른 플레이어의 이동 상태 수신 (서버 릴레이) — C-24
-        // 원본: SmartMovingFactory.getOtherSmartMoving(entityId).processStatePacket(state)
+        // State: Receive other players' movement state (server relay) — C-24
+        // Original: SmartMovingFactory.getOtherSmartMoving(entityId).processStatePacket(state)
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.StatePayload.ID,
             (payload, context) -> {
                 Minecraft client = context.client();
@@ -135,20 +135,20 @@ public class SmartMovingClient implements ClientModInitializer {
                     Entity entity = world.getEntity(payload.entityId());
                     if (entity == null) return;
                     SmartMovingClientState target = SmartMovingClientState.get(entity.getUUID());
-                    // 🔴 (Phase 2 multi BUG-7) remote ICC EXIT 시 박스/모델 1칸 down jump 차단.
-                    //   원인: packet 처리 (= ICC=false 적용 + dim 변경) 시점과 PlayerEntity.tick HEAD
-                    //         사이 1 tick lag → ICC dim offset (+1m bb) 사라진 후 entity.y 그대로 →
-                    //         같은 tick 의 render frames 에서 bb=[entity.y..entity.y+0.8] (= 1m 아래) 보임.
-                    //   해결: packet 처리 lambda 안에서 enter-edge 검출 + setPos +1m + lerp cancel
-                    //         즉시 적용 → ICC=false 와 동시에 entity.y +1m → bb 일관성 유지.
-                    //   self (= ClientPlayerEntity) 는 자체 fix (= 메모리 *project_isclimbcrawling_complete*).
+                    // 🔴 (Phase 2 multi BUG-7) Block remote ICC EXIT box/model 1-block down jump.
+                    //   Cause: 1 tick lag between packet processing (= ICC=false applied + dim changed) and PlayerEntity.tick HEAD
+                    //          → ICC dim offset (+1m bb) disappears but entity.y remains same →
+                    //          same tick render frames show bb=[entity.y..entity.y+0.8] (= 1m below).
+                    //   Solution: Detect enter-edge in packet processing lambda + setPos +1m + lerp cancel
+                    //             apply immediately → ICC=false and entity.y +1m simultaneously → maintain bb consistency.
+                    //   self (= ClientPlayerEntity) has own fix (= memory *project_isclimbcrawling_complete*).
                     boolean wasIcc = target.isClimbCrawling;
-                    // 🔴 (Phase 2 multi BUG-15, 2026-05-13) remote 슬라이딩 진입/종료 매핑.
+                    // 🔴 (Phase 2 multi BUG-15, 2026-05-13) remote sliding entry/exit mapping.
                     //   self side fix #60 (= move(0,-1,0)) + fix #62 v2 + fix #70 (= setPos(y+1)
-                    //   predictive drop 검사) 가 remote 측 packet handler 에 누락 → remote 측에서
-                    //   진입 시 1 tick 공중 1칸 위 + 종료 시 1 tick 땅속 1m BUG. BUG-7 ICC EXIT
-                    //   v25.3 대칭 패턴 — packet 처리 lambda 안 즉시 setPos 로 1 tick lag 차단.
-                    //   self (= ClientPlayerEntity) 는 자체 fix.
+                    //   predictive drop check) missing from remote packet handler → on entry, 1 tick airborne 1-block above
+                    //   + on exit, 1 tick inside ground 1m BUG. BUG-7 ICC EXIT v25.3 symmetrical pattern —
+                    //   block 1 tick lag with immediate setPos in packet processing lambda.
+                    //   self (= ClientPlayerEntity) has own fix.
                     boolean wasSliding = target.isSliding;
                     boolean wasFlying = target.isFlying;
                     boolean wasHJ = target.isHeadJumping;
@@ -168,28 +168,28 @@ public class SmartMovingClient implements ClientModInitializer {
                         if (wasFlying) flyBoxMinYBefore = bbMinY;
                     }
                     target.processStatePacket(payload.state());
-                    // 🔴 (Phase 2 multi BUG-12/14) packet 도착 시 dim 즉시 갱신 → vanilla pose sync 대기
-                    //   없이 sm.* 비트 따라 dim 결정. boolean OR 가드 제거 — 여러 비트 동시 변경 시
-                    //   감지 누락 회피. dim 동일 시 vanilla 자체 영향 미미.
+                    // 🔴 (Phase 2 multi BUG-12/14) Update dim immediately on packet arrival → determine dim based on sm.* bits
+                    //   without waiting for vanilla pose sync. Remove boolean OR guard — avoid missing detection on
+                    //   simultaneous bit changes. Minimal vanilla effect if dim is same.
                     if (entity instanceof LivingEntity living) {
                         living.refreshDimensions();
                     }
-                    // 🔴 (slide→crawl 박스 부유 fix, 2026-05-13) remote 측 POSE 즉시 갱신.
-                    //   사용자 보고 BUG: REMOTE 측 slide → crawl 자동 전환 *사이* (~2 tick = 100ms)
-                    //     동안 박스 자체가 ground 위 1m 부유 = "STANDING 콜리전 변환" 시각.
-                    //   root cause (= dump 검증):
-                    //     - SmartMovingState packet 도착 → isCrawling=true 갱신 + calculateDimensions
-                    //       → sm_getBaseDimensions_client smSmall 분기 5 매치 → dim=(0.8, 0.62).
+                    // 🔴 (slide→crawl box floating fix, 2026-05-13) immediately update POSE on remote side.
+                    //   User report BUG: REMOTE side slide → crawl auto-transition *between* (~2 tick = 100ms)
+                    //     box itself floats 1m above ground = "STANDING collision transition" visual.
+                    //   root cause (= dump verification):
+                    //     - SmartMovingState packet arrival → isCrawling=true update + calculateDimensions
+                    //       → sm_getBaseDimensions_client smSmall branch 5 match → dim=(0.8, 0.62).
                     //     - vanilla EntityDataS2CPacket (POSE) broadcast lag ~2 tick → POSE=SLIDING
-                    //       잔존.
-                    //     - MixinEntity.sm_offsetBoundingBoxForFlying 가드 `eye<=1 && pose!=SLIDING`
-                    //       매치 X (= pose==SLIDING 잔존) → mixin offset 활성 → bb=y+1.
-                    //     - → 박스 ground top + 1m 부유 frame ~2 tick. 머리 위치 STANDING 박스 머리
-                    //       (= y+1.8) 와 동일 → 사용자 시각 "STANDING 콜리전 변환".
-                    //   self side: PlayerEntity.tick → updatePose → sm_updatePose_client 동일 tick
-                    //     안 setPose(SWIMMING) 호출 → 다음 render frame bb=y. 부유 frame 거의 X.
-                    //   해결: remote 측 packet lambda 안 setPose 즉시 호출. self side
-                    //     sm_updatePose_client 와 동일 4 분기 매핑.
+                    //       persists.
+                    //     - MixinEntity.sm_offsetBoundingBoxForFlying guard `eye<=1 && pose!=SLIDING`
+                    //       no match (= pose==SLIDING persists) → mixin offset active → bb=y+1.
+                    //     - → box ground top + 1m floating frame ~2 tick. head position same as STANDING box head
+                    //       (= y+1.8) → user visual "STANDING collision transition".
+                    //   self side: PlayerEntity.tick → updatePose → sm_updatePose_client same tick
+                    //     calls setPose(SWIMMING) → next render frame bb=y. floating frame almost X.
+                    //   Solution: immediately call setPose in packet lambda on remote side. matches self side
+                    //     sm_updatePose_client 4-branch mapping.
                     if (entity instanceof AbstractClientPlayer apPose
                             && !(entity instanceof LocalPlayer)) {
                         Pose targetPose = null;
@@ -200,23 +200,23 @@ public class SmartMovingClient implements ClientModInitializer {
                         } else if (target.isSwimming_sm || target.isDiving) {
                             targetPose = Pose.SWIMMING;
                         } else {
-                            // 🔴 (벽 충돌 cycle fix, 2026-05-13) orphan POSE 잔존 frame 의 박스 부유 차단.
-                            //   사용자 보고 BUG: 슬라이딩 중 벽 충돌 시 박스 위로 튀는 frame.
-                            //   root cause (= dump 검증):
-                            //     - self side wouldWantCrawl 식 + isClimbing 가드 매트릭스로 cycle 발생
-                            //       (= slide→crawl→standing→crawl). tick N: isCR=true→false PKT 매치.
-                            //     - remote 측 PKT 처리: target.isCrawling=false 갱신. 우리 4 분기 매트릭스
-                            //       매치 X → setPose 호출 X.
-                            //     - vanilla POSE broadcast lag ~1 tick → POSE=SLIDING 잔존.
-                            //     - mixin offset 가드 `eye<=1 && pose!=SLIDING` 매치 X (= pose==SLIDING)
-                            //       → mixin offset 활성 → bb=y+1 (= 박스 ground 위 1m 부유).
-                            //   해결: 모든 SM phase 미활성 + POSE=SWIMMING/SLIDING 잔존 시 setPose(STANDING)
-                            //     강제. mixin offset 가드 매치 → 차단 → bb=y.
-                            //   회귀 차단:
-                            //     - vanilla 자체 자세 (sleep/elytra/spin_attack 등): isFallFlying / isInSwimmingPose
-                            //       가드. 매치 시 우리 fix skip.
-                            //     - 일반 STANDING: curPose=STANDING → 매치 X (조건 SWIMMING|SLIDING) → skip.
-                            //     - vanilla 자체 수영 (물 안): isInSwimmingPose=true → skip.
+                            // 🔴 (wall collision cycle fix, 2026-05-13) block box floating from orphan POSE persisting frames.
+                            //   User report BUG: box bounces up on wall collision during sliding.
+                            //   root cause (= dump verification):
+                            //     - self side wouldWantCrawl formula + isClimbing guard matrix creates cycle
+                            //       (= slide→crawl→standing→crawl). tick N: isCR=true→false PKT match.
+                            //     - remote PKT processing: target.isCrawling=false update. our 4-branch matrix
+                            //       no match → setPose not called.
+                            //     - vanilla POSE broadcast lag ~1 tick → POSE=SLIDING persists.
+                            //     - mixin offset guard `eye<=1 && pose!=SLIDING` no match (= pose==SLIDING)
+                            //       → mixin offset active → bb=y+1 (= box 1m above ground floating).
+                            //   Solution: force setPose(STANDING) when all SM phases inactive + POSE=SWIMMING/SLIDING persists.
+                            //     mixin offset guard match → block → bb=y.
+                            //   regression prevention:
+                            //     - vanilla own pose (sleep/elytra/spin_attack etc): isFallFlying / isInSwimmingPose
+                            //       guard. match → skip our fix.
+                            //     - normal STANDING: curPose=STANDING → no match (condition SWIMMING|SLIDING) → skip.
+                            //     - vanilla own swimming (in water): isInSwimmingPose=true → skip.
                             Pose curPose = apPose.getPose();
                             if ((curPose == Pose.SWIMMING
                                     || curPose == Pose.SLIDING)
@@ -232,15 +232,15 @@ public class SmartMovingClient implements ClientModInitializer {
                             }
                         }
                     }
-                    // 🔴 (Phase 2 BUG-7) self side ICC ENTER 매핑 1:1 복제.
-                    //   self side ICC 진입 (SmartMovingClientState L2367-L2423):
-                    //     heightOffset = -1F + calculateDimensions + move(0, 0.05, 0) + entity.y 복원
-                    //     + horizontalCollision 복원 + Camera 보정.
-                    //   사용자 보고 "remote 진입 시점 x,z 뒤로 땡김 + y 내려감": move(0, 0.05, 0) +
-                    //   entity.y 복원 + horizontalCollision 복원 매핑이 누락. self side 의 vanilla
-                    //   collision 결과 cancel 메커니즘 (메모리 코멘트 = "ICC 진입/해제 매 tick 진동
-                    //   시 entity.y +0.05m 누적 → 카메라 움찔움찔 fix") 그대로 적용.
-                    //   heightOffset/Camera 는 self 식/1인칭 전용이라 remote 안 필요.
+                    // 🔴 (Phase 2 BUG-7) 1:1 replication of self side ICC ENTER mapping.
+                    //   self side ICC entry (SmartMovingClientState L2367-L2423):
+                    //     heightOffset = -1F + calculateDimensions + move(0, 0.05, 0) + restore entity.y
+                    //     + restore horizontalCollision + Camera correction.
+                    //   User report "remote entry point x,z pulled back + y lowered": move(0, 0.05, 0) +
+                    //   entity.y restore + horizontalCollision restore mapping missing. self side vanilla
+                    //   collision result cancel mechanism (memory comment = "ICC entry/exit per tick vibration
+                    //   accumulates entity.y +0.05m → camera jitter fix") applied as-is.
+                    //   heightOffset/Camera are self style/first-person only so not needed for remote.
                     if (!wasIcc && target.isClimbCrawling
                             && entity instanceof AbstractClientPlayer remoteEnter
                             && !(entity instanceof LocalPlayer)) {
@@ -256,33 +256,33 @@ public class SmartMovingClient implements ClientModInitializer {
                     if (wasIcc && !target.isClimbCrawling
                             && entity instanceof AbstractClientPlayer remote
                             && !(entity instanceof LocalPlayer)) {
-                        // 🔴 (Phase 2 BUG-7 fix 정착) self side ICC EXIT 매핑 1:1 복제 (cd25cfc 패턴).
+                        // 🔴 (Phase 2 BUG-7 fix settled) 1:1 replication of self side ICC EXIT mapping (cd25cfc pattern).
                         //   self side: setPosition(x, y+1, z) + lastRenderY/prevY +=1 + calculateDimensions
-                        //              + bottom snap (사다리/덩굴 케이스 미적용).
-                        //   isCrawling 가드 = self 가드 (mustCrawl||sneakPressedRaw||crawlToggled+gap<1)
-                        //                     통과 결과 직접 검사.
-                        //   calculateDimensions 는 packet handler 위 (L109-L111) 에서 이미 호출됨.
+                        //              + bottom snap (ladder/vine cases not applied).
+                        //   isCrawling guard = self guard (mustCrawl||sneakPressedRaw||crawlToggled+gap<1)
+                        //                      check result directly.
+                        //   calculateDimensions already called above (L109-L111) in packet handler.
                         if (target.isCrawling) {
                             double newY = remote.getY() + 1.0;
                             remote.setPos(remote.getX(), newY, remote.getZ());
                             remote.yOld = newY;
                             remote.yo = newY;
-                            // 🔴 (BUG B fix, 2026-05-13) lerp cancel — BUG-15 동일 패턴.
-                            //   vanilla OtherClientPlayerEntity.lerpPosAndRotation 이 매 tick srvY 로
-                            //   entity.y 끌고 감 → 우리 setPos+1m 무효화 → 점진 -1m down → 사용자 보고
-                            //   "1칸 아래 내려갔다 올라옴" 직접 원인. srvY/bti 동기화로 lerp 차단.
+                            // 🔴 (BUG B fix, 2026-05-13) lerp cancel — same pattern as BUG-15.
+                            //   vanilla OtherClientPlayerEntity.lerpPosAndRotation drags entity.y with srvY per tick
+                            //   → invalidates our setPos+1m → gradual -1m down → direct cause of user report
+                            //   "descended 1 block then came back up". block lerp with srvY/bti sync.
                             SmartMovingLivingEntityAccess accI =
                                     (SmartMovingLivingEntityAccess)(Object) remote;
                             accI.sm_setServerY(newY);
                             accI.sm_setBodyTrackingIncrements(0);
-                            // 일반 블록 케이스만 bottom snap. 사다리/덩굴 케이스 미적용 (ladder maxY+1 위 유지).
+                            // bottom snap only for normal blocks. ladder/vine cases not applied (keep ladder maxY+1 above).
                             if (!remote.onClimbable()) {
                                 double minY = remote.getBoundingBox().minY;
                                 double gap = minY - choco.ratel.smartmoving.client.SmartMovingClientState
                                         .getMaxPlayerSolidBetween(remote, minY - 1.0, minY, 0);
                                 if (gap >= 0.0 && gap < 1.0) {
                                     remote.move(MoverType.SELF, new Vec3(0, -gap, 0));
-                                    // bottom snap 후 srvY 재동기화 (= move 가 entity.y 변경했으므로).
+                                    // Re-sync srvY after bottom snap (= move changed entity.y).
                                     accI.sm_setServerY(remote.getY());
                                     accI.sm_setBodyTrackingIncrements(0);
                                 }
@@ -290,35 +290,35 @@ public class SmartMovingClient implements ClientModInitializer {
                         }
                     }
 
-                    // 🔴 (Phase 2 multi BUG-15, 2026-05-13) remote 슬라이딩 진입 — self fix #60 1:1.
+                    // 🔴 (Phase 2 multi BUG-15, 2026-05-13) remote sliding entry — 1:1 with self fix #60.
                     //   self side L2106-L2111: heightOffset=-1 + isSliding=true + calc dim +
-                    //   move(0,-1,0) (= entity.y -1m). dim eye=1.62 활성 + mixin offset bb +1m up →
-                    //   bb 발 = entity.y + 1m = ground.
-                    //   remote 측: SM state packet 도착 → isSliding=true + calc dim 까지 (위 L82-L84)
-                    //     이미 완료. 그러나 self 의 entity.y -1m 가 server broadcast 도착 전 (1 tick lag)
-                    //     → remote.y = old self.y (= self ground) → bb 발 = remote.y + 1m = self ground
-                    //     + 1m = **공중 1칸 위 BUG**.
-                    //   해결: packet 처리 lambda 안 즉시 setPos(y-1) → entity.y -= 1m → bb 발 = (remote.y
-                    //     -1) + 1m = self ground 정합. lastRenderY/prevY 동기화 — vanilla lerp 점프 차단.
-                    //   BUG-7 ICC EXIT v25.3 부호 반전 (+1 → -1) 패턴.
-                    // 🔴 (BUG D fix, 2026-05-13) !wasFlying 가드 추가.
-                    //   비행 → slide 직접 전환 시 *비행 종료 분기* 가 self side standupIfPossible 분기 3
-                    //   (= move(0, -gap, 0)) 1:1 매핑으로 처리. 우리 slide 진입 fix 의 fixed -1m push 와
-                    //   gap-변동 식 충돌 방지.
+                    //   move(0,-1,0) (= entity.y -1m). dim eye=1.62 active + mixin offset bb +1m up →
+                    //   bb feet = entity.y + 1m = ground.
+                    //   remote side: SM state packet arrival → isSliding=true + calc dim up to (above L82-L84)
+                    //     already done. but self's entity.y -1m arrives before server broadcast (1 tick lag)
+                    //     → remote.y = old self.y (= self ground) → bb feet = remote.y + 1m = self ground
+                    //     + 1m = **1 block airborne BUG**.
+                    //   Solution: immediate setPos(y-1) in packet processing lambda → entity.y -= 1m → bb feet = (remote.y
+                    //     -1) + 1m = self ground match. sync lastRenderY/prevY — block vanilla lerp jump.
+                    //   BUG-7 ICC EXIT v25.3 sign inversion (+1 → -1) pattern.
+                    // 🔴 (BUG D fix, 2026-05-13) Add !wasFlying guard.
+                    //   On direct flying → slide transition, *flying exit branch* handles as self side standupIfPossible branch 3
+                    //   (= move(0, -gap, 0)) 1:1 mapping. prevent conflict between our slide entry fix's fixed -1m push and
+                    //   gap-change formula.
                     if (!wasSliding && target.isSliding && !wasFlying
                             && entity instanceof AbstractClientPlayer remoteSlideEnter
                             && !(entity instanceof LocalPlayer)) {
                         SmartMovingLivingEntityAccess accE =
                                 (SmartMovingLivingEntityAccess)(Object) remoteSlideEnter;
-                        // 🔴 fix #93 (2026-05-13, dump 검증 — 사용자 보고 "여우무빙 → 슬라이딩 동시 진입 시 잠깐 잠김"):
-                        //   기존 newY = remoteSlideEnter.getY() - 1.0:
-                        //     진입 직전 client.y 가 *헤드점프 진행 중 server.y broadcast lag* 로 잠긴
-                        //     상태 (= ground 위 -0.022m) 시 newY = 잠긴 위치 - 1m → setPos 후 bb 발 =
-                        //     ground 위 -0.022m (= 잠긴 상태 유지). 다음 broadcast 도착 후 vanilla lerp
-                        //     ~3 tick 회복. 사용자 시각 "조금 잠겼다 회복".
-                        //   해결: fix #92 패턴 차용. ground top 직접 측정 → newY = groundY - 1.
-                        //     정상 진입: groundY = ground → 동일 결과. 잠긴 진입: groundY = ground →
-                        //     ground 정렬. 회귀 X.
+                        // 🔴 fix #93 (2026-05-13, dump verification — user report "fox moving → simultaneous sliding entry gets briefly stuck"):
+                        //   Previous newY = remoteSlideEnter.getY() - 1.0:
+                        //     when client.y before entry is locked by *head jump in progress server.y broadcast lag*
+                        //     state (= -0.022m above ground) then newY = locked position - 1m → after setPos bb feet =
+                        //     -0.022m above ground (= remains locked). after next broadcast vanilla lerp
+                        //     recovers in ~3 tick. user visual "briefly stuck then recovers".
+                        //   Solution: adopt fix #92 pattern. directly measure ground top → newY = groundY - 1.
+                        //     Normal entry: groundY = ground → same result. Locked entry: groundY = ground →
+                        //     align to ground. no regression.
                         double bbMinBefore93 = remoteSlideEnter.getBoundingBox().minY;
                         double groundY93 = choco.ratel.smartmoving.client.SmartMovingClientState
                                 .getMaxPlayerSolidBetween(remoteSlideEnter, bbMinBefore93 - 1.5, bbMinBefore93 + 0.5, 0);
@@ -326,41 +326,41 @@ public class SmartMovingClient implements ClientModInitializer {
                         remoteSlideEnter.setPos(remoteSlideEnter.getX(), newY, remoteSlideEnter.getZ());
                         remoteSlideEnter.yOld = newY;
                         remoteSlideEnter.yo = newY;
-                        // 🔴 lerp cancel — vanilla OtherClientPlayerEntity.lerpPosAndRotation 이
-                        //   srvY (= 직전 broadcast standing y) 로 entity.y 끌고 감 → 우리 setPos 무효화.
-                        //   BUG-7 v25.3 패턴: srvY = newY + bti = 0 → 다음 broadcast 도착 전까지 lerp 차단.
+                        // 🔴 lerp cancel — vanilla OtherClientPlayerEntity.lerpPosAndRotation drags
+                        //   entity.y with srvY (= previous broadcast standing y) → invalidates our setPos.
+                        //   BUG-7 v25.3 pattern: srvY = newY + bti = 0 → block lerp until next broadcast arrives.
                         accE.sm_setServerY(newY);
                         accE.sm_setBodyTrackingIncrements(0);
                     }
 
-                    // 🔴 (Phase 2 multi BUG-15, 2026-05-13) remote 슬라이딩 종료 — self fix #62 v2 + #70 1:1.
-                    //   self side L2337-L2360: predictive drop 검사 후 setPos(y+1) + lastRenderY/prevY +=1.
-                    //   remote 측: SM state packet 도착 → isSliding=false + calc dim 까지 (위 L82-L84)
-                    //     이미 완료 → mixin offset 차단 → bb 발 = remote.y. self 의 entity.y +1m push 가
-                    //     server broadcast 도착 전 (1 tick lag) → remote.y = old self.y (= self ground - 1m)
-                    //     → bb 발 = self ground - 1m = **땅속 1m BUG**.
-                    //   해결: slideBoxMinYBefore (= calc dim 전, mixin offset 활성 시점 bb) 와 newY (=
-                    //     calc dim 후 entity.y) 차이로 willDrop 검사 → drop > 0.5m 시 setPos(y+1).
-                    //   회귀 차단: 비행 → 슬라이딩 종료 (fix #87) 등 slideBoxMinYBefore ≈ remote.y 케이스
-                    //     (= mixin offset 이미 차단) → willDrop=false → push 안 함.
-                    // 🔵 fix #100 (2026-05-20, 사용자 보고 "슬라이딩 → 절벽 → 헤드점프 자동 전환 시 REMOTE
-                    //   1칸 위 잠깐 올라갔다 정상 복귀"):
-                    //   진짜 path: SmartMovingClientState L2309-L2315 의 SlideToHeadJumping 자동 전환.
-                    //     = `isSliding=false; isHeadJumping=true; isAerodynamic=true` 비트만 set.
-                    //     self side entity.y push 없음 (= L2389 push 가드 `!isHeadJumping` 매치 X).
-                    //     POSE 측 line 126-127 `isHJ || isSL → SLIDING` → POSE=SLIDING 유지 → mixin offset
-                    //     활성 유지 (MixinEntity L122 가드 `pose!=SLIDING` 매치 X) → bb=entity.y+1 유지.
-                    //     = self 시각 무변화.
-                    //   remote 측 본 분기: wasSliding=true && target.isSliding=false 매치.
-                    //     slideBoxMinYBefore = remote.y+1 (calc dim 전 mixin 활성),
-                    //     newY = remote.y (calc dim 후 entity.y, mixin offset 여전 활성).
+                    // 🔴 (Phase 2 multi BUG-15, 2026-05-13) remote sliding exit — 1:1 with self fix #62 v2 + #70.
+                    //   self side L2337-L2360: after predictive drop check setPos(y+1) + lastRenderY/prevY +=1.
+                    //   remote side: SM state packet arrival → isSliding=false + calc dim up to (above L82-L84)
+                    //     already done → mixin offset blocked → bb feet = remote.y. self's entity.y +1m push arrives
+                    //     before server broadcast (1 tick lag) → remote.y = old self.y (= self ground - 1m)
+                    //     → bb feet = self ground - 1m = **1m underground BUG**.
+                    //   Solution: check willDrop via difference between slideBoxMinYBefore (= bb before calc dim, when mixin offset active)
+                    //     and newY (= entity.y after calc dim) → if drop > 0.5m do setPos(y+1).
+                    //   regression prevention: flying → sliding exit (fix #87) etc where slideBoxMinYBefore ≈ remote.y cases
+                    //     (= mixin offset already blocked) → willDrop=false → no push.
+                    // 🔵 fix #100 (2026-05-20, user report "sliding → cliff → head jump auto-transition REMOTE
+                    //   briefly rises 1 block then returns to normal"):
+                    //   Real path: SlideToHeadJumping auto-transition in SmartMovingClientState L2309-L2315.
+                    //     = only set bits `isSliding=false; isHeadJumping=true; isAerodynamic=true`.
+                    //     self side no entity.y push (= L2389 push guard `!isHeadJumping` no match).
+                    //     POSE side line 126-127 `isHJ || isSL → SLIDING` → keep POSE=SLIDING → mixin offset
+                    //     remains active (MixinEntity L122 guard `pose!=SLIDING` no match) → keep bb=entity.y+1.
+                    //     = no visual change on self side.
+                    //   remote side this branch: match wasSliding=true && target.isSliding=false.
+                    //     slideBoxMinYBefore = remote.y+1 (mixin active before calc dim),
+                    //     newY = remote.y (entity.y after calc dim, mixin offset still active).
                     //     willDrop = (remote.y+1 - remote.y) > 0.5 = **false positive true**.
-                    //     → setPos(remote.y+1) + lerp cancel → POSE=SLIDING 유지로 mixin offset 활성 →
-                    //     bb=(remote.y+1)+1=ground+2m → "1칸 위 부유" 시각. 다음 broadcast srvY=self.y
-                    //     도착 시 lerp 재개 → -1m down → 정상 위치 복귀.
-                    //   해결: 가드 `!target.isHeadJumping` 추가 — self side L2389 `!isHeadJumping` 가드 1:1
-                    //     매칭. slide → HJ 자동 전환 시 push 차단. 다른 slide-exit 케이스 (crawl/standing/
-                    //     비행) 는 isHJ=false 라 통과 → 기존 동작 유지.
+                    //     → setPos(remote.y+1) + lerp cancel → keep POSE=SLIDING so mixin offset active →
+                    //     bb=(remote.y+1)+1=ground+2m → "1 block above floating" visual. next broadcast srvY=self.y
+                    //     arrival resumes lerp → -1m down → returns to normal position.
+                    //   Solution: add guard `!target.isHeadJumping` — 1:1 matching self side L2389 `!isHeadJumping` guard.
+                    //     block push on slide → HJ auto-transition. other slide-exit cases (crawl/standing/
+                    //     flying) have isHJ=false so pass → maintain existing behavior.
                     if (wasSliding && !target.isSliding && !target.isHeadJumping
                             && entity instanceof AbstractClientPlayer remoteSlideExit
                             && !(entity instanceof LocalPlayer)) {
@@ -430,27 +430,27 @@ public class SmartMovingClient implements ClientModInitializer {
                         accHJCr.sm_setBodyTrackingIncrements(0);
                     }
                     // 🔵 fix #154 (2026-05-22) — swim/dive → crawl direct transition remote sink fix.
-                    //   사용자 보고: "swim → 1칸 공간 진입 자동 crawl 순간 remote 시 상대가 잠깐 땅으로 들어갔다 올라옴".
+                    //   User report: "swim → enter 1 block space auto crawl momentary remote opponent briefly enters ground then rises".
                     //
-                    //   진짜 path:
-                    //   - self side: fix #150 fromSwimmingOrDiving 분기 1 → setPos(y+1) + isCrawling=true.
-                    //     self.y c2s = ground. server.y = ground (= c2s movement packet 자동 동기화).
-                    //   - server side: fix #150 calculateDimensions 만 호출 (= mirror push 없음, self setPos 가
-                    //     c2s 로 server 동기화). broadcast srvY = ground.
-                    //   - remote side: 진입 시점 remote.y = ground - 1 (= 이전 swim broadcast srvY 의 lerp 결과).
-                    //     CR dim → mixin offset 차단 → 박스 발 = remote.y = ground - 1 → 잠긴 visual.
-                    //     vanilla lerp 가 srvY=ground 추격 → ~3 tick 도달.
+                    //   Real path:
+                    //   - self side: fix #150 fromSwimmingOrDiving branch 1 → setPos(y+1) + isCrawling=true.
+                    //     self.y c2s = ground. server.y = ground (= c2s movement packet auto-sync).
+                    //   - server side: fix #150 only calls calculateDimensions (= no mirror push, self setPos syncs
+                    //     server via c2s). broadcast srvY = ground.
+                    //   - remote side: entry time remote.y = ground - 1 (= lerp result of previous swim broadcast srvY).
+                    //     CR dim → mixin offset blocked → box feet = remote.y = ground - 1 → stuck visual.
+                    //     vanilla lerp chases srvY=ground → reaches in ~3 tick.
                     //
-                    //   메모리: [project_remote_landing_sink_pattern] fix #92/#93 패턴 (= groundY 직접 측정).
-                    //   [feedback_remote_setpos_newY_srvY_plus_1]: server side mirror push 없으면 groundY-1 식.
+                    //   Memory: [project_remote_landing_sink_pattern] fix #92/#93 pattern (= directly measure groundY).
+                    //   [feedback_remote_setpos_newY_srvY_plus_1]: no mirror push on server side = groundY-1 formula.
                     //
-                    //   fix: remote packet lambda 안 setPos(groundY-1) + lerp cancel. fix #92 패턴 1:1.
-                    //   newY = groundY - 1 (= self.y 와 동기, mixin offset 차단 후 박스 발 = entity.y = ground).
+                    //   fix: setPos(groundY-1) + lerp cancel in remote packet lambda. 1:1 with fix #92 pattern.
+                    //   newY = groundY - 1 (= sync with self.y, after mixin offset blocked box feet = entity.y = ground).
                     // 🔵 fix #154 v4 (2026-05-22): multi-step transition history flag.
-                    //   log 실측: server side broadcast 가 dv 변경 vs cr 변경 별도 2 packet. REMOTE 측
-                    //   lambda 매 호출 was[dv=true]→cur[dv=false cr=false] (= dv 종료) +
-                    //   was[dv=false]→cur[dv=false cr=true] (= cr 진입) 2 step. single-transition 가드 매치 X.
-                    //   해결: swim/dive 종료 detection 시 flag set + crawl 진입 detection 시 flag 5 tick 안 검사.
+                    //   Log measurement: server side broadcast separate 2 packets for dv change vs cr change. REMOTE side
+                    //   lambda each call was[dv=true]→cur[dv=false cr=false] (= dv exit) +
+                    //   was[dv=false]→cur[dv=false cr=true] (= cr entry) 2 steps. single-transition guard no match.
+                    //   Solution: set flag on swim/dive exit detection + check flag within 5 ticks on crawl entry detection.
                     boolean _swimEndedFix154 = (wasSwim_fix154 || wasDive_fix154)
                             && !target.isSwimming_sm && !target.isDiving;
                     if (_swimEndedFix154 && entity instanceof AbstractClientPlayer _rememF154
@@ -470,12 +470,12 @@ public class SmartMovingClient implements ClientModInitializer {
                             && !target.isAngleJumping() && !target.isRopeSliding
                             && entity instanceof AbstractClientPlayer remoteSwCr
                             && !(entity instanceof LocalPlayer)) {
-                        // 🔵 (2026-05-22 fix #154 v3) fix #99 v4 패턴 1:1 — newY = srvY + 1.
-                        //   이전 v2 (groundY 직접 측정) 식: getMaxPlayerSolidBetween 의 clamp 가 잠긴 시
-                        //     ground top 매치 X (= yMax 작음). v2 식 정상 위치 시도 ceiling 매치 (= yMax 큼).
-                        //   해결: fix #99 v4 식 차용 — newY = srvY + 1. server side fix #153 v2 mirror push
-                        //     적용 → server.y = self.y = ground. broadcast S2C state 시점 srvY prev = ground-1
-                        //     (= 이전 broadcast 잔존). newY = prev srvY + 1 = ground = self.y. REMOTE.y 정렬.
+                        // 🔵 (2026-05-22 fix #154 v3) 1:1 with fix #99 v4 pattern — newY = srvY + 1.
+                        //   Previous v2 (directly measure groundY) formula: getMaxPlayerSolidBetween clamp when locked
+                        //     no ground top match (= yMax small). v2 formula at normal position tries ceiling match (= yMax large).
+                        //   Solution: adopt fix #99 v4 formula — newY = srvY + 1. server side fix #153 v2 mirror push
+                        //     applied → server.y = self.y = ground. broadcast S2C state time srvY prev = ground-1
+                        //     (= previous broadcast remains). newY = prev srvY + 1 = ground = self.y. align REMOTE.y.
                         //   [project_remote_hjcr_direct_transition_fix] / [feedback_remote_setpos_newY_srvY_plus_1].
                         SmartMovingLivingEntityAccess accSwCr =
                                 (SmartMovingLivingEntityAccess)(Object) remoteSwCr;
@@ -485,7 +485,7 @@ public class SmartMovingClient implements ClientModInitializer {
                         remoteSwCr.yo = newYSwCr;
                         accSwCr.sm_setServerY(newYSwCr);
                         accSwCr.sm_setBodyTrackingIncrements(0);
-                        target.smRecentSwimDiveEndTick = -9999;  // 1회 한정 clear.
+                        target.smRecentSwimDiveEndTick = -9999;  // Clear once only.
                     }
                     if (wasHJ && !target.isHeadJumping
                             && !target.isSliding && !target.isCrawling
@@ -494,123 +494,123 @@ public class SmartMovingClient implements ClientModInitializer {
                         SmartMovingLivingEntityAccess accH =
                                 (SmartMovingLivingEntityAccess)(Object) remoteHJ;
                         double bbMin = remoteHJ.getBoundingBox().minY;
-                        // 🔴 fix #92 (2026-05-13, dump 검증 — 사용자 보고 "가끔 잠깐 잠겼다 회복"):
-                        //   기존 yMax = bbMin - 0.01: 잠긴 상태 (= bbMin < ground top) 진입 시 검색 범위
-                        //   ground top 매치 X → groundY = bbMin - 0.01 (= 잠긴 위치 그대로).
-                        //   가드 |newY - curY| > 0.05 매치 X (얕은 잠김 0.010m) → setPos 적용 X →
-                        //   srvY = 잠긴 위치 + bti=0 lerp cancel → client.y 잠긴 채 유지 → 다음 broadcast
-                        //   (= srvY=ground top) 도착 시 vanilla lerp ~3 tick 회복.
-                        //   fix: yMax = bbMin + 0.5 (= 위쪽 0.5m 확장) → 잠긴 상태도 ground top 매치 →
-                        //   groundY 정확. 천장 (= bbMin+1.0 부근) 매치 X (= 1칸 공간 안전).
-                        //   + 가드 0.005m 완화 → 얕은 잠김 (= 0.010m) 도 setPos 적용.
+                        // 🔴 fix #92 (2026-05-13, dump verification — user report "sometimes briefly stuck then recovers"):
+                        //   Previous yMax = bbMin - 0.01: on locked state (= bbMin < ground top) search range
+                        //   no ground top match → groundY = bbMin - 0.01 (= remains locked position).
+                        //   Guard |newY - curY| > 0.05 no match (shallow lock 0.010m) → setPos not applied →
+                        //   srvY = locked position + bti=0 lerp cancel → client.y remains locked → on next broadcast
+                        //   (= srvY=ground top) arrival vanilla lerp recovers in ~3 tick.
+                        //   fix: yMax = bbMin + 0.5 (= extend 0.5m upward) → locked state also matches ground top →
+                        //   groundY accurate. ceiling (= near bbMin+1.0) no match (= 1 block space safe).
+                        //   + relax guard to 0.005m → shallow lock (= 0.010m) also gets setPos applied.
                         double groundY = choco.ratel.smartmoving.client.SmartMovingClientState
                                 .getMaxPlayerSolidBetween(remoteHJ, bbMin - 1.5, bbMin + 0.5, 0);
-                        // 🔵 (2026-05-14, fix #98 v3 — prevY 사용): client tick 순서 분석 결과.
+                        // 🔵 (2026-05-14, fix #98 v3 — use prevY): result of client tick order analysis.
                         //   1) networkHandler.tick → packet callback queue
-                        //   2) world.tick → entity.tick → lerpPosAndRotation (= REMOTE.y 1-step 진행)
-                        //   3) processTasks → packet 처리 (= 본 분기)
+                        //   2) world.tick → entity.tick → lerpPosAndRotation (= REMOTE.y 1-step progress)
+                        //   3) processTasks → packet processing (= this branch)
                         //   4) render
-                        //   = packet 처리 시점 remoteHJ.getY() 가 이미 lerp 진행 후 (= ground 도달).
-                        //   → hold 조건 (curY > groundY+0.005) 미매치 → cycle 2-9 fix 효과 X.
-                        //   해결: prevY (= 이전 frame y, lerp 진행 전) 사용. EXIT 직전 frame 의 공중
-                        //     위치 정확 검출. lastRenderY 와 prevY 둘 다 같은 값 (= resetPosition 직후).
+                        //   = at packet processing time remoteHJ.getY() already progressed through lerp (= reached ground).
+                        //   → hold condition (curY > groundY+0.005) no match → cycle 2-9 fix has no effect.
+                        //   Solution: use prevY (= previous frame y, before lerp progress). precisely detect
+                        //     airborne position right before EXIT. lastRenderY and prevY both same value (= right after resetPosition).
                         double curY = remoteHJ.yo;
-                        double diff = curY - groundY;  // 양수 = 공중, 음수 = 잠긴
-                        // 🔵 (2026-05-14, fix #98 위치 기반) fix #92 가드 분리 — 잠긴 vs 공중.
-                        //   잠긴 상태 (= curY < groundY - 0.005): 기존 fix #92 — setPos + lerp cancel.
-                        //   공중 상태 (= curY > groundY + 0.005): 사용자 보고 3번 BUG cause. setPos 안 함
-                        //     (= REMOTE.y 가 자체 vanilla lerp 으로 자연 ground 도달). 그 사이 자세 visual
-                        //     hold flag set + groundY 저장. setupTransforms X/Y 회전 분기 가드에 OR 로
-                        //     추가됨 → 자세 유지. sm_tickStatsForRemote TAIL 의 위치 비교 (= REMOTE.y <=
-                        //     groundY+0.005) 시 hold 해제. tick timeout 아님 (= 사용자 원칙 일치).
+                        double diff = curY - groundY;  // positive = airborne, negative = locked
+                        // 🔵 (2026-05-14, fix #98 position-based) separate fix #92 guard — locked vs airborne.
+                        //   Locked state (= curY < groundY - 0.005): existing fix #92 — setPos + lerp cancel.
+                        //   Airborne state (= curY > groundY + 0.005): user reported 3 times BUG cause. no setPos
+                        //     (= REMOTE.y reaches ground naturally via own vanilla lerp). meanwhile pose visual
+                        //     hold flag set + groundY saved. setupTransforms X/Y rotation branch guard adds with OR
+                        //     → maintain pose. sm_tickStatsForRemote TAIL position comparison (= REMOTE.y <=
+                        //     groundY+0.005) releases hold. not tick timeout (= user principle match).
                         if (diff < -0.005) {
-                            // 잠긴 상태 — 기존 fix #92.
+                            // Locked state — existing fix #92.
                             double newY = groundY;
                             remoteHJ.setPos(remoteHJ.getX(), newY, remoteHJ.getZ());
                             remoteHJ.yOld = newY;
                             remoteHJ.yo = newY;
-                            // 🔴 lerp cancel — BUG-7 v25.3 / BUG-15 / BUG B 동일 패턴.
+                            // 🔴 lerp cancel — same pattern as BUG-7 v25.3 / BUG-15 / BUG B.
                             accH.sm_setServerY(newY);
                             accH.sm_setBodyTrackingIncrements(0);
                         } else if (diff > 0.005) {
-                            // 🔵 (fix #98 v5) 공중 상태 — setPos(prevY) + 4-동기화 + lerp cancel + hold.
-                            //   dump 검증: srvY=71 (= self.y push 전 잔존) → REMOTE.y lerp 가 잠긴 위치
-                            //     추격 진행 → getY < groundY → 사용자 보고 "착지 시 잠김" cause.
-                            //   해결: setPos(curY=prevY) + lerp cancel 으로 REMOTE.y 가 공중 위치
-                            //     잔존. 다음 broadcast (= server.y=ground 도달) 도착 시 lerp 재개 →
-                            //     REMOTE.y → ground. 자세 hold 동안 잠긴 trajectory 차단.
-                            //   메모리 패턴: feedback_remote_setpos_lerp_cancel 4-동기화.
-                            double newY = curY;  // prevY = 공중 위치 잔존.
+                            // 🔵 (fix #98 v5) Airborne state — setPos(prevY) + 4-sync + lerp cancel + hold.
+                            //   Dump verification: srvY=71 (= remains before self.y push) → REMOTE.y lerp chases locked position
+                            //     → getY < groundY → user report "stuck on landing" cause.
+                            //   Solution: setPos(curY=prevY) + lerp cancel keeps REMOTE.y at airborne
+                            //     position. on next broadcast (= server.y=ground reached) arrival resumes lerp →
+                            //     REMOTE.y → ground. blocked locked trajectory during pose hold.
+                            //   Memory pattern: feedback_remote_setpos_lerp_cancel 4-sync.
+                            double newY = curY;  // prevY = remains airborne position.
                             remoteHJ.setPos(remoteHJ.getX(), newY, remoteHJ.getZ());
                             remoteHJ.yOld = newY;
                             remoteHJ.yo = newY;
                             accH.sm_setServerY(newY);
                             accH.sm_setBodyTrackingIncrements(0);
-                            // 자세 visual hold flag set.
+                            // Set pose visual hold flag.
                             target.smRemoteHJVisualHold = true;
                             target.smRemoteHJExitGroundY = groundY;
                         }
                     }
 
-                    // 🔴 (BUG D fix, 2026-05-13) remote 비행 종료 — self side standupIfPossible 1:1 매핑.
-                    //   self side `standupIfPossible(player, tryLanding=true, restoreFromFlying)` 의
-                    //   3 분기를 *결과 비트* (target.isSliding/isCrawling) + *gap 측정* 으로 추정 + 각
-                    //   분기별 entity.y 변화 식 1:1 적용:
-                    //     - 분기 1 (resetHeightOffset, gap>=1 && !sneak): entity.y 변경 X. lerp cancel 만.
-                    //     - 분기 2 (standUp, gap<1): entity.y += (1 - gap).
-                    //     - 분기 3 (toSlidingOrCrawling, sneak+grab): entity.y -= gap. 결과 isSliding/
-                    //       isCrawling=true → packet 으로 식별.
+                    // 🔴 (BUG D fix, 2026-05-13) remote flying exit — 1:1 mapping to self side standupIfPossible.
+                    //   Estimate 3 branches of self side `standupIfPossible(player, tryLanding=true, restoreFromFlying)` via
+                    //   *result bits* (target.isSliding/isCrawling) + *gap measurement* + apply each
+                    //   branch entity.y change formula 1:1:
+                    //     - Branch 1 (resetHeightOffset, gap>=1 && !sneak): no entity.y change. lerp cancel only.
+                    //     - Branch 2 (standUp, gap<1): entity.y += (1 - gap).
+                    //     - Branch 3 (toSlidingOrCrawling, sneak+grab): entity.y -= gap. result isSliding/
+                    //       isCrawling=true → identify via packet.
                     //
-                    //   메모리 feedback_self_to_server_remote_one_to_one — "self 코드 그대로 1:1 복제".
-                    //   메모리 feedback_packet_lambda_immediate_fix — "packet lambda 안 즉시 fix".
-                    //   기존 sm_handleRemoteFlyingExitYSync (= 매 tick HEAD inject, fixed +1m) 보다
-                    //   정확 — 분기별 정확한 entity.y 변화 식.
+                    //   Memory feedback_self_to_server_remote_one_to_one — "1:1 replication of self code as-is".
+                    //   Memory feedback_packet_lambda_immediate_fix — "immediate fix inside packet lambda".
+                    //   More accurate than existing sm_handleRemoteFlyingExitYSync (= per tick HEAD inject, fixed +1m) —
+                    //   exact entity.y change formula per branch.
                     //
-                    //   slide 진입 fix 와 충돌 방지: slide 진입 fix 에 !wasFlying 가드 추가 → 비행 →
-                    //   slide 케이스는 *이 분기 (= 분기 3)* 에서 -gap push.
-                    // 🔴 (BUG D fix, 2026-05-13) remote 비행 종료 — self side standupIfPossible 1:1 매핑.
-                    //   self side 의 3 분기 결과 비트 + srvY 기반 gap 측정으로 분기 추정 + 분기별
-                    //   entity.y 변화 식 1:1 적용.
+                    //   Avoid conflict with slide entry fix: add !wasFlying guard to slide entry fix → flying →
+                    //   slide case is *this branch (= branch 3)* with -gap push.
+                    // 🔴 (BUG D fix, 2026-05-13) remote flying exit — 1:1 mapping to self side standupIfPossible.
+                    //   Estimate branch via 3 branch result bits from self side + srvY-based gap measurement +
+                    //   apply entity.y change formula per branch 1:1.
                     //
-                    //   gap 측정: flyBoxMinYBefore (= lerp lag 잔존) 대신 srvY + 1.0 (= server 정확값) 사용.
-                    //   newY 식: groundY 직접 기반 (= self.y_final 매핑, gap 측정 부정확 영향 제거).
+                    //   Gap measurement: use srvY + 1.0 (= server accurate value) instead of flyBoxMinYBefore (= lerp lag remains).
+                    //   newY formula: directly based on groundY (= map to self.y_final, remove gap measurement inaccuracy effect).
                     //
-                    //   self side 식 유도 + dump 검증:
-                    //     - 분기 1 (resetHO, gap>=1 && !sneak): self.y 변화 X.
-                    //     - 분기 2 (standUp, gap<1): self.y_new = self.y + (1 - gap) = groundY.
-                    //     - 분기 3 (toSldOrCr, sneak+grab): self side `move(0, -gap, 0)` 가 vanilla
-                    //       collision 으로 self.y 변화 X (= dump delta=0). setPos 적용 시 remote.y
-                    //       (= vanilla lerp lag 잔존) ↔ self.y_self 1m 차이로 *visual jump* 발생.
-                    //       해결: 분기 3 setPos+lerp cancel 자체 제거 → vanilla 자체 lerp 자연 처리
-                    //       (= 매 tick 1/bti step 점진, ~15 tick 부드러운 transition).
+                    //   Derive self side formula + dump verification:
+                    //     - Branch 1 (resetHO, gap>=1 && !sneak): no self.y change.
+                    //     - Branch 2 (standUp, gap<1): self.y_new = self.y + (1 - gap) = groundY.
+                    //     - Branch 3 (toSldOrCr, sneak+grab): self side `move(0, -gap, 0)` no self.y change via vanilla
+                    //       collision (= dump delta=0). when setPos applied remote.y
+                    //       (= vanilla lerp lag remains) ↔ self.y_self 1m difference creates *visual jump*.
+                    //       Solution: remove branch 3 setPos+lerp cancel itself → vanilla lerp handles naturally
+                    //       (= per tick 1/bti step gradual, ~15 tick smooth transition).
                     if (wasFlying && !target.isFlying
                             && entity instanceof AbstractClientPlayer remoteFly
                             && !(entity instanceof LocalPlayer)) {
                         SmartMovingLivingEntityAccess accF =
                                 (SmartMovingLivingEntityAccess)(Object) remoteFly;
                         double srvY = accF.sm_getServerY();
-                        double srvBBMinY = srvY + 1.0;  // 비행 mixin offset 활성 = bb 발 = self.y + 1.
+                        double srvBBMinY = srvY + 1.0;  // Flying mixin offset active = bb feet = self.y + 1.
                         double groundY = choco.ratel.smartmoving.client.SmartMovingClientState
                                 .getMaxPlayerSolidBetween(remoteFly,
                                         srvBBMinY - 1.1, srvBBMinY + 0.5, 0);
                         double gap = srvBBMinY - groundY;
                         boolean groundClose = gap < 1.0;
 
-                        // 분기 결정:
-                        //   - 분기 2 (standing 착지): !crawl && !slide && groundClose → serverY=groundY,
-                        //     bti 보장 (>=3) → vanilla lerp 점진 진행. setPos 안 함 (= visual jump 차단).
-                        //   - 분기 3-A (자연 crawl, BUG E): isCrawling && groundClose → setPos(srvY+1.0)
-                        //     + lerp cancel. self side L3908 push +1m 매핑.
-                        //   - 분기 3-B (sneak+grab slide): isSliding → fix skip (BUG D: self.y 변화 X
-                        //     검증됨, vanilla lerp 자체 처리).
-                        //   - 분기 1 (gap>=1): groundClose=false → fix skip.
+                        // Branch decision:
+                        //   - Branch 2 (standing landing): !crawl && !slide && groundClose → serverY=groundY,
+                        //     guarantee bti (>=3) → vanilla lerp progresses gradually. no setPos (= block visual jump).
+                        //   - Branch 3-A (natural crawl, BUG E): isCrawling && groundClose → setPos(srvY+1.0)
+                        //     + lerp cancel. map self side L3908 push +1m.
+                        //   - Branch 3-B (sneak+grab slide): isSliding → skip fix (BUG D: verified no self.y change,
+                        //     vanilla lerp handles).
+                        //   - Branch 1 (gap>=1): groundClose=false → skip fix.
                         if (!target.isSliding && !target.isCrawling && groundClose) {
-                            // 🔴 BUG E 회귀 fix (2026-05-12): setPos+bti=0 = visual jump root.
-                            //   진입 frame remote.y 가 vanilla lerp 진행 중 (예: 71.254) 일 때
-                            //   setPos(groundY=71.000) + bti=0 = 즉시 0.254m visual jump down.
-                            //   해결: setPos/lastRenderY/prevY 변경 제거. serverY (= lerp target) 만
-                            //   newY 로 set + bti 유지 (0 이면 3 강제) → vanilla lerp 가 점진 진행 →
-                            //   잠수 차단 효과 유지 + visual jump 제거.
+                            // 🔴 BUG E regression fix (2026-05-12): setPos+bti=0 = visual jump root.
+                            //   When entry frame remote.y is mid vanilla lerp (e.g. 71.254)
+                            //   setPos(groundY=71.000) + bti=0 = immediate 0.254m visual jump down.
+                            //   Solution: remove setPos/lastRenderY/prevY changes. only set
+                            //   serverY (= lerp target) as newY + keep bti (force 3 if 0) → vanilla lerp progresses gradually →
+                            //   maintain sink prevention effect + remove visual jump.
                             double newY = groundY;
                             accF.sm_setServerY(newY);
                             int curBti = accF.sm_getBodyTrackingIncrements();
@@ -618,16 +618,16 @@ public class SmartMovingClient implements ClientModInitializer {
                                 accF.sm_setBodyTrackingIncrements(3);
                             }
                         } else if (target.isCrawling && !target.isSliding && groundClose) {
-                            // 🔴 BUG E fix (2026-05-12): 분기 3-A 자연 crawl push +1m 매핑.
-                            //   self side `SmartMovingClientState.standupIfPossible` L3908 가드 matches:
+                            // 🔴 BUG E fix (2026-05-12): Branch 3-A natural crawl push +1m mapping.
+                            //   self side `SmartMovingClientState.standupIfPossible` L3908 guard matches:
                             //     `wasSmallBox && isCrawling && wasFlying` → setPos(y + 1.0).
-                            //   self.y_final = srvY + 1.0. 여기서 srvY 는 server 가 곧 broadcast 할 정확값
-                            //   (= 비행 종료 직전 broadcast). self side 의 c2s packet 이 server 에 도달 +
-                            //   server broadcast → ~1 tick 후 vanilla srvY 갱신 = 71.
-                            //   해결: remote 측에서 *지금 즉시* setPos(srvY+1) + lerp cancel.
+                            //   self.y_final = srvY + 1.0. here srvY is accurate value server about to broadcast
+                            //   (= right before flying exit broadcast). self side c2s packet reaches server +
+                            //   server broadcast → vanilla srvY updates after ~1 tick = 71.
+                            //   Solution: on remote side *immediately now* setPos(srvY+1) + lerp cancel.
                             //
-                            //   기존 BUG D fix 가 "분기 3 = self.y 변화 X = fix skip" 으로 가정한 오역
-                            //   정정 — sneak+grab slide 케이스 만 self.y 변화 X. 자연 crawl 케이스는 +1m.
+                            //   Correct misinterpretation: existing BUG D fix assumed "branch 3 = no self.y change = skip fix" —
+                            //   only sneak+grab slide case has no self.y change. natural crawl case has +1m.
                             double newY = srvY + 1.0;
                             if (newY != remoteFly.getY()) {
                                 remoteFly.setPos(remoteFly.getX(), newY, remoteFly.getZ());
@@ -637,17 +637,17 @@ public class SmartMovingClient implements ClientModInitializer {
                             accF.sm_setServerY(newY);
                             accF.sm_setBodyTrackingIncrements(0);
                         }
-                        // 분기 1 (gap>=1) / 분기 3-B (sneak+grab slide) — fix skip, vanilla lerp 자체 처리.
+                        // Branch 1 (gap>=1) / Branch 3-B (sneak+grab slide) — skip fix, vanilla lerp handles.
                     }
                 });
             });
 
-        // 🔵 Stats: self → server → REMOTE 매 tick stats angle 동기화 (2026-05-14, Option F fix #97).
-        //   원인: vanilla lerpPosAndRotation 가 REMOTE 의 위치를 5-tick 균등 분할 보간 → realDxYz
-        //     평탄화 + spike → atan2 결과 thetaT 가 self trajectory 와 다른 흐름 → lerpFadeAngle
-        //     0.2 lerp 가 peak 추격 시간 부족 → 헤드점프 마지막 머리 회전 부족.
-        //   적용: packet 도착 시 sm.smRemoteStatsVerticalAngle/HorizontalAngle_fromPacket set.
-        //     sm_tickStatsForRemote TAIL 에서 자체 stats.calculate 결과를 packet 값으로 덮어쓰기.
+        // 🔵 Stats: self → server → REMOTE per tick stats angle sync (2026-05-14, Option F fix #97).
+        //   Cause: vanilla lerpPosAndRotation interpolates REMOTE position over 5-tick equal division → realDxYz
+        //     flattening + spike → atan2 result thetaT flows differently from self trajectory → lerpFadeAngle
+        //     0.2 lerp insufficient time to chase peak → insufficient head rotation at end of head jump.
+        //   Application: set sm.smRemoteStatsVerticalAngle/HorizontalAngle_fromPacket on packet arrival.
+        //     Override own stats.calculate result with packet value in sm_tickStatsForRemote TAIL.
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.StatsPayload.ID,
             (payload, context) -> {
                 Minecraft client = context.client();
@@ -656,30 +656,30 @@ public class SmartMovingClient implements ClientModInitializer {
                     if (world == null) return;
                     Entity entity = world.getEntity(payload.entityId());
                     if (!(entity instanceof AbstractClientPlayer ap)) return;
-                    if (ap == client.player) return;  // 안전 가드 — server 가 self 제외 broadcast.
+                    if (ap == client.player) return;  // Safety guard — server broadcasts excluding self.
                     SmartMovingClientState target = SmartMovingClientState.get(ap);
                     target.smRemoteStatsVerticalAngle_fromPacket = payload.verticalAngle();
                     target.smRemoteStatsHorizontalAngle_fromPacket = payload.horizontalAngle();
-                    // 🔵 (2026-05-14 fix #97-v2): packet 도착 시 sm.stats 직접 즉시 set.
-                    //   원인: vanilla MinecraftClient.tick 순서 →
+                    // 🔵 (2026-05-14 fix #97-v2): set sm.stats directly immediately on packet arrival.
+                    //   Cause: vanilla MinecraftClient.tick order →
                     //     1) networkHandler.tick (= packet callback + client.execute queue)
-                    //     2) world.tick → entity.tick → sm_tickStatsForRemote → stats.calculate + 덮어쓰기
-                    //     3) processTasks → client.execute lambda 실행 → fromPacket set
+                    //     2) world.tick → entity.tick → sm_tickStatsForRemote → stats.calculate + override
+                    //     3) processTasks → client.execute lambda run → fromPacket set
                     //     4) render → setupTransforms
-                    //   = 진입 tick 에 sm_tickStatsForRemote 시점 fromPacket=NaN → 덮어쓰기 skip →
-                    //     stats.currentVerticalAngle = atan2(realDy=0, ...) = 0 잔존 →
-                    //     setupTransforms 시 target=π/2 (= 90° 즉시 점프) → 사용자 보고 "진입 끊김".
-                    //   fix: packet receive lambda 안 (= processTasks 안) 에서 stats 도 즉시 set.
-                    //     다음 entity.tick 시 sm_tickStatsForRemote 가 stats.calculate (= 0 set) 후
-                    //     덮어쓰기 (= packet 값) → 같은 결과. 진입 frame 만큼 1 tick stale 차단.
+                    //   = on entry tick at sm_tickStatsForRemote time fromPacket=NaN → skip override →
+                    //     stats.currentVerticalAngle = atan2(realDy=0, ...) = 0 remains →
+                    //     at setupTransforms target=π/2 (= 90° immediate jump) → user report "entry disconnect".
+                    //   fix: also immediately set stats inside packet receive lambda (= inside processTasks).
+                    //     next entity.tick sm_tickStatsForRemote calls stats.calculate (= set 0) then
+                    //     override (= packet value) → same result. block 1 tick stale for entry frame.
                     target.stats.currentVerticalAngle = payload.verticalAngle();
                     target.stats.currentHorizontalAngle = payload.horizontalAngle();
                     target.stats.prevHorizontalAngle = payload.horizontalAngle();
                 });
             });
 
-        // ConfigContent: 서버 설정 수신 → Config 전환 (C-11)
-        // 원본: SmartMovingComm.processConfigContentPacket(content, username, blockCode=false)
+        // ConfigContent: Receive server config → switch Config (C-11)
+        // Original: SmartMovingComm.processConfigContentPacket(content, username, blockCode=false)
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.ConfigContentPayload.ID,
             (payload, context) -> {
                 String[] lines = payload.lines();
@@ -687,9 +687,9 @@ public class SmartMovingClient implements ClientModInitializer {
                 client.execute(() -> processConfigContentPacket(lines));
             });
 
-        // ConfigChange: 서버가 "설정 변경 권한 없음"을 알림 (C-12)
-        // 원본: SmartMovingOptions.writeNoRightsToChangeConfigMessageToChat(isConnectedToRemoteServer())
-        // A-26: 원문 확인 — remote/local 구분 메시지 (en_us.json smartmoving.message.config.illegal.*)
+        // ConfigChange: Server notifies "no permission to change config" (C-12)
+        // Original: SmartMovingOptions.writeNoRightsToChangeConfigMessageToChat(isConnectedToRemoteServer())
+        // A-26: Verify original — remote/local differentiated message (en_us.json smartmoving.message.config.illegal.*)
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.ConfigChangePayload.ID,
             (payload, context) -> {
                 Minecraft client = context.client();
@@ -702,9 +702,9 @@ public class SmartMovingClient implements ClientModInitializer {
                 });
             });
 
-        // SpeedChange: 서버에서 속도 변경 동기화 (C-12)
-        // 원본: difference==0 → 권한없음, !=0 → Config.changeSpeed(difference) + writeClientSpeedMessageToChat
-        // A-26: 권한없음 메시지 원문 확인 (en_us.json smartmoving.message.speed.illegal.*)
+        // SpeedChange: Sync speed change from server (C-12)
+        // Original: difference==0 → no permission, !=0 → Config.changeSpeed(difference) + writeClientSpeedMessageToChat
+        // A-26: Verify no-permission message (en_us.json smartmoving.message.speed.illegal.*)
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.SpeedChangePayload.ID,
             (payload, context) -> {
                 Minecraft client = context.client();
@@ -712,8 +712,8 @@ public class SmartMovingClient implements ClientModInitializer {
                 if (difference != 0) {
                     client.execute(() -> {
                         SmartMovingConfig.Config.changeSpeed(difference);
-                        // IMPL-05: 속도 변경 채팅 피드백 (원본: writeClientSpeedMessageToChat)
-                        // 100% = 기본값("reset"), 그 외 = 변경된 값("change")
+                        // IMPL-05: Speed change chat feedback (original: writeClientSpeedMessageToChat)
+                        // 100% = default ("reset"), otherwise = changed value ("change")
                         String percent = SmartMovingConfig.Config.getSpeedPercent();
                         String msgKey = "100".equals(percent)
                             ? "smartmoving.message.speed.client.reset"
@@ -733,78 +733,78 @@ public class SmartMovingClient implements ClientModInitializer {
             });
     }
 
-    // 원본: SmartMovingComm.isConnectedToRemoteServer() — MinecraftServer.getServer()==null 등 3조건
-    // 1.21.1: client.getServer()가 null이면 원격 서버 (통합 서버 없음)
+    // Original: SmartMovingComm.isConnectedToRemoteServer() — 3 conditions like MinecraftServer.getServer()==null
+    // 1.21.1: if client.getServer() is null, it's remote server (no integrated server)
     private static boolean isRemoteServer(Minecraft client) {
         return client.getSingleplayerServer() == null;
     }
 
     // ── 13-1/13-2: processConfigContentPacket ────────────────────────────────
     //
-    // 원본: SmartMovingComm.processConfigContentPacket / processConfigPacket (SmartMovingComm.md 확인)
-    // config_system.md 2-4 / 3-4 기반.
+    // Original: SmartMovingComm.processConfigContentPacket / processConfigPacket (check SmartMovingComm.md)
+    // Based on config_system.md 2-4 / 3-4.
     //
-    // content 값별 처리:
-    //   null         → SM 완전 비활성. Config = INSTANCE 유지.
-    //   length == 0  → 서버 설정 없음, 클라이언트에 위임. Config = INSTANCE.
+    // Processing by content value:
+    //   null         → SM completely disabled. Config = INSTANCE maintained.
+    //   length == 0  → no server config, delegated to client. Config = INSTANCE.
     //   length > 0   → SERVER_CONFIG.loadFromArray(content) → Config = SERVER_CONFIG.
     //
-    // 첫 수신(first=true) 시: sendConfigInfo 패킷 전송 (원본: SmartMovingConfig._sm_current = "3.2")
-    // 주의: 서버 연결 해제 시 Config 복원은 registerConnectionEvents() DISCONNECT에서 처리.
-    // A-26: 메시지 문자열 원본 확인 완료. 키 → en_us.json smartmoving.message.config.server.*
+    // On first receipt (first=true): send sendConfigInfo packet (original: SmartMovingConfig._sm_current = "3.2")
+    // Note: Config restoration on server disconnect handled in registerConnectionEvents() DISCONNECT.
+    // A-26: Verified message strings. keys → en_us.json smartmoving.message.config.server.*
     private static void processConfigContentPacket(String[] content) {
-        // 🔴 (2026-05-05 사용자 요청 — "config 는 자기 자체 toggle. 다른 player 무영향"):
-        //   원본은 server admin 의 명시 활성 시만 broadcast 의도. 우리 server 매핑이
-        //   무조건 broadcast → 모든 client Config 변경 → 모든 SM disabled BUG.
-        //   해결: Config 자체 변경 제거. server-broadcast 무시 — 모든 client 자기 INSTANCE
-        //   사용. 자기 disabled = 자기 SM state 갱신 안 함 → packet 송신 안 함 → 다른
-        //   client 측에서 자기 vanilla 표시 (= 정확).
-        //   SERVER_CONFIG 자체 갱신은 server-side 옵션 (= block-code 등) 이 사용 가능하도록
-        //   유지. 그러나 client Config 는 INSTANCE 그대로.
+        // 🔴 (2026-05-05 user request — "config is own toggle. unaffected by other players"):
+        //   Original intends broadcast only when explicitly enabled by server admin. our server mapping
+        //   unconditionally broadcasts → all clients config changes → all SM disabled BUG.
+        //   Solution: remove Config change itself. ignore server-broadcast — all clients use own INSTANCE.
+        //   own disabled = don't update own SM state → don't send packets → other
+        //   clients see own as vanilla (= correct).
+        //   Keep SERVER_CONFIG itself updated for server-side options (= block-code etc) to be usable.
+        //   But client Config remains INSTANCE as-is.
         Minecraft client = Minecraft.getInstance();
         if (content == null || content.length == 0) {
-            // 메시지만 (= 원본 message). Config 변경 안 함.
+            // Only message (= original message). Don't change Config.
             return;
         }
-        // SERVER_CONFIG 갱신 (= server-side 일부 옵션 read 용. client Config 무관).
+        // Update SERVER_CONFIG (= for reading some server-side options. independent of client Config).
         SmartMovingConfig.SERVER_CONFIG.loadFromArray(content);
-        // ConfigInfo 송신 (= server 가 client 버전 인식).
+        // Send ConfigInfo (= server recognizes client version).
         ClientPlayNetworking.send(new SmartMovingNetwork.ConfigInfoPayload(SmartMovingConfig.SM_VERSION));
     }
 
     // ── 4-4: processBlockCode ────────────────────────────────────────────────
 
-    // 원본: SmartMovingComm.processBlockCode 를 채팅 히스토리 직접 스캔(Reflect+GuiNewChat)으로 처리.
-    // 1.21.1: ClientReceiveMessageEvents.ALLOW_GAME 이벤트로 대체. 메시지 수신 시 즉시 처리 (updateCounter<10 스캔 불필요).
-    // 원본 chatMessageList.remove(i--) 대응: ALLOW_GAME에서 false 반환으로 채팅 억제.
+    // Original: handled SmartMovingComm.processBlockCode by directly scanning chat history (Reflect+GuiNewChat).
+    // 1.21.1: replaced with ClientReceiveMessageEvents.ALLOW_GAME event. process immediately on message receive (no updateCounter<10 scan needed).
+    // Original chatMessageList.remove(i--) correspondence: return false from ALLOW_GAME to suppress chat.
     private static void registerGameMessageHandler() {
         ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-            // overlay=true는 액션바(핫바 위 표시) → 블록 코드 대상 아님 (B-19 확인)
+            // overlay=true is action bar (display above hotbar) → not block code target (verified B-19)
             if (overlay) return true;
             String text = message.getString();
             if (text.startsWith("§0§1") && text.endsWith("§f§f")) {
                 processBlockCode(text);
-                return false; // 원본: chatMessageList.remove — 채팅창에서 억제
+                return false; // Original: chatMessageList.remove — suppress from chat
             }
             return true;
         });
     }
 
-    // 원본: SmartMovingComm.processBlockCode(String text) — public static boolean
-    // 1.21.1: SmartMovingConfig.Config 필드 직접 설정으로 단순화 (C-11: Config 전환 연동).
+    // Original: SmartMovingComm.processBlockCode(String text) — public static boolean
+    // 1.21.1: simplified to directly set SmartMovingConfig.Config fields (C-11: Config switch coordination).
     //
-    // 형식: "§0§1...§f§f" (앞 4자=시작마커, 뒤 4자=끝마커)
-    // codes에 포함된 §코드에 해당하는 기능을 설정값으로 변경:
-    //   §0 → baseClimb = true ("standard"), §1~§b → 각 기능 = false
-    // codes에 없는 코드는 변경하지 않음 (현재 값 유지).
+    // Format: "§0§1...§f§f" (first 4 chars = start marker, last 4 chars = end marker)
+    // Change feature to config value corresponding to §code included in codes:
+    //   §0 → baseClimb = true ("standard"), §1~§b → each feature = false
+    // Codes not in codes unchanged (maintain current value).
     //
-    // Text.getString() §코드 포함 여부: 서버가 LiteralText로 전송한 경우 포함 가능 (B-19 확인).
-    // 호출 전 마커 검사(`§0§1`/`§f§f`)는 registerGameMessageHandler에서 완료됨.
+    // Text.getString() §code inclusion: possible if server sends as LiteralText (verified B-19).
+    // Marker check before call (`§0§1`/`§f§f`) completed in registerGameMessageHandler.
     private static void processBlockCode(String text) {
         String codes = text.substring(4, text.length() - 4);
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
-        // §0 → _baseClimb="standard" → _isFreeBaseClimb/Smart/Simple 모두 false
+        // §0 → _baseClimb="standard" → all _isFreeBaseClimb/Smart/Simple = false
         if (codes.contains("§0")) { cfg.freeClimb = false; cfg.simpleClimb = false; cfg.smartClimb = false; }
         if (codes.contains("§1")) cfg.freeClimb = false;
         if (codes.contains("§2")) cfg.ceilingClimbing = false;

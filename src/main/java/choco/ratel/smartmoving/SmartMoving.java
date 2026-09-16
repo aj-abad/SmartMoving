@@ -29,18 +29,18 @@ public class SmartMoving implements ModInitializer {
     }
 
     private static void registerConnectionEvents() {
-        // 3-7: 플레이어 접속 — SM 초기화 및 ConfigContent 패킷 전송
+        // 3-7: Player join — SM initialization and send ConfigContent packet
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 SmartMovingServer.initialize(handler.player, server));
 
-        // 플레이어 접속 해제 — 인스턴스 정리
+        // Player disconnect — clean up instance
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             SmartMovingServer.remove(handler.player);
         });
 
-        // 🔴 (Phase 2 multi network 최적화) on-tracking-start replay.
-        //   new tracker (= player) 가 tracked 를 tracking 시작 시점에 tracked 의 latest SM state 를 send.
-        //   server-side broadcast dirty 검사와 함께 사용 → 변경 시만 broadcast 하면서 late join 도 안전.
+        // 🔴 (Phase 2 multi network optimization) on-tracking-start replay.
+        //   When new tracker (= player) starts tracking tracked, send tracked's latest SM state.
+        //   Use together with server-side broadcast dirty check → broadcast only on change while safe for late join.
         EntityTrackingEvents.START_TRACKING.register((trackedEntity, player) -> {
             if (!(trackedEntity instanceof ServerPlayer tracked)) return;
             if (tracked == player) return;
@@ -51,17 +51,17 @@ public class SmartMoving implements ModInitializer {
     }
 
     private static void registerServerReceivers() {
-        // State: 클라이언트 이동 상태 수신 → 추적 플레이어에게 릴레이 + 서버 상태 갱신
-        // 🔴 (Phase 2 multi network 최적화) server-side broadcast dirty 검사:
-        //   client 매 tick 송신 (= 안전, late join 자동 backup), server 측 변경 시만 broadcast.
-        //   client → server 트래픽 동일, server → clients broadcast 80-90% 절약.
+        // State: Receive client movement state → relay to tracking players + update server state
+        // 🔴 (Phase 2 multi network optimization) server-side broadcast dirty check:
+        //   client sends per tick (= safe, late join auto backup), broadcast only on server-side change.
+        //   client → server traffic same, server → clients broadcast saves 80-90%.
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.StatePayload.ID,
             (payload, context) -> {
                 ServerPlayer sender = context.player();
                 SmartMovingServer sm = SmartMovingServer.get(sender);
                 sm.processStatePacket(sender, payload.state());
                 long state = payload.state();
-                if (state == sm.lastBroadcastBits) return;  // dirty 검사: 같은 state 면 broadcast skip.
+                if (state == sm.lastBroadcastBits) return;  // Dirty check: skip broadcast if same state.
                 sm.lastBroadcastBits = state;
                 context.server().execute(() -> {
                     for (ServerPlayer tracker : PlayerLookup.tracking(sender)) {
@@ -72,10 +72,10 @@ public class SmartMoving implements ModInitializer {
                 });
             });
 
-        // 🔵 Stats: self → server → REMOTE 매 tick stats angle 동기화 (2026-05-14, Option F).
-        //   dirty 검사 X (= 매 tick angle 변화). PlayerLookup.tracking 으로 tracker 만 broadcast.
-        //   원본 SmartMoving 에 동등 packet 없음 — 1.21.1 vanilla lerpPosAndRotation 의 위치 평탄화
-        //   를 우회하기 위한 우리 매핑 한정 추가.
+        // 🔵 Stats: self → server → REMOTE per tick stats angle sync (2026-05-14, Option F).
+        //   No dirty check (= angle changes per tick). Broadcast only to trackers using PlayerLookup.tracking.
+        //   No equivalent packet in original SmartMoving — addition specific to our mapping to bypass
+        //   1.21.1 vanilla lerpPosAndRotation position flattening.
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.StatsPayload.ID,
             (payload, context) -> {
                 ServerPlayer sender = context.player();
@@ -88,12 +88,12 @@ public class SmartMoving implements ModInitializer {
                 });
             });
 
-        // ConfigInfo: 클라이언트 설정 정보 수신 → SM 버전 저장 (C-16)
+        // ConfigInfo: Receive client config info → save SM version (C-16)
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.ConfigInfoPayload.ID,
             (payload, context) ->
                 SmartMovingServer.get(context.player()).processConfigInfoPacket(payload.config()));
 
-        // ConfigChange: 클라이언트 설정 변경 요청 수신 → 거부 응답 (C-17)
+        // ConfigChange: Receive client config change request → send rejection response (C-17)
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.ConfigChangePayload.ID,
             (payload, context) ->
                 SmartMovingServer.processConfigChangePacket(context.player()));

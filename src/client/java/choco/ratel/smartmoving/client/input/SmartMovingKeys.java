@@ -7,8 +7,8 @@ import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * SM 전용 키바인딩 등록.
- * 원본 LWJGL2 키코드 → GLFW 키코드 변환:
+ * Register SM-specific keybindings.
+ * Original LWJGL2 key code → GLFW key code conversion:
  *   LCONTROL(29) → GLFW_KEY_LEFT_CONTROL(341)
  *   F9(67)       → GLFW_KEY_F9(298)
  *   O(24)        → GLFW_KEY_O(79)
