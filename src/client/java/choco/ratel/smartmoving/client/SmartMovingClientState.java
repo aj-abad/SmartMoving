@@ -1774,22 +1774,22 @@ public final class SmartMovingClientState {
                         && !isHeadJumping
                         && !wantCrawlNotClimb
                         && !_disabled3a;
-                // B-17b2-pre (세션 72): `wantClimb16` 지역 → public 필드 승격.
+                // B-17b2-pre (Session 72): Promote `wantClimb16` local → public field.
                 wantClimb = cfg0.freeClimb && cfg0.enabled && wouldWantClimb;
 
-                // 원본 L2721-L2732 3-OR — 원본 1:1 매핑.
+                // Original L2721-L2732 3-OR — original 1:1 mapping.
                 //
-                // 이전 매핑은 forwardPressed_holdGuard 가드 추가. 가드 의도 = "사다리 등반 + W + sneak
-                // 시 찔끔찔끔 등반 BUG fix". 그러나 가드의 순환 결함:
-                //   일반 갭 시나리오 (hG=true, hCG=false) 에서 isClimbHolding=false 시작 →
-                //   needClimbCrawling17=false → 가드 활성 → wCH=false → isClimbHolding=false 유지 →
-                //   영원히 ICC 진입 X.
+                // Previous mapping added forwardPressed_holdGuard guard. Guard intent = "ladder climbing + W + sneak
+                // jittery climbing BUG fix". But guard has cyclic flaw:
+                //   In general gap scenario (hG=true, hCG=false) starts with isClimbHolding=false →
+                //   needClimbCrawling17=false → guard active → wCH=false → maintains isClimbHolding=false →
+                //   never enters ICC.
                 //
-                // 사용자 보고 (2026-05-02) — "사다리 끝 + sneak → 엎드리기 전환" 동작이 가드 때문에
-                // 차단됨. 원본 1.7.10 은 가드 없이 정상 작동 → 가드 제거 = 원본 동작 회복.
+                // User report (2026-05-02) — "ladder end + sneak → crouch transition" behavior blocked by guard.
+                // Original 1.7.10 works normally without guard → remove guard = recover original behavior.
                 //
-                // 이전 BUG ("찔끔찔끔 등반") 는 다른 매핑 차이로 발생했던 부수효과로 추정 (= ICC 메인 식
-                // 정상 동작인 cic 카운트다운 + 해제 + 재진입 사이클을 사용자가 부정적으로 인식했을 가능성).
+                // Previous BUG ("jittery climbing") presumed side effect from different mapping (= ICC main formula
+                // normal operation cic countdown + release + re-entry cycle possibly negatively perceived by user).
                 wantClimbHolding = (isClimbHolding && sneakPressedRaw)
                         || (isClimbing && blocked)
                         || (wantClimb && !isSwimming_sm && !isDiving && !isCrawling

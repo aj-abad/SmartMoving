@@ -83,7 +83,7 @@ public abstract class MixinLivingEntityClient {
                 || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES
                 || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT;
         if (_isVineBlock && !player.getAbilities().flying) {
-            return;  // vanilla travel 본체 진행 (cancel 안 함)
+            return;  // vanilla travel body proceeds (cancel not applied)
         }
 
         // [11-4] Flying suppression — suppress vanilla creative flight motionY when SM flight disabled

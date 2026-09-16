@@ -1493,32 +1493,32 @@ public class Orientation {
     }
 
     /**
-     * 원본 L2401-L2475 `isRemoteAccessible(int j_offset)` — remote (이 Orientation 방향 인접)
-     * 위치가 플레이어 점유 가능한지. 여러 분기의 OR 누적.
+     * Original L2401-L2475 `isRemoteAccessible(int j_offset)` — remote (adjacent in this Orientation direction)
+     * position passable by player. Cumulative OR of multiple branches.
      *
-     * 분기 그룹:
-     *   (1) `isEmpty(remote_i, j_offset, remote_k)` — 빈 공간
-     *   (2) [§7 근사 생략] RedPower wire 특수 판정
-     *   (3) accessible 상태에서의 역체크 (base 위치의 trap door/door/ladder 가 막는지)
-     *       - base `isTrapDoor && isTrapDoorFront` → 막힘
-     *       - base `isDoor && isDoorFrontBlocked` → 막힘
-     *       - `remoteLadderClimbing` → 막힘
-     *   (4) remote trap door + closed → 접근 가능
-     *   (5) !accessible 상태에서의 wall/fence/door/rope 복합 분기
+     * Branch groups:
+     *   (1) `isEmpty(remote_i, j_offset, remote_k)` — empty space
+     *   (2) [§7 approximate skipped] RedPower wire special judgment
+     *   (3) Reverse check when accessible (trap door/door/ladder at base position blocks?)
+     *       - base `isTrapDoor && isTrapDoorFront` → blocks
+     *       - base `isDoor && isDoorFrontBlocked` → blocks
+     *       - `remoteLadderClimbing` → blocks
+     *   (4) remote trap door + closed → accessible
+     *   (5) Complex wall/fence/door/rope branches when !accessible
      *       - remote wall block + !headedToFrontWall + !fence below
-     *       - remote 아래 fence + !headedToFrontWall (+ base 아래 wall block) + cobblestone
-     *         예외
+     *       - fence below remote + !headedToFrontWall (+ wall block below base) + cobblestone
+     *         exception
      *       - remote door + !rotate(180).isDoorFrontBlocked
-     *       - [§7 근사 생략] ASRope + !rotate(180).isASGrapplingHookFront
+     *       - [§7 approximate skipped] ASRope + !rotate(180).isASGrapplingHookFront
      *
-     * **§7 근사 2건**:
-     *   - RedPower 분기 생략 (B-19a1c2-approx-1 과 동일 패턴)
-     *   - ASRope 분기 생략 (B-19a1b `isRope`/`isOnWallRope` false 와 연동)
+     * **§7 2 approximates**:
+     *   - RedPower branch skipped (B-19a1c2-approx-1 same pattern)
+     *   - ASRope branch skipped (B-19a1b `isRope`/`isOnWallRope` false coordinated)
      */
     protected boolean isRemoteAccessible(int j_offset) {
         boolean accessible = isEmpty(remote_i, j_offset, remote_k);
 
-        // 근사 이식 — 원본과 차이: RedPower wire 분기 (원본 L2404-L2422) 생략
+        // Approximate port — difference from original: RedPower wire branch (original L2404-L2422) skipped
 
         if (accessible) {
             BlockState baseState = getBaseBlockId(j_offset);
