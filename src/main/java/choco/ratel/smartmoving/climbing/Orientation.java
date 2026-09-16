@@ -1374,7 +1374,7 @@ public class Orientation {
         return false;
     }
 
-    /** `ConnectingBlock.NORTH/SOUTH/EAST/WEST` BooleanProperty 기반 방향 연결 조회. */
+    /** Query directional connection based on `ConnectingBlock.NORTH/SOUTH/EAST/WEST` BooleanProperty. */
     private static boolean getConnectingFlag(BlockState state, Direction d) {
         switch (d) {
             case NORTH: return state.getValue(PipeBlock.NORTH);
@@ -1385,7 +1385,7 @@ public class Orientation {
         }
     }
 
-    /** `WallBlock.NORTH_SHAPE/SOUTH_SHAPE/EAST_SHAPE/WEST_SHAPE` WallShape 기반 연결 조회. */
+    /** Query connection based on `WallBlock.NORTH_SHAPE/SOUTH_SHAPE/EAST_SHAPE/WEST_SHAPE` WallShape. */
     private static boolean getWallShapeFlag(BlockState state, Direction d) {
         switch (d) {
             case NORTH: return state.getValue(WallBlock.NORTH) != WallSide.NONE;
@@ -1554,22 +1554,22 @@ public class Orientation {
                     && !rotate(180).isDoorFrontBlocked(remote_i, j_offset, remote_k))
                 accessible = true;
 
-            // 근사 이식 — 원본과 차이: ASRope 분기 (원본 L2467-L2471) 생략
+            // Approximate port — difference from original: ASRope branch (original L2467-L2471) skipped
         }
 
         return accessible;
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a1c4 (세션 98) — isFullAccessible + isFullExtentAccessible +
+    // B-19a1c4 (session 98) — isFullAccessible + isFullExtentAccessible +
     //                      isJustLowerHalfExtentAccessible + isUpperHalfFrontEmpty
-    // 원본: Orientation.java L2486-L2535 + L2325-L2331 + L2543-L2586.
-    // **B-19a1c (accessibility 판정) 최종 서브** — 완료 시 B-19a1 완료.
+    // Original: Orientation.java L2486-L2535 + L2325-L2331 + L2543-L2586.
+    // **B-19a1c (accessibility judgment) final sub** — completion means B-19a1 complete.
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * 원본 L2325-L2331 `getWallBlockId(int i, int j_offset, int k)` — 좌표 위치 블록이
-     * wall block 이면 BlockState 반환, 아니면 null.
+     * Original L2325-L2331 `getWallBlockId(int i, int j_offset, int k)` — if block at coordinate position
+     * is wall block return BlockState, otherwise null.
      */
     private static BlockState getWallBlockId(int i, int j_offset, int k) {
         BlockState state = getBlock(i, j_offset, k);
@@ -1577,12 +1577,12 @@ public class Orientation {
     }
 
     /**
-     * 원본 L2528-L2535 `isFullAccessible(int j_offset, boolean grabRemote)`.
+     * Original L2528-L2535 `isFullAccessible(int j_offset, boolean grabRemote)`.
      *
      * grabRemote=true  → `isBaseAccessible && isRemoteAccessible && isAccessAccessible`
-     * grabRemote=false → `isEmpty(base_i, j_offset, base_k)` — 단순 base 빈 공간 체크
+     * grabRemote=false → `isEmpty(base_i, j_offset, base_k)` — simple base empty space check
      *
-     * 의존 전수 이식: B-19a1c2 isBaseAccessible/isEmpty + B-19a1c3c isRemoteAccessible +
+     * Full dependency port: B-19a1c2 isBaseAccessible/isEmpty + B-19a1c3c isRemoteAccessible +
      * B-19a1c3a isAccessAccessible.
      */
     protected boolean isFullAccessible(int j_offset, boolean grabRemote) {
@@ -1594,25 +1594,25 @@ public class Orientation {
     }
 
     /**
-     * 원본 L2486-L2512 `isFullExtentAccessible(int j_offset, boolean grabRemote)`.
+     * Original L2486-L2512 `isFullExtentAccessible(int j_offset, boolean grabRemote)`.
      *
-     * 원본: `isFullAccessible` 반환값에 RedPower 추가 체크 (AND 조건).
+     * Original: adds RedPower additional check to `isFullAccessible` return value (AND condition).
      *
-     * **§7 근사** (B-19a1c4-approx-1): RedPower wire 분기 (원본 L2490-L2510) 전체 생략 —
-     * RedPower mod 1.21.1 미이식. 결과: `isFullAccessible` 그대로 반환.
+     * **§7 approximate** (B-19a1c4-approx-1): RedPower wire branch (original L2490-L2510) completely skipped —
+     * RedPower mod not ported to 1.21.1. Result: returns `isFullAccessible` as-is.
      */
     protected boolean isFullExtentAccessible(int j_offset, boolean grabRemote) {
         boolean accessible = isFullAccessible(j_offset, grabRemote);
-        // 근사 이식 — 원본과 차이: RedPower wire 분기 (원본 L2490-L2510) 생략
+        // Approximate port — difference from original: RedPower wire branch (original L2490-L2510) skipped
         return accessible;
     }
 
     /**
-     * 원본 L2514-L2526 `isJustLowerHalfExtentAccessible(int j_offset)` — remote 위치가
-     * top half (slab top / stair top front) 이면 lower half 공간이 비어있음 → 접근 가능.
+     * Original L2514-L2526 `isJustLowerHalfExtentAccessible(int j_offset)` — if remote position is
+     * top half (slab top / stair top front) then lower half space is empty → accessible.
      *
-     * 의존: B-19a1c1 `isTopHalfBlock` / `isStairCompact` / `isTopStairCompactFront`.
-     * 근사 없음.
+     * Dependencies: B-19a1c1 `isTopHalfBlock` / `isStairCompact` / `isTopStairCompactFront`.
+     * No approximation.
      */
     protected boolean isJustLowerHalfExtentAccessible(int j_offset) {
         BlockState remoteState = getRemoteBlockId(j_offset);
@@ -1625,19 +1625,19 @@ public class Orientation {
     }
 
     /**
-     * 원본 L2543-L2586 `isUpperHalfFrontEmpty(int i, int j_offset, int k)` — 해당 위치의
-     * upper half (Y+0.5~+1.0) 가 이 Orientation 방향 전방에서 비어있는지.
+     * Original L2543-L2586 `isUpperHalfFrontEmpty(int i, int j_offset, int k)` — whether
+     * upper half (Y+0.5~+1.0) at given position is empty in front of this Orientation direction.
      *
-     * 원본 분기 순서 (empty OR 누적):
-     *   (1) `isFullEmpty(block)` — 블록 전체 빈 공간
-     *   (2) `isBottomHalfBlock(block, meta)` — bottom slab (upper half 비어있음)
+     * Original branch order (empty OR cumulative):
+     *   (1) `isFullEmpty(block)` — entire block empty space
+     *   (2) `isBottomHalfBlock(block, meta)` — bottom slab (upper half empty)
      *   (3) `isStairCompact && isBottomStairCompactFront` — bottom stair front
-     *   (4) [§7 근사 생략] RedPower wire 특수 판정
-     *   (5) `isTrapDoor(block)` — trap door (open 여부 무관 upper half 비어있음)
-     *   (6) wallBlock + (!headedToFrontWall || 반대쪽도 wallBlock) — wall 패턴 관통 가능
-     *   (7) [§7 근사 생략] LadderKit + `rotate(180).hasLadderOrientation` → empty=false 복귀
+     *   (4) [§7 approximate skipped] RedPower wire special judgment
+     *   (5) `isTrapDoor(block)` — trap door (upper half empty regardless of open state)
+     *   (6) wallBlock + (!headedToFrontWall || opposite also wallBlock) — wall pattern passable
+     *   (7) [§7 approximate skipped] LadderKit + `rotate(180).hasLadderOrientation` → return empty=false
      *
-     * **§7 근사** (B-19a1c4-approx-2 / approx-3): RedPower + LadderKit 분기 생략.
+     * **§7 approximate** (B-19a1c4-approx-2 / approx-3): RedPower + LadderKit branches skipped.
      */
     protected boolean isUpperHalfFrontEmpty(int i, int j_offset, int k) {
         BlockState state = getBlock(i, j_offset, k);
@@ -1652,7 +1652,7 @@ public class Orientation {
                 empty = true;
         }
 
-        // 근사 이식 — 원본과 차이: RedPower wire 분기 (원본 L2559-L2567) 생략
+        // Approximate port — difference from original: RedPower wire branch (original L2559-L2567) skipped
 
         if (!empty && isTrapDoor(state))
             empty = true;
@@ -1665,28 +1665,28 @@ public class Orientation {
                 empty = true;
         }
 
-        // 근사 이식 — 원본과 차이: LadderKit 분기 (원본 L2581-L2583) 생략 —
+        // Approximate port — difference from original: LadderKit branch (original L2581-L2583) skipped —
         // `isBlockIdOfType(block, _ladderKitLadderTypes) && rotate(180).hasLadderOrientation(...)`
-        // 이 true 면 empty=false 복귀. vanilla ladder 는 `isLadderOrVine` 에 포함되어
-        // `isFullEmpty` 에서 이미 non-empty 처리됨 — 기본 vanilla 동작은 보존됨.
+        // if true return empty=false. vanilla ladder included in `isLadderOrVine`
+        // already handled as non-empty in `isFullEmpty` — basic vanilla behavior preserved.
 
         return empty;
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a2a1 (세션 99) — wall 판정 보조 (headedToFrontSideWall + headedToBaseWall
-    //                       3 오버로드 + headedToBaseGrabWall 2 오버로드)
-    // 원본: Orientation.java L1759-L1798 (headedToFrontSideWall),
+    // B-19a2a1 (session 99) — wall judgment auxiliary (headedToFrontSideWall + headedToBaseWall
+    //                       3 overloads + headedToBaseGrabWall 2 overloads)
+    // Original: Orientation.java L1759-L1798 (headedToFrontSideWall),
     //       L1809-L1862 (headedToBaseWall 3), L1865-L1938 (headedToBaseGrabWall 2).
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * 원본 L1759-L1798 `headedToFrontSideWall(int i, int j_offset, int k, Block block)` —
-     * wall/pane/fence 블록이 이 Orientation 의 **측면** 방향 (base_id/base_kd 의 half 위치
-     * 조합에 따른 오프셋 방향) 으로 연결되어 있는지.
+     * Original L1759-L1798 `headedToFrontSideWall(int i, int j_offset, int k, Block block)` —
+     * whether wall/pane/fence block is connected in **side** direction of this Orientation (offset direction
+     * per base_id/base_kd half position combination).
      *
-     * 논리: 4방향 wall flag 수집 → `base_id`/`base_kd` 의 topHalf 조합 4가지 중 하나
-     * 선택 → 4방향 `headedToWall(NZ/PZ/ZN/ZP, ...)` OR. 원본과 동일.
+     * Logic: collect 4-direction wall flags → select one of 4 topHalf combinations of `base_id`/`base_kd`
+     * → 4-direction `headedToWall(NZ/PZ/ZN/ZP, ...)` OR. Same as original.
      */
     private boolean headedToFrontSideWall(int i, int j_offset, int k, BlockState state) {
         boolean zn = getWallFlag(ZN, i, j_offset, k, state);

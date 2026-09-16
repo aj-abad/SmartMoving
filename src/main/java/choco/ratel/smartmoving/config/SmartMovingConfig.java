@@ -444,10 +444,10 @@ public class SmartMovingConfig {
     public float sprintFactor = 1.5F;
 
     /**
-     * 원본 SmartMovingConfig L180 `_sprintFactorLevitate = PositiveFactor("move.sprint.factor.levitate")
-     *   .defaults(Value(1.5F).c(3F))` — 부유/비행 중 sprint 가속 배율. Survival 1.5F / Creative 3F.
-     * **포커스 #4 B-4 (세션 3)**: vanilla Creative 비행 + sprint+jump 가속 분기 미이식 정정.
-     *   (#4 감사 결과 결함 #2 — 원본 SmartMovingSelf L637-L639)
+     * Original SmartMovingConfig L180 `_sprintFactorLevitate = PositiveFactor("move.sprint.factor.levitate")
+     *   .defaults(Value(1.5F).c(3F))` — sprint acceleration factor during levitation/flying. Survival 1.5F / Creative 3F.
+     * **Focus #4 B-4 (session 3)**: vanilla Creative flying + sprint+jump acceleration branch not ported correction.
+     *   (#4 audit result defect #2 — original SmartMovingSelf L637-L639)
      */
     public float sprintFactorLevitate = 1.5F;
 

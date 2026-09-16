@@ -139,7 +139,7 @@ public class MixinPlayerEntityRenderer {
         if (player == null) return;
         float tickDelta = smartState.sm_getTickDelta();
         float animationProgress = renderState.ageInTicks;
-        // 🔴 (Phase 2 fix-3-1) flag reset 도 player 별 instance — multiplayer 시 두 player 분리.
+        // 🔴 (Phase 2 fix-3-1) flag reset also per-player instance — separate two players in multiplayer.
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
         sm.smBodyYawActive = false;

@@ -1797,17 +1797,17 @@ public final class SmartMovingClientState {
                 isClimbHolding = wantClimbHolding && isClimbing;
             }
 
-            // B-17b2-pre (세션 72): 원본 L2491-L2500 `wantClimbUp/wantClimbDown` 계산 이식.
-            // 원본 L2491-L2495 wantClimbUp:
+            // B-17b2-pre (Session 72): Port original L2491-L2500 `wantClimbUp/wantClimbDown` calculation.
+            // Original L2491-L2495 wantClimbUp:
             //   (wantClimb && moveForward > 0F)
             //   || ((isVineAnyClimbing && jumpPressed && !(sneakPressed && isFacedToSolidVine))
             //       && (!isCrawling || isCollidedHorizontally)
             //       && (!isSliding  || isCollidedHorizontally))
-            // 연산자 우선순위 (&& > ||): 전진 등반 OR (덩굴+점프 + 크롤/슬라이딩 충돌 조건).
-            // 원본 L2497-L2500 wantClimbDown: `wantClimb && moveForward <= 0F && !wantCrawl`.
-            // 의존: isVineAnyClimbing (B-15d), isFacedToSolidVine (B-16a), 기타 모두 이식 완료.
+            // Operator precedence (&& > ||): forward climbing OR (vine+jump + crawl/sliding collision conditions).
+            // Original L2497-L2500 wantClimbDown: `wantClimb && moveForward <= 0F && !wantCrawl`.
+            // Dependencies: isVineAnyClimbing (B-15d), isFacedToSolidVine (B-16a), all others ported.
             {
-                boolean jumpPressed17 = _jumpPressed3a;  // B-3a 에서 계산된 지역 변수
+                boolean jumpPressed17 = _jumpPressed3a;  // Local variable calculated in B-3a
                 boolean isFacedVine17 = SmartMovingClimber.isFacedToSolidVine(player, isClimbCrawling);
                 float   forward17     = player.input.getMoveVector().y;
                 boolean hCollision17  = player.horizontalCollision;
@@ -1821,25 +1821,25 @@ public final class SmartMovingClientState {
                 wantClimbDown = wantClimb && forward17 <= 0F && !wantCrawl;
             }
 
-            // B-1c2 (세션 51): collidedHorizontallyTickCount 매 틱 갱신.
-            //   수평 충돌 연속 틱 카운터. can* 판정 (원본 L2675) 에 사용.
+            // B-1c2 (Session 51): Update collidedHorizontallyTickCount every tick.
+            //   Horizontal collision consecutive tick counter. Used in can* determination (original L2675).
             if (player.horizontalCollision) collidedHorizontallyTickCount++;
             else                            collidedHorizontallyTickCount = 0;
 
-            // B-1c3/B-1d/B-1e/B-1f (세션 51): 원본 L2617-L2695 블록 일괄 이식 —
-            //   preferSprint + can* 4 + isClimbSprintSpeed + 6 Sprint 변종 + standing +
-            //   isFast 6갈래 OR. 기존 `isFast = grab && isSprinting()` 대체.
-            // ※ maxExhaustionForAction 조정 (원본 L2626-L2628, L2651-L2653) 은 handleExhaustion
-            //   축소판이 참조하지 않으므로 현재 생략. B-N 확장 여지.
-            // ※ isGroundSprinting 전환 후처리 (원본 L2697-L2709) 는 wasRunningWhenSprintStarted /
-            //   Options._runOnSprintRelease / isStandupSprintingOrRunning() 미이식 → 별도 원자.
-            // ※ **포커스 #3 B-2 (세션 3 검증)**: B-10d (isLevitating 갱신 로직) 이미 완전
-            //   이식됨 확정 — SmartMovingSwimmer.updateSwimState L192-L196 (세션 71) 에서
-            //   매 tick `isDiving && !diveUp && !diveDown && moveStrafe==0 && moveForward==0`
-            //   공식으로 갱신. 원본 SmartMovingSelf L505 `isLevitating = levitating` 1:1.
-            //   호출: sm_travel_client L92. isGroundSprinting 공식의 isLevitating 분기 정상 활성.
+            // B-1c3/B-1d/B-1e/B-1f (Session 51): Batch port original L2617-L2695 block —
+            //   preferSprint + can* 4 + isClimbSprintSpeed + 6 Sprint variants + standing +
+            //   isFast 6-branch OR. Replace previous `isFast = grab && isSprinting()`.
+            // ※ maxExhaustionForAction adjustment (original L2626-L2628, L2651-L2653) not referenced by
+            //   handleExhaustion mini version, so currently omitted. Room for B-N expansion.
+            // ※ isGroundSprinting transition post-processing (original L2697-L2709) has wasRunningWhenSprintStarted /
+            //   Options._runOnSprintRelease / isStandupSprintingOrRunning() not ported → separate atom.
+            // ※ **Focus #3 B-2 (Session 3 verification)**: B-10d (isLevitating update logic) confirmed already
+            //   completely ported — SmartMovingSwimmer.updateSwimState L192-L196 (Session 71) updates
+            //   every tick with `isDiving && !diveUp && !diveDown && moveStrafe==0 && moveForward==0`
+            //   formula. Original SmartMovingSelf L505 `isLevitating = levitating` 1:1.
+            //   Call: sm_travel_client L92. isLevitating branch in isGroundSprinting formula normally active.
             {
-                // 원본 L2633-L2634 / L2643-L2644: isSprintJump 매 틱 갱신.
+                // Original L2633-L2634 / L2643-L2644: isSprintJump update every tick.
                 if (!player.onGround() && isFast && !isClimbing && !isCeilingClimbing
                         && !isDiving && !isSwimming_sm) {
                     isSprintJump = true;

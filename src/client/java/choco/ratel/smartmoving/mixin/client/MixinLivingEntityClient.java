@@ -133,7 +133,7 @@ public abstract class MixinLivingEntityClient {
                 player.fallDistance = 0;
             }
         }
-        // 🔴 fix #155 끝.
+        // 🔴 fix #155 complete.
 
         // B-7a (Session 127): Promote original SmartMovingSelf L132 `isLiquidClimbing` local variable.
         //   isLiquidClimbing = Config.isFreeClimbingEnabled() && sp.fallDistance <= 3.0
@@ -349,7 +349,7 @@ public abstract class MixinLivingEntityClient {
                 * SmartMovingMover.getNonSlowInputSpeedFactor(player, sm, cfg2);
         float climbSlowFactor = SmartMovingMover.getSlowInputSpeedFactor(player, sm, cfg2);
         if (sm.vanilla()) {
-            // vanilla mode 시 movementInput 자체 곱 — 본 매핑 무관 (cfg.enabled 일 때 vanilla=false).
+            // vanilla mode multiply movementInput itself — this mapping unaffected (cfg.enabled vanilla=false).
         } else {
             climbSpeedFactor *= climbSlowFactor;
         }
@@ -385,6 +385,12 @@ public abstract class MixinLivingEntityClient {
         if (!player.onGround()) {
             float potion = SmartMovingMover.getPotionSpeedFactor(player);
             if (potion > 0F) climbSpeedFactor /= potion;
+        }
+        // In vanilla mode apply movementInput itself — unrelated to this mapping (when cfg.enabled vanilla=false).
+        if (sm.vanilla()) {
+            // vanilla mode multiply movementInput itself — this mapping unaffected (cfg.enabled vanilla=false).
+        } else {
+            climbSpeedFactor *= climbSlowFactor;
         }
         player.moveRelative(climbRawSpeed * climbSpeedFactor, movementInput);
 
@@ -529,7 +535,7 @@ public abstract class MixinLivingEntityClient {
     private void sm_blockVanillaSprintInSmStates(boolean sprinting, CallbackInfo ci) {
         if (!((Object) this instanceof LocalPlayer player)) return;
         if (!SmartMovingConfig.Config.enabled) return;
-        if (!sprinting) return;  // setSprinting(false) 는 항상 통과.
+        if (!sprinting) return;  // setSprinting(false) always passes.
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         if (sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.isSwimming_sm || sm.isDiving) {
