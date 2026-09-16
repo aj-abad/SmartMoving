@@ -15,6 +15,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundPlayerAbilitiesPacket;
 import net.minecraft.stats.Stats;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.phys.AABB;
@@ -661,23 +662,73 @@ public final class SmartMovingClientState {
     /** dodge key state from previous frame. */
     private boolean prevDodgeKeyPressed;
 
-    // ── IMPL-03: Double-click directional jump counter ──────────────────────────────
-    /** A key double-click counter. 0=inactive, >0=waiting for first click, -1=trigger pending, -2=diagonal waiting. */
-    public int leftJumpCount;
-    /** D key double-click counter. */
-    public int rightJumpCount;
-    /** S key double-click counter. */
-    public int backJumpCount;
     /** velocity.x saved before jump (for getJumpMoving calculation). */
     public double jumpMotionX;
     /** velocity.z saved before jump. */
     public double jumpMotionZ;
-    /** A key state from previous tick (for rising-edge detection). */
-    private boolean prevPressLeft;
-    /** D key state from previous tick. */
-    private boolean prevPressRight;
-    /** S key state from previous tick. */
-    private boolean prevPressBack;
+
+    // ── Angle jump (dodge) animation timer ──────────────────────────────────
+    /** ageInTicks at the first rendered frame of the current angle jump. NaN when not angle jumping. */
+    public float angleJumpAnimStartAge = Float.NaN;
+
+    /**
+     * Ticks elapsed since the current angle jump started, as seen by the renderer.
+     * Render-driven (not tick-driven) so it works identically for local and remote players.
+     */
+    public float angleJumpAnimTicks(float ageInTicks) {
+        if (!isAngleJumping()) {
+            angleJumpAnimStartAge = Float.NaN;
+            return 0f;
+        }
+        if (Float.isNaN(angleJumpAnimStartAge) || ageInTicks < angleJumpAnimStartAge) {
+            angleJumpAnimStartAge = ageInTicks;
+        }
+        return ageInTicks - angleJumpAnimStartAge;
+    }
+
+    /**
+     * 0..1 envelope for the dodge pose: eases in over ~2.5 ticks instead of snapping,
+     * then relaxes ~25% toward neutral on long falls so the pose never reads as frozen.
+     */
+    public float angleJumpPoseWeight(float ageInTicks) {
+        float t = angleJumpAnimTicks(ageInTicks);
+        float in = smoothstep01(t / 2.5f);
+        float relax = smoothstep01((t - 4f) / 8f);
+        return in * (1f - 0.25f * relax);
+    }
+
+    private static float smoothstep01(float x) {
+        x = Mth.clamp(x, 0f, 1f);
+        return x * x * (3f - 2f * x);
+    }
+
+    /** Angle jump direction as radians, 0 = forward, increasing clockwise (left = π/2, back = π, right = 3π/2). */
+    public float angleJumpDirectionRad() {
+        int index = angleJumpType == 8 ? 0 : angleJumpType;
+        return index * (float) (Math.PI / 4.0);
+    }
+
+    /**
+     * Triangle weight (0..1) of the current dodge direction toward {@code targetRad}.
+     * Cardinal targets are π/2 apart, so at most two adjacent weights are non-zero and they sum to 1.
+     */
+    public float angleJumpDirectionWeight(float targetRad) {
+        final float full = (float) (Math.PI * 2.0);
+        final float quarter = (float) (Math.PI / 2.0);
+        float distance = Math.abs(angleJumpDirectionRad() - targetRad);
+        distance = Math.min(distance, full - distance);
+        return Mth.clamp(1f - distance / quarter, 0f, 1f);
+    }
+
+    /** Whole-body pitch for the dodge pose (radians, > 0 = lean forward) from forward/back weights. */
+    public static float angleJumpBodyPitch(float forwardWeight, float backWeight) {
+        return forwardWeight * 0.32f - backWeight * 0.25f;
+    }
+
+    /** Whole-body roll for the dodge pose (radians, > 0 = lean toward the player's left) from left/right weights. */
+    public static float angleJumpBodyRoll(float leftWeight, float rightWeight) {
+        return (leftWeight - rightWeight) * 0.25f;
+    }
 
     // ── C-33: SM-specific exhaustion (climbing fatigue) ──────────────────────────
     /** Previous tick climbing status — used to determine exhaustion allowance condition. */
@@ -2590,81 +2641,11 @@ public final class SmartMovingClientState {
                 }
             }
 
-            // IMPL-03: 더블클릭 방향 점프 카운터 갱신
-            // 원본: updateEntityActionState() 내 방향키 StartPressed → count 갱신
-            {
-                Minecraft mc = Minecraft.getInstance();
-                boolean pressLeft    = mc.options.keyLeft.isDown();
-                boolean pressRight   = mc.options.keyRight.isDown();
-                boolean pressBack    = mc.options.keyDown.isDown();
-                boolean pressForward = mc.options.keyUp.isDown();
-
-                boolean startLeft  = pressLeft  && !prevPressLeft;
-                boolean startRight = pressRight && !prevPressRight;
-                boolean startBack  = pressBack  && !prevPressBack;
-
-                prevPressLeft  = pressLeft;
-                prevPressRight = pressRight;
-                prevPressBack  = pressBack;
-
-                // 🔴 (2026-04-27) 원본 SmartMovingSelf L2898-2902 가드 1:1 추가:
-                //   canAngleJump = !isSleeping && onGround && !isCrawling && !isClimbing
-                //                  && !isClimbCrawling && !isSwimming && !isDiving
-                //   canLeftJump  = canSideJump && !rightButton.Pressed
-                //   canRightJump = canSideJump && !leftButton.Pressed
-                //   canBackJump  = canAngleJump && !forwardButton.Pressed && !isStandupSprintingOrRunning()
-                // 가드 false 시 else 분기에서 count = 0 reset (원본 L2917/L2932/L2947).
-                boolean canAngleJump = !player.isSleeping()
-                        && player.onGround()
-                        && !isCrawling && !isClimbing && !isCrawlClimbing
-                        && !isSwimming_sm && !isDiving;
-                boolean canSideJump  = cfg.angleJumpSide && canAngleJump;
-                boolean canLeftJump  = canSideJump && !pressRight;
-                boolean canRightJump = canSideJump && !pressLeft;
-                boolean canBackJump  = cfg.angleJumpBack && canAngleJump
-                        && !pressForward && !isStandupSprintingOrRunning(player);
-
-                // 원본: if(StartPressed) { count==0→angleJumpDoubleClickTicks(), else→-1 } else if(count>0) count--
-                // 원본 _angleJumpDoubleClickTicks: Positive("...").up(3F, 2F), (int)Math.ceil(value) 정수화.
-                int angleTicks = (int) Math.ceil(cfg.angleJumpDoubleClickTicks);
-                if (canLeftJump) {
-                    if (startLeft) {
-                        if (leftJumpCount  == 0) leftJumpCount  = angleTicks; else leftJumpCount  = -1;
-                    } else if (leftJumpCount  > 0) leftJumpCount--;
-                } else {
-                    leftJumpCount  = 0;
-                }
-                if (canRightJump) {
-                    if (startRight) {
-                        if (rightJumpCount == 0) rightJumpCount = angleTicks; else rightJumpCount = -1;
-                    } else if (rightJumpCount > 0) rightJumpCount--;
-                } else {
-                    rightJumpCount = 0;
-                }
-                if (canBackJump) {
-                    if (startBack) {
-                        if (backJumpCount  == 0) backJumpCount  = angleTicks; else backJumpCount  = -1;
-                    } else if (backJumpCount  > 0) backJumpCount--;
-                } else {
-                    backJumpCount  = 0;
-                }
-
-                // 대각선 우선순위: -1 중복 시 -2로 강등 (좌/우+후 동시 방지)
-                if (rightJumpCount == -1 && backJumpCount  > 0) rightJumpCount = -2;
-                if (leftJumpCount  == -1 && backJumpCount  > 0) leftJumpCount  = -2;
-                if (backJumpCount  == -1 && (leftJumpCount > 0 || rightJumpCount > 0)) backJumpCount = -2;
-                // -2 → -1 승격 (다른 방향이 해소되면)
-                if (rightJumpCount == -2 && backJumpCount  <= 0) rightJumpCount = -1;
-                if (leftJumpCount  == -2 && backJumpCount  <= 0) leftJumpCount  = -1;
-                if (backJumpCount  == -2 && leftJumpCount  <= 0 && rightJumpCount <= 0) backJumpCount = -1;
-
-                // 🔴 (2026-04-27) 원본 SmartMovingSelf L2963-2964 1:1 추가:
-                //   if (sp.onGround || sp.isCollidedVertically) angleJumpType = 0;
-                // 점프 후 onGround 복귀 시 angleJumpType reset → isAngleJumping() 즉시 false.
-                // 이전 누락 → angleJumpType 잔존으로 애니메이션 잔존 가능.
-                if (player.onGround() || player.verticalCollision) {
-                    angleJumpType = 0;
-                }
+            // Original SmartMovingSelf L2963-2964: reset angle jump state once back on the ground.
+            //   if (sp.onGround || sp.isCollidedVertically) angleJumpType = 0;
+            // (A/D/S double-tap counters that used to live here were removed — dodge key only.)
+            if (player.onGround() || player.verticalCollision) {
+                angleJumpType = 0;
             }
 
             // R-04: isSmall 갱신.
@@ -3300,16 +3281,11 @@ public final class SmartMovingClientState {
         prevSneakKeyPressed = false;
         jumpKeyStopPressed = false;
         isSliding = false;
-        leftJumpCount  = 0;
-        rightJumpCount = 0;
-        backJumpCount  = 0;
         jumpMotionX    = 0D;
         jumpMotionZ    = 0D;
-        prevPressLeft  = false;
-        prevPressRight = false;
-        prevPressBack  = false;
         isSmall = false;
         angleJumpType = 0;
+        angleJumpAnimStartAge = Float.NaN;
         wasClimbing  = false;
         exhaustion   = 0F;
         hungerIncrease     = 0F;   // 원본 SmartMovingSelf.resetState — hungerIncrease 누적 리셋

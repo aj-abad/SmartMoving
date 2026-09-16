@@ -946,6 +946,28 @@ public class MixinPlayerEntityRenderer {
             sm.smOuterTiltX = thetaLerped;   // cape 클램프 (B-17) 도 보간된 값 사용
         }
 
+        // Angle jump (dodge): whole-body lean into the dodge direction, about the hips.
+        //   Axis conventions in this pre-scale space (see swim/slide/fly branches above):
+        //   XP.rotation(-θ) pitches the model forward, ZP.rotation(+φ) rolls it toward the player's left.
+        //   Pitch/roll magnitudes are shared with the limb pose (SmartMovingClientState.angleJumpBody*),
+        //   and the same eased weight drives both so the body and limbs move together.
+        if (sm.isAngleJumping() && !sm.isHeadJumping && !sm.isFlying) {
+            float fw = sm.angleJumpDirectionWeight(0f);
+            float bk = sm.angleJumpDirectionWeight((float) Math.PI);
+            float lf = sm.angleJumpDirectionWeight((float) (Math.PI / 2.0));
+            float rt = sm.angleJumpDirectionWeight((float) (Math.PI * 1.5));
+            float k = sm.angleJumpPoseWeight(animationProgress);
+            float pitch = SmartMovingClientState.angleJumpBodyPitch(fw, bk) * k;
+            float roll  = SmartMovingClientState.angleJumpBodyRoll(lf, rt) * k;
+
+            float pivotY = 1.5f - 12f / 16f;   // hips (model leg pivot y=12)
+            matrices.translate(0f, pivotY, 0f);
+            if (roll  != 0f) matrices.mulPose(Axis.ZP.rotation(roll));
+            if (pitch != 0f) matrices.mulPose(Axis.XP.rotation(-pitch));
+            matrices.translate(0f, -pivotY, 0f);
+            sm.smOuterTiltX = pitch;
+        }
+
         // 🔴 D-4 매트릭스 변환 시도 → 회전 중심 차이로 자세 잘못 (사용자 보고 5회차).
         //   원본 bipedTorso 회전 중심 = bipedTorso pivot (0,0,-6) = 허리/머리 위치 (작은 visual 효과).
         //   1.21.1 matrices 회전 중심 = vanilla setupTransforms 후 위치 = entity 발 부근 (큰 효과).

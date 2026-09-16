@@ -760,12 +760,6 @@ public class SmartMovingConfig {
     public float climbBackHeadJumpHandsOnlyHorizontalFactor = 1F;
 
     /**
-     * Original: _angleJumpDoubleClickTicks = Positive("move.jump.angle.double.click.ticks").singular().up(3F, 2F)
-     * Angle jump double-click detection timer (ticks). Triggers on second click within this time after first click.
-     * Default 3F, minimum 2F. Use as (int)Math.ceil(value).
-     */
-    public float angleJumpDoubleClickTicks = 3F;
-    /**
      * Original: _wallJumpDoubleClick = Unmodified("move.jump.wall.double.click").singular()
      * true=wall jump triggered by double-click+hold / false=single-click+hold. Unmodified default true.
      */
@@ -1697,7 +1691,6 @@ public class SmartMovingConfig {
         climbBackHeadJumpHorizontalFactor = getFloat(p, "move.jump.climb.back.head.horizontal.factor", climbBackHeadJumpHorizontalFactor);
         climbBackHeadJumpHandsOnlyVerticalFactor = getFloat(p, "move.jump.climb.back.head.hands.only.vertical.factor", climbBackHeadJumpHandsOnlyVerticalFactor);
         climbBackHeadJumpHandsOnlyHorizontalFactor = getFloat(p, "move.jump.climb.back.head.hands.only.horizontal.factor", climbBackHeadJumpHandsOnlyHorizontalFactor);
-        angleJumpDoubleClickTicks = getFloat(p, "move.jump.angle.double.click.ticks", angleJumpDoubleClickTicks);
         wallJumpDoubleClick      = getBool(p,   "move.jump.wall.double.click",    wallJumpDoubleClick);
         wallJumpDoubleClickTicks = getFloat(p,  "move.jump.wall.double.click.ticks", wallJumpDoubleClickTicks);
         slideSlipperinessFactor  = getFloat(p,  "move.slide.slipperiness.factor", slideSlipperinessFactor);
@@ -1866,7 +1859,6 @@ public class SmartMovingConfig {
         p.setProperty("move.jump.climb.back.head.horizontal.factor", String.valueOf(climbBackHeadJumpHorizontalFactor));
         p.setProperty("move.jump.climb.back.head.hands.only.vertical.factor", String.valueOf(climbBackHeadJumpHandsOnlyVerticalFactor));
         p.setProperty("move.jump.climb.back.head.hands.only.horizontal.factor", String.valueOf(climbBackHeadJumpHandsOnlyHorizontalFactor));
-        p.setProperty("move.jump.angle.double.click.ticks", String.valueOf(angleJumpDoubleClickTicks));
         p.setProperty("move.jump.wall.double.click",     String.valueOf(wallJumpDoubleClick));
         p.setProperty("move.jump.wall.double.click.ticks", String.valueOf(wallJumpDoubleClickTicks));
         p.setProperty("move.slide.slipperiness.factor",  String.valueOf(slideSlipperinessFactor));

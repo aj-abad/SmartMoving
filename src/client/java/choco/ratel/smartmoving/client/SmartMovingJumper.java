@@ -368,7 +368,7 @@ public final class SmartMovingJumper {
      *   6. Head jump (original L1880-L1899) — jumpKey hold trigger + grab+sprint gate
      *   7. Water jump (original L1901-L1913) — jumpKey hold + isDipping
      *   8. Normal jump (original L1915-L1916) — jumpAvoided + !isVineAnyClimbing
-     *   9. Directional dodge — dedicated dodge key or existing A/D/S double-tap
+     *   9. Directional dodge — dedicated dodge key only (A/D/S double-tap removed)
      */
     public static void handleJumping(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
@@ -531,47 +531,14 @@ public final class SmartMovingJumper {
             tryJump(player, sm, UP, Boolean.FALSE, null, null);
         }
 
-        // 9. Dedicated dodge key + existing double-click directional jump (extends original L1918-L1943)
-        boolean dodgeTriggered = false;
+        // 9. Dedicated dodge key (replaces original L1918-L1943 A/D/S double-tap)
         if (sm.dodgeJustPressed) {
             Minecraft mc = Minecraft.getInstance();
             int forward = (mc.options.keyUp.isDown() ? 1 : 0)
                     - (mc.options.keyDown.isDown() ? 1 : 0);
             int right = (mc.options.keyRight.isDown() ? 1 : 0)
                     - (mc.options.keyLeft.isDown() ? 1 : 0);
-            dodgeTriggered = tryKeyboundDodge(player, sm, cfg, forward, right);
-            if (dodgeTriggered) {
-                sm.leftJumpCount = 0;
-                sm.rightJumpCount = 0;
-                sm.backJumpCount = 0;
-            }
-        }
-
-        // Existing A/D/S double-tap dodge maintained for compatibility.
-        // [IMPL-03] Double-click triggers when leftJumpCount/rightJumpCount/backJumpCount == -1.
-        if (!dodgeTriggered) {
-            int left = 0, back = 0;
-            if (sm.leftJumpCount  == -1) left++;
-            if (sm.rightJumpCount == -1) left--;
-            if (sm.backJumpCount  == -1) back++;
-
-            if (left != 0 || back != 0) {
-                boolean canAngleJump = player.onGround() && !sm.isCrawling && !sm.isClimbing
-                        && !sm.isCrawlClimbing && !sm.isSwimming_sm && !sm.isDiving;
-
-                if (canAngleJump) {
-                    int relAngle;
-                    if (left > 0)      relAngle = back == 0 ? 270 : 225;
-                    else if (left < 0) relAngle = back == 0 ? 90  : 135;
-                    else               relAngle = 180;
-
-                    tryAngleJump(player, sm, relAngle);
-                }
-
-                sm.leftJumpCount  = 0;
-                sm.rightJumpCount = 0;
-                sm.backJumpCount  = 0;
-            }
+            tryKeyboundDodge(player, sm, cfg, forward, right);
         }
     }
 

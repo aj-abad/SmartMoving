@@ -1919,12 +1919,13 @@ public abstract class MixinPlayerEntityModelClient {
      *   시각 거의 동일). gimbal lock 회피용 ModelPart 직접 set 패턴 유지.
      */
     private void sm_animateAngleJumping(SmartMovingClientState sm, float animationProgress) {
-        // 방향 코드 8은 전방(0°). 1/7은 전방 대각선이며 원형 거리 blend로 0..1 범위를 보장한다.
-        int directionIndex = sm.angleJumpType == 8 ? 0 : sm.angleJumpType;
-        float angle = directionIndex * EIGHTH;
-        float backness  = sm_directionBlend(angle, HALF);
-        float leftness  = sm_directionBlend(angle, QUARTER);
-        float rightness = sm_directionBlend(angle, HALF + QUARTER);
+        // Direction weights: at most two adjacent cardinals are non-zero and sum to 1 (diagonals = 0.5/0.5).
+        float fw = sm.angleJumpDirectionWeight(0f);
+        float bk = sm.angleJumpDirectionWeight(HALF);
+        float lf = sm.angleJumpDirectionWeight(QUARTER);
+        float rt = sm.angleJumpDirectionWeight(HALF + QUARTER);
+        // Eased 0..1 pose weight — replaces the old instant snap into a static pose.
+        float k = sm.angleJumpPoseWeight(animationProgress);
 
         // 🔴 head.yaw = 0 강제 (2026-04-27): vanilla setAngles 가 head.yaw = netHeadYaw =
         //   headYaw_lerped - bodyYaw_natural_lerped 로 매 프레임 set. angle jumping 시
@@ -1935,40 +1936,44 @@ public abstract class MixinPlayerEntityModelClient {
         //   결과만 살아남아 head 가 cameraYaw 향함 (1.7.10 원본 효과 1:1).
         head.yRot = 0f;
 
-        // 다리 — 팔과 동일한 LOCAL 매핑 (원본 L569-574 1:1).
-        // 🔴 leg.roll 부호 반전 (2026-04-27 fix): 원본 ZXY (vertex 적용 R_z→R_x→R_y) 와
-        //   ModelPart ZYX (R_x→R_y→R_z) 의 회전 순서 차이가 back jump (leg.yaw=-π) 시
-        //   R_y(-π) 의 X 부호 반전으로 인해 R_z 적용 결과 정반대 → 다리가 가운데로 모임
-        //   (사용자 보고). 부호 반전으로 1.7.10 원본과 동일한 "바깥쪽 기울임" 효과 복원.
-        leftLeg.xRot  = THIRTYTWOTH * (1f + rightness);
-        leftLeg.yRot    = -angle;
-        leftLeg.zRot   = -THIRTYTWOTH * backness;
-        rightLeg.xRot = THIRTYTWOTH * (1f + leftness);
-        rightLeg.yRot   = -angle;
-        rightLeg.zRot  =  THIRTYTWOTH * backness;
+        // Model space: limb xRot < 0 swings forward, > 0 backward. Outward leg abduction is
+        // leftLeg.zRot < 0 / rightLeg.zRot > 0; outward arm raise is leftArm.zRot < 0 / rightArm.zRot > 0.
+        //
+        // Per-direction target poses (radians), blended by direction weight:
+        //   forward: lunge — lead (left) leg tucked forward, trail (right) leg back, arms counter-swing.
+        //   back:    lean-back hop — both legs kick forward, arms reach forward for balance.
+        //   left:    side leap — left leg abducted, right leg tucked, trailing (right) arm flung out.
+        //   right:   mirror of left.
+        float lLegX = fw * -0.85f + bk * -0.55f + lf * -0.10f + rt * -0.35f;
+        float rLegX = fw *  0.55f + bk * -0.35f + lf * -0.35f + rt * -0.10f;
+        float lLegZ = fw * -0.05f + bk * -0.12f + lf * -0.50f + rt * -0.15f;
+        float rLegZ = fw *  0.05f + bk *  0.12f + lf *  0.15f + rt *  0.50f;
 
-        // 팔 (원본 L579-583 1:1) + idle 진동 누적 (원본 SmartRenderModel.animateArms L334-339).
-        // 🔴 idle 진동 (2026-04-27 fix): 원본 1.7.10 흐름 = animateAngleJumping 가 X/Z set
-        //   후 imp.animateArms 가 += idle 진동 (cos*0.05+0.05 / sin*0.067) 누적. 1.21.1
-        //   vanilla CrossbowPosing.swingArm 동등 식이 setAngles Step 12 에서 += 적용했으나
-        //   우리 inject TAIL 의 = set 으로 cancel → "미세 진동 안 보임" (사용자 보고).
-        //   해결: 우리 식에 idle 진동 += 누적해 1.7.10 의 `+=` 효과 1:1 재현.
-        //   ageInTicks = animationProgress (vanilla CrossbowPosing 입력과 동일).
-        float ageInTicks = animationProgress;
-        float idleZ = Mth.cos(ageInTicks * 0.09f)  * 0.05f + 0.05f;
-        float idleX = Mth.sin(ageInTicks * 0.067f) * 0.05f;
+        float lArmX = fw *  0.60f + bk * -0.90f + lf * -0.20f + rt * -0.20f;
+        float rArmX = fw * -0.80f + bk * -0.90f + lf * -0.20f + rt * -0.20f;
+        float lArmZ = fw * -0.15f + bk * -0.20f + lf * -0.35f + rt * -0.90f;
+        float rArmZ = fw *  0.15f + bk *  0.20f + lf *  0.90f + rt *  0.35f;
 
-        leftArm.zRot   = -SIXTEENTH * rightness - idleZ;     // 원본 leftArm.Z -= cos*0.05+0.05
-        rightArm.zRot  =  SIXTEENTH * leftness  + idleZ;     // 원본 rightArm.Z += cos*0.05+0.05
-        leftArm.xRot  = -EIGHTH * backness - idleX;          // 원본 leftArm.X -= sin*0.067
-        rightArm.xRot = -EIGHTH * backness + idleX;          // 원본 rightArm.X += sin*0.067
-    }
+        leftLeg.xRot  = lLegX * k;
+        leftLeg.yRot  = 0f;
+        leftLeg.zRot  = lLegZ * k;
+        rightLeg.xRot = rLegX * k;
+        rightLeg.yRot = 0f;
+        rightLeg.zRot = rLegZ * k;
 
-    private static float sm_directionBlend(float angle, float target) {
-        float full = (float) (Math.PI * 2D);
-        float distance = Math.abs(angle - target);
-        distance = Math.min(distance, full - distance);
-        return Mth.clamp(1F - distance / QUARTER, 0F, 1F);
+        // Idle wobble kept from the original (SmartRenderModel.animateArms L334-339 `+=` effect).
+        float idleZ = Mth.cos(animationProgress * 0.09f)  * 0.05f + 0.05f;
+        float idleX = Mth.sin(animationProgress * 0.067f) * 0.05f;
+
+        leftArm.xRot  = lArmX * k - idleX;
+        rightArm.xRot = rArmX * k + idleX;
+        leftArm.zRot  = lArmZ * k - idleZ;
+        rightArm.zRot = rArmZ * k + idleZ;
+
+        // The renderer pitches the whole body (sm_setupTransforms angle-jump branch); pull the head
+        // partway back toward level so the player keeps looking where they are going.
+        float bodyPitch = SmartMovingClientState.angleJumpBodyPitch(fw, bk);
+        head.xRot -= bodyPitch * 0.6f * k;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
