@@ -644,27 +644,27 @@ public final class SmartMovingJumper {
     public static void updateWallJumpState(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
-        // 🔴 fix #157 (2026-05-27): 원본 L2865-L2896 순서 1:1 복원.
-        //   기존: wantWallJumping 계산 → continueWallJumping=false set 순서.
-        //   원본: continueWallJumping=false set → wantWallJumping 계산 순서.
-        //   순서 역전 BUG: jumpKey release 시점, wantWallJumping 식 우측 continueWallJumping=true
-        //   잔존 → wantWallJumping 매 tick true 유지 → handleWallJumping 매 tick 발동 → tryJump
-        //   성공 시 continueWallJumping=true 재set → **영구 자가유지 cycle** (= 사용자 보고
-        //   "jump 떼도 wall jump 탈출 안 됨").
+        // 🔴 fix #157 (2026-05-27): Restore original L2865-L2896 order 1:1.
+        //   Previous: wantWallJumping calculation → continueWallJumping=false set order.
+        //   Original: continueWallJumping=false set → wantWallJumping calculation order.
+        //   Reversed order BUG: At jumpKey release, wantWallJumping formula right side continueWallJumping=true
+        //   persists → wantWallJumping stays true each tick → handleWallJumping fires each tick → successful tryJump
+        //   sets continueWallJumping=true again → **permanent self-sustaining cycle** (= user report
+        //   "can't escape wall jump even after releasing jump").
 
-        // 1. (원본 L2865-L2866) continueWallJumping false 전환 — 먼저
+        // 1. (Original L2865-L2866) continueWallJumping false transition — first
         boolean jumpPressed = Minecraft.getInstance().options.keyJump.isDown();
         if (sm.continueWallJumping && (player.onGround() || sm.isClimbing || !jumpPressed)) {
             sm.continueWallJumping = false;
         }
 
-        // 2. (원본 L2868) canWallJumping
+        // 2. (Original L2868) canWallJumping
         boolean isWallJumpEnabled = cfg.wallUpJump || cfg.wallHeadJump;
         boolean canWallJumping = isWallJumpEnabled && !sm.isHeadJumping && !player.onGround()
                 && !sm.isClimbing && !sm.isSwimming_sm && !sm.isDiving
                 && !sm.isLevitating && !sm.isFlying;
 
-        // 3. (원본 L2869-L2892) double click 처리
+        // 3. (Original L2869-L2892) double click processing
         if (cfg.wallJumpDoubleClick) {
             if (canWallJumping) {
                 if (sm.jumpKeyStartPressed) {
@@ -684,8 +684,8 @@ public final class SmartMovingJumper {
             sm.triggerWallJumping = sm.jumpKeyStartPressed;
         }
 
-        // 4. (원본 L2894-L2896) wantWallJumping — 마지막
-        // 자기참조 패턴: 이전 틱 wantWallJumping 을 읽어 jumpPressed && !collided 이면 유지.
+        // 4. (Original L2894-L2896) wantWallJumping — last
+        // Self-referential pattern: Read previous tick wantWallJumping, maintain if jumpPressed && !collided.
         sm.wantWallJumping = canWallJumping &&
                 (sm.triggerWallJumping || sm.continueWallJumping ||
                  (sm.wantWallJumping && jumpPressed && !player.horizontalCollision));
@@ -694,8 +694,8 @@ public final class SmartMovingJumper {
     // ── [10-5] handleWallJumping ─────────────────────────────────────────────
 
     /**
-     * 벽 점프 처리. sm_travel_client() 내 climbing 처리 전에 호출된다.
-     * 원본: SmartMovingSelf.handleWallJumping() L1946-1997.
+     * Handle wall jump. Called before climbing handling inside sm_travel_client().
+     * Original: SmartMovingSelf.handleWallJumping() L1946-1997.
      *
      * 원본 진입 조건(L1450): `if (!wantWallJumping || NaN(horizontalCollisionAngle)) return;`
      * → wantWallJumping 은 updateWallJumpState 에서 갱신된 값.
@@ -706,12 +706,12 @@ public final class SmartMovingJumper {
     public static void handleWallJumping(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
-        // 원본 L1948: `if (!wantWallJumping || Double.isNaN(horizontalCollisionAngle)) return;`
-        // 🔴 fix #157 (2026-05-27): NaN 가드 복원 — 사용자 보고 "벽 없어도 평지에서 발동
-        //   (= 뱅글뱅글 + 상승)". 기존 calculateSeparateCollisionAngle 의 NaN fallback (=
-        //   movementAngle 반환) 가 원본 NaN 가드 무력화. 공중 (= 4축 collision 모두 false) →
-        //   getHorizontalCollisionangle NaN → 원본 즉시 return. 매핑은 NaN → fallback
-        //   movementAngle → handleWallJumping 진행 → 공중 wall jump 발동.
+        // Original L1948: `if (!wantWallJumping || Double.isNaN(horizontalCollisionAngle)) return;`
+        // 🔴 fix #157 (2026-05-27): Restore NaN guard — user report "triggers on flat ground even without wall
+        //   (= spinning + rising)". Previous calculateSeparateCollisionAngle NaN fallback (=
+        //   returns movementAngle) disabled original NaN guard. In air (= all 4-axis collisions false) →
+        //   getHorizontalCollisionangle NaN → original immediately return. Mapping: NaN → fallback
+        //   movementAngle → handleWallJumping proceeds → in-air wall jump triggers.
         if (!sm.wantWallJumping) return;
         float horizontalCollisionAngle = calculateSeparateCollisionAngle(player);
         if (Float.isNaN(horizontalCollisionAngle)) return;

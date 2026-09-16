@@ -477,7 +477,7 @@ public final class SmartMovingServer {
         if (server != null) broadcastConfig(server);
     }
 
-    // ── 3-11: 서버 콘솔 로그 (원본: SmartMovingServerOptions 로그 메서드) ─────────
+    // ── 3-11: Server console logging (original: SmartMovingServerOptions logging methods) ─────────
 
     /**
      * 원본: SmartMovingServerOptions.logConfigState(config, username, reconfig)
@@ -517,7 +517,7 @@ public final class SmartMovingServer {
         LOGGER.info("Smart Moving speed set to {}%{}", config.getSpeedPercent(), getPostfix(username));
     }
 
-    /** 원본: SmartMovingServerOptions.getPostfix(username). username=null → 빈 문자열. */
+    /** Original: SmartMovingServerOptions.getPostfix(username). username=null → empty string. */
     private static String getPostfix(String username) {
         if (username == null) return "";
         return " by user '" + username + "'";

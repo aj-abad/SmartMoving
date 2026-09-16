@@ -461,22 +461,22 @@ public final class SmartMovingSwimmer {
         double motionZ = vel.z;
 
         // Jump (diveUp) / Sneak (diveDown) keys
-        // 🔵 (BUG 5 fix #107) diveDown 식 원본 L279 1:1 — raw sneak + cfg gate.
-        //   기존: `player.isSneaking() && sm.isDiving` — isSneaking override 우회 X +
-        //         cfg.diveDownOnSneak 가드 누락 + `sm.isDiving` 가드 잘못 추가
-        //         (원본 L279 = `esp.movementInput.sneak && Config._diveDownOnSneak.value` 만).
-        //   해결: raw sneak + cfg.diveDownOnSneak. isDiving 가드는 후속 motion 분기에서
-        //         자연 처리 (dive 분기 안에서만 diveDown 식 매치).
+        // 🔵 (BUG 5 fix #107) diveDown formula original L279 1:1 — raw sneak + cfg gate.
+        //   Existing: `player.isSneaking() && sm.isDiving` — doesn't bypass isSneaking override +
+        //         missing cfg.diveDownOnSneak guard + wrongly added `sm.isDiving` guard
+        //         (original L279 = `esp.movementInput.sneak && Config._diveDownOnSneak.value` only).
+        //   Solution: raw sneak + cfg.diveDownOnSneak. isDiving guard handled naturally in subsequent motion branch
+        //         (diveDown formula matches only inside dive branch).
         boolean diveUp   = jumping;
-        // 🔴 fix #201: diveDown jump 가드. dive+sneak+jump 동시 → diveDown=false → cancel 식 미발동 → diveUp 잔존 → motionYDiff=0.05 (위로).
+        // 🔴 fix #201: jump guard for diveDown. dive+sneak+jump simultaneous → diveDown=false → cancel formula not triggered → diveUp remains → motionYDiff=0.05 (upward).
         boolean diveDown = player.input.keyPresses.shift() && cfg.diveDownOnSneak && !player.input.keyPresses.jump();
 
-        // 🔵 (BUG 6 fix #109) jump + sneak 동시 누름 시 둘 다 cancel — 원본 L298-L299 / 1.12.2 L306-307 1:1.
+        // 🔵 (BUG 6 fix #109) jump + sneak simultaneous press both cancel — original L298-L299 / 1.12.2 L306-307 1:1.
         //   `if (isDiving && diveUp && diveDown) diveUp = diveDown = false;`
-        //   = 잠수 중 jump+sneak 동시 누름 시 정지 (= levitating 자세 또는 default motion 식).
-        //   기존 매핑 누락 → jump 우선 동작 (= cancel 식 안 발동, diveUp=true 잔존, motion 식
-        //     `if(diveUp || diveDown || levitating) motionY = (motionY+diff)*0.6` 진입 → 상승).
-        //   사용자 인지 "원본=jump 우선" 은 우리 매핑 동작을 원본으로 오인. 실제 원본 = 정지.
+        //   = stop on simultaneous jump+sneak during dive (= levitating posture or default motion formula).
+        //   Existing mapping missing → jump priority behavior (= cancel formula not triggered, diveUp=true remains, motion formula
+        //     `if(diveUp || diveDown || levitating) motionY = (motionY+diff)*0.6` enters → rises).
+        //   User perception "original=jump priority" mistook our mapping behavior for original. Actual original = stop.
         if (sm.isDiving && diveUp && diveDown) {
             diveUp = false;
             diveDown = false;
