@@ -39,16 +39,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class MixinLivingEntityClient {
 
     /**
-     * 5-1 (클라이언트): travel() 인터셉트 — SM 클라이밍 물리 파이프라인.
+     * 5-1 (Client): travel() intercept — SM climbing physics pipeline.
      *
-     * 클라이밍 가능 표면(사다리/넝쿨) 탐지 시 vanilla travel()을 취소하고
-     * SM 클라이밍 물리를 직접 적용한다.
+     * When a climbable surface (ladder/vine) is detected, vanilla travel() is canceled
+     * and SM climbing physics is directly applied.
      *
-     * 적용 물리:
-     *   - handleClimbing(): Y 속도 설정 + fallDistance 리셋
-     *   - handleCeilingClimbing(): 천장 클라이밍 조건 처리
-     *   - x/z 감속: 0.91F 배율 (공기 저항)
-     *   - motionY 하한: max(motionY, -0.15D) (과도한 낙하 방지)
+     * Applied physics:
+     *   - handleClimbing(): Set Y velocity + reset fallDistance
+     *   - handleCeilingClimbing(): Handle ceiling climbing conditions
+     *   - x/z deceleration: 0.91F factor (air resistance)
+     *   - motionY floor: max(motionY, -0.15D) (prevent excessive falling)
      *
      */
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)

@@ -19,23 +19,23 @@
 
 ## Client Mixin Files
 
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinAbstractClientPlayerEntityClient.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinAvatarDimensionsClient.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinAvatarRenderState.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinCamera.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinCapeFeatureRenderer.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinClientPlayerEntity.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinClientPlayerInteractionManager.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinClientPlayNetworkHandler.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinEntityClient.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinKeyboardInput.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinLivingEntityAccessor.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinLivingEntityClient.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinLivingEntityRenderer.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinModelPart.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinPlayerEntityClient.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinPlayerEntityModelClient.java
-- [ ] src/client/java/choco/ratel/smartmoving/mixin/client/MixinPlayerEntityRenderer.java
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinAbstractClientPlayerEntityClient.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinAvatarDimensionsClient.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinAvatarRenderState.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinCamera.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinCapeFeatureRenderer.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinClientPlayerEntity.java (agent a3447d247284b7396)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinClientPlayerInteractionManager.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinClientPlayNetworkHandler.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinEntityClient.java (agent a3447d247284b7396)
+- [x] src/client/java/choco/ratel/smartmoving/mixin/client/MixinKeyboardInput.java
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinLivingEntityAccessor.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinLivingEntityClient.java (agent a3447d247284b7396)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinLivingEntityRenderer.java (agent ade0eb934704ca2d9)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinModelPart.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinPlayerEntityClient.java (agent a82222e35b61e66c2)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinPlayerEntityModelClient.java (agent ade0eb934704ca2d9)
+- [🔄] src/client/java/choco/ratel/smartmoving/mixin/client/MixinPlayerEntityRenderer.java (agent ade0eb934704ca2d9)
 
 ## Common Files
 

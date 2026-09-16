@@ -713,41 +713,41 @@ public final class SmartMovingClientState {
      */
     public float lastHungerIncrease;
 
-    // ── 12-7: 위 블록까지의 거리 (isCrawlClimbing || isHeadJumping 시 사용) ─
-    /** 머리 위 블록까지의 거리. 최대 5.0F. */
+    // ── 12-7: Distance to block above (used during isCrawlClimbing || isHeadJumping) ─
+    /** Distance to block above head. Maximum 5.0F. */
     public float smallOverGroundHeight;
 
-    // ── 9-5: 슬라이딩 파티클 타이머 ──────────────────────────────────────
-    // 원본 필드명 오타(Slinding) 그대로 보존
-    /** 슬라이딩 파티클 누적 타이머. _slideParticlePeriodFactor × 0.1F 초과 시 파티클 생성. */
+    // ── 9-5: Sliding particle timer ──────────────────────────────────────
+    // Preserved original field name typo (Slinding) as-is
+    /** Sliding particle accumulated timer. Generate particle when exceeds _slideParticlePeriodFactor × 0.1F. */
     public float spawnSlindingParticle;
 
-    // ── 5-8: 클라이밍 이동 거리 누적 (클라이언트 측) ──────────────────────
-    /** 클라이밍 이동 거리 누적 (피로도 계산용). */
+    // ── 5-8: Climbing distance accumulation (client-side) ──────────────────────
+    /** Climbing distance accumulated (for fatigue calculation). */
     public double distanceClimbedModified;
 
-    // ── 8-1: 수중 상태 3분류 (SM 고유, vanilla isSwimming()과 별개) ─────────
-    // 원본: SmartMoving.isDipping / isSwimming / isDiving 필드
-    // offset = playerSwimWaterBorder + 0.1625D 기준:
-    //   isDipping: offset < 1.4 (발만 물속)
-    //   isSwimming_sm: 1.4 ≤ offset < 1.9 (수면 수영)
-    //   isDiving: offset ≥ 1.9 (완전 잠수)
+    // ── 8-1: Three underwater states (SM-specific, separate from vanilla isSwimming()) ─────────
+    // Original: SmartMoving.isDipping / isSwimming / isDiving fields
+    // Based on offset = playerSwimWaterBorder + 0.1625D:
+    //   isDipping: offset < 1.4 (feet only submerged)
+    //   isSwimming_sm: 1.4 ≤ offset < 1.9 (surface swimming)
+    //   isDiving: offset ≥ 1.9 (fully submerged)
 
-    /** 수면에 발만 잠긴 상태. offset < 1.4 */
+    /** Feet only submerged at surface. offset < 1.4 */
     public boolean isDipping;
 
-    /** 수면 수영 상태. 1.4 ≤ offset < 1.9. vanilla isSwimming()과 이름 충돌 방지를 위해 _sm 접미사 사용. */
+    /** Surface swimming state. 1.4 ≤ offset < 1.9. Using _sm suffix to avoid name collision with vanilla isSwimming(). */
     public boolean isSwimming_sm;
 
-    /** 완전 잠수 상태. offset ≥ 1.9 */
+    /** Fully submerged state. offset ≥ 1.9 */
     public boolean isDiving;
 
-    // ── 8-2: 수중 이동 카운터 ─────────────────────────────────────────
-    /** 물속 틱 카운터. isJumpingOutOfWater 조건(>10)에 사용. */
+    // ── 8-2: Underwater movement counter ─────────────────────────────────────
+    /** Underwater tick counter. Used in isJumpingOutOfWater condition (>10). */
     public int waterMovementTicks;
 
-    // ── 8-6: 수영 소리 거리 누적 ──────────────────────────────────────
-    /** 수영 소리 누적 거리. SwimSoundDistance(≈1.4286F) 초과 시 소리 재생. */
+    // ── 8-6: Swimming sound distance accumulation ──────────────────────────────────
+    /** Swimming sound accumulated distance. Play sound when exceeds SwimSoundDistance (≈1.4286F). */
     public double distanceSwom;
 
     /**
