@@ -61,16 +61,16 @@ public final class SmartMovingSlider {
 
         double newVx = vel.x * damping;
         double newVz = vel.z * damping;
-        // 수직: 중력 적용 (슬라이딩 중 공중에 있으면 낙하)
+        // Vertical: gravity applied (fall if airborne while sliding)
         double newVy = vel.y - player.getAttributeValue(Attributes.GRAVITY);
         newVy *= 0.98D;
 
-        // 원본 L730-L744: strafe 강제 회전 (좌우 키로 슬라이딩 방향 컨트롤).
-        //   moveStrafing != 0 && _slideControlDegrees > 0 일 때 motionX/Z 를 회전.
-        //   _slideControlDegrees: tick 당 회전량 (deg). 기본 1F.
-        //   moveStrafing 부호 = Math.signum() → 좌/우 회전 방향 결정.
-        //   원본 RadiantToAngle = 180/π → Math.toRadians 로 1:1.
-        //   damping 적용 후 newVx/newVz 에 회전 (스칼라 damping × 단위 보존 회전 = commute → 결과 동일).
+        // Original L730-L744: strafe forced rotation (left/right keys control sliding direction).
+        //   When moveStrafing != 0 && _slideControlDegrees > 0, rotate motionX/Z.
+        //   _slideControlDegrees: rotation amount per tick (deg). Default 1F.
+        //   moveStrafing sign = Math.signum() → determines left/right rotation direction.
+        //   Original RadiantToAngle = 180/π → Math.toRadians 1:1.
+        //   After damping applied to newVx/newVz, rotate (scalar damping × unit-preserving rotation = commute → same result).
         float moveStrafing = player.input.getMoveVector().x;
         if (moveStrafing != 0F && cfg.slideControlDegrees > 0F) {
             double angle = -Math.atan(newVx / newVz);
@@ -86,19 +86,19 @@ public final class SmartMovingSlider {
         player.setDeltaMovement(newVx, newVy, newVz);
         player.move(MoverType.SELF, player.getDeltaMovement());
 
-        // 🔴 BUG fix (2026-05-08, 사용자 보고 "슬라이딩 → 절벽 → 자동 헤드점프 전환 안 됨"):
-        //   sm_travel_client 의 ci.cancel() 으로 vanilla LivingEntity.travel 본체 skip →
-        //   본체 안의 fallDistance 갱신 식 (`if onGround → fallDistance=0; else if vy<0 →
-        //   fallDistance -= vy`) 도 skip. 슬라이딩 중 절벽 떨어짐 → fallDistance=0 유지 →
-        //   SlideToHeadJumping 임계 (0.05F) 도달 X → 자동 전환 X.
-        //   원본 1.7.10 흐름: SM superMoveEntityWithHeading 가 vanilla moveEntity 호출 →
-        //   moveEntity 안에서 fallDistance 자동 갱신. 1.21.1 vanilla travel cancel 이라
-        //   직접 매핑 필요.
-        //   해결: vanilla 1.21.1 LivingEntity.travel 의 fallDistance 갱신 식 1:1 매핑.
-        // 🔴 fix #67 (2026-05-10, dump 분석 — root cause 확정):
-        //   isSliding 진행 중 box 발 = ground top 정확 동등 시 vanilla *touching* 으로 onGround=false.
-        //   기존 식: onGround false → else if (vy<0) → fall += -vy 누적 → cycle BUG.
-        //   해결: box.minY ≈ solid top (epsilon 1e-3 매치) 시도 fall=0 reset (= touching=ground 간주).
+        // 🔴 BUG fix (2026-05-08, user report "sliding → cliff → auto headjump conversion failed"):
+        //   sm_travel_client's ci.cancel() skips vanilla LivingEntity.travel body →
+        //   fallDistance update formula inside body (`if onGround → fallDistance=0; else if vy<0 →
+        //   fallDistance -= vy`) also skipped. Sliding off cliff → fallDistance=0 maintained →
+        //   SlideToHeadJumping threshold (0.05F) not reached → auto conversion not triggered.
+        //   Original 1.7.10 flow: SM superMoveEntityWithHeading calls vanilla moveEntity →
+        //   fallDistance auto-updated inside moveEntity. 1.21.1 vanilla travel cancel means
+        //   direct mapping needed.
+        //   Solution: 1:1 mapping of vanilla 1.21.1 LivingEntity.travel fallDistance update formula.
+        // 🔴 fix #67 (2026-05-10, dump analysis — root cause confirmed):
+        //   During isSliding, when box feet = ground top exactly, vanilla *touching* → onGround=false.
+        //   Old formula: onGround false → else if (vy<0) → fall += -vy accumulated → cycle BUG.
+        //   Solution: when box.minY ≈ solid top (epsilon 1e-3 match), reset fall=0 (= treat as touching=ground).
         net.minecraft.world.phys.AABB _bbS67 = player.getBoundingBox();
         double _solidTopS67 = SmartMovingClientState.getMaxPlayerSolidBetween(player, _bbS67.minY - 1.0, _bbS67.minY, 0);
         boolean _atSolidTop = Math.abs(_bbS67.minY - _solidTopS67) < 1.0E-3;
@@ -108,26 +108,26 @@ public final class SmartMovingSlider {
             player.fallDistance -= (float) player.getDeltaMovement().y;
         }
 
-        // [9-5] 슬라이딩 파티클
+        // [9-5] Sliding particle
         spawnSlidingParticle(player, sm, new Vec3(newVx, 0, newVz));
 
-        // 종료 조건은 SmartMovingClientState 메인 tick (SlideToHeadJumping 다음 위치, 원본 L2563-L2567)
-        // 에서 sneak 떼기 + horizontalSpeedSquare < stopFactor*0.01 + wasCrawling=toCrawling() 1:1 처리.
+        // Exit conditions in SmartMovingClientState main tick (next position after SlideToHeadJumping, original L2563-L2567)
+        // handled: sneak release + horizontalSpeedSquare < stopFactor*0.01 + wasCrawling=toCrawling() 1:1 processing.
         return true;
     }
 
     // ── [9-5] spawnSlidingParticle ───────────────────────────────────────────
 
     /**
-     * 슬라이딩 파티클 생성.
-     * 원본: SmartMoving.spawnParticles() isSliding 분기.
+     * Spawn sliding particle.
+     * Original: SmartMoving.spawnParticles() isSliding branch.
      *
-     * 원본 동작:
-     *   spawnSlindingParticle += dt (타이머 누적)
+     * Original behavior:
+     *   spawnSlindingParticle += dt (timer accumulation)
      *   if > _slideParticlePeriodFactor * 0.1F (= 0.5F * 0.1F = 0.05F):
-     *       파티클: blockcrack_<id>_<meta> → 1.21.1 ParticleTypes.BLOCK + BlockState
-     *       motionX/Z = 이동방향 * -4D, motionY = 1.5D
-     *       타이머 리셋
+     *       particle: blockcrack_<id>_<meta> → 1.21.1 ParticleTypes.BLOCK + BlockState
+     *       motionX/Z = movement direction * -4D, motionY = 1.5D
+     *       reset timer
      */
     private static void spawnSlidingParticle(LocalPlayer player, SmartMovingClientState sm, Vec3 horizontal) {
         if (!player.level().isClientSide()) return;
@@ -145,7 +145,7 @@ public final class SmartMovingSlider {
             double speed = horizontal.horizontalDistance();
             if (speed < 0.01D) return;
 
-            // 이동 방향 반대로 파티클 발사 (원본: motionX/Z = direction * -4D)
+            // Emit particle opposite to movement direction (original: motionX/Z = direction * -4D)
             double nx = horizontal.x / speed;
             double nz = horizontal.z / speed;
 
