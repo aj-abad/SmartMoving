@@ -809,6 +809,15 @@ public class SmartMovingConfig {
      */
     public boolean sneakToggle = false;
 
+    /**
+     * Sprint-style prone activation (hold mode only, i.e. `crawlToggle=false`): double-tapping the
+     * sneak key toggles the prone latch on/off, same as re-pressing the dedicated prone key.
+     * Default true.
+     */
+    public boolean sneakDoubleTapProne = true;
+    /** Double-tap detection window (ticks) for `sneakDoubleTapProne`. Default 4. */
+    public float sneakDoubleTapProneTicks = 4F;
+
     // ── Name tag display ────────────────────────────────────────
     // Original: _sneakNameTag = Modified("move.sneak.name") → default true
     // true → use 64 distance for name tag visibility while sneaking (vanilla is 32)
@@ -1708,6 +1717,8 @@ public class SmartMovingConfig {
         crawlOverEdge            = getBool(p,   "move.crawl.edge",                crawlOverEdge);
         crawlToggle              = getBool(p,   "move.crawl.toggle",              crawlToggle);
         sneakToggle              = getBool(p,   "move.sneak.toggle",              sneakToggle);
+        sneakDoubleTapProne      = getBool(p,   "move.sneak.doubletap.prone",     sneakDoubleTapProne);
+        sneakDoubleTapProneTicks = getFloat(p,  "move.sneak.doubletap.prone.ticks", sneakDoubleTapProneTicks);
         sneakNameTag             = getBool(p,   "move.sneak.name",                sneakNameTag);
         crawlNameTag             = getBool(p,   "move.crawl.name",                crawlNameTag);
         displayExhaustionBar     = getBool(p,   "move.gui.exhaustion.bar",        displayExhaustionBar);
@@ -1876,6 +1887,8 @@ public class SmartMovingConfig {
         p.setProperty("move.crawl.edge",                 String.valueOf(crawlOverEdge));
         p.setProperty("move.crawl.toggle",               String.valueOf(crawlToggle));
         p.setProperty("move.sneak.toggle",               String.valueOf(sneakToggle));
+        p.setProperty("move.sneak.doubletap.prone",      String.valueOf(sneakDoubleTapProne));
+        p.setProperty("move.sneak.doubletap.prone.ticks", String.valueOf(sneakDoubleTapProneTicks));
         p.setProperty("move.sneak.name",                 String.valueOf(sneakNameTag));
         p.setProperty("move.crawl.name",                 String.valueOf(crawlNameTag));
         p.setProperty("move.gui.exhaustion.bar",         String.valueOf(displayExhaustionBar));

@@ -657,6 +657,18 @@ public final class SmartMovingClientState {
     public boolean proneJustPressed;
     /** prone key state from previous frame. */
     private boolean prevProneKeyPressed;
+    /**
+     * Sprint-style prone latch: true while prone stays engaged without holding the key, same as
+     * vanilla sprint continuing after a tap. Auto-releases when the player stops moving.
+     */
+    public boolean proneLatched;
+    /**
+     * Tracks whether movement has been observed since `proneLatched` was set — gates the
+     * auto-release edge so a latch started while stationary doesn't cancel itself immediately.
+     */
+    public boolean proneLatchMoving;
+    /** Double-tap counter for sneak-key → prone trigger (same shape as `wallJumpCount`). */
+    public int sneakDoubleTapCount;
     /** Dedicated dodge key's rising edge this tick. */
     public boolean dodgeJustPressed;
     /** dodge key state from previous frame. */
@@ -1497,7 +1509,54 @@ public final class SmartMovingClientState {
             if (cfg0.isCrawlToggleEnabled() && proneJustPressed && player.onGround()) {
                 crawlToggled = !crawlToggled;
             }
-            boolean proneRequested0 = cfg0.isCrawlToggleEnabled() ? crawlToggled : proneHeld0;
+
+            // Sprint-style prone latch (hold mode only): tapping the prone key — or double-tapping
+            // sneak — while moving keeps prone engaged without holding the key, until the player
+            // stops moving. Toggle mode (crawlToggle=true) keeps its own separate persistent toggle
+            // untouched.
+            if (!cfg0.isCrawlToggleEnabled()) {
+                boolean isMoving0 = player.input.getMoveVector().y != 0F
+                        || player.input.getMoveVector().x != 0F;
+
+                if (cfg0.sneakDoubleTapProne && player.onGround()) {
+                    if (sneakKeyStartPressed) {
+                        if (sneakDoubleTapCount == 0) {
+                            sneakDoubleTapCount = (int) Math.ceil(cfg0.sneakDoubleTapProneTicks);
+                        } else {
+                            proneLatched = !proneLatched;
+                            proneLatchMoving = isMoving0;
+                            sneakDoubleTapCount = 0;
+                        }
+                    } else if (sneakDoubleTapCount > 0) {
+                        sneakDoubleTapCount--;
+                    }
+                } else {
+                    sneakDoubleTapCount = 0;
+                }
+
+                if (proneJustPressed) {
+                    if (proneLatched) {
+                        proneLatched = false;
+                        proneLatchMoving = false;
+                    } else if (isMoving0 && player.onGround()) {
+                        proneLatched = true;
+                        proneLatchMoving = true;
+                    }
+                }
+
+                if (proneLatched) {
+                    if (isMoving0) {
+                        proneLatchMoving = true;
+                    } else if (proneLatchMoving) {
+                        proneLatched = false;
+                        proneLatchMoving = false;
+                    }
+                }
+            } else {
+                sneakDoubleTapCount = 0;
+            }
+
+            boolean proneRequested0 = cfg0.isCrawlToggleEnabled() ? crawlToggled : (proneHeld0 || proneLatched);
 
             // B-31c-post (Session 113): Port original L2343-L2356 initializeCrawling true setting block.
             //   boolean initializeCrawling = false;
@@ -3276,6 +3335,9 @@ public final class SmartMovingClientState {
         prevGrabKeyPressed  = false;
         proneJustPressed    = false;
         prevProneKeyPressed = false;
+        proneLatched        = false;
+        proneLatchMoving    = false;
+        sneakDoubleTapCount = 0;
         dodgeJustPressed    = false;
         prevDodgeKeyPressed = false;
         prevSneakKeyPressed = false;
