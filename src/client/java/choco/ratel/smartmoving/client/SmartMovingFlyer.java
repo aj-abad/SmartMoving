@@ -6,39 +6,39 @@ import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * SM 비행 물리 — handleAlternativeFlying() 이식.
+ * SM flying physics — handleAlternativeFlying() ported.
  *
- * 원본: SmartMovingSelf.handleAlternativeFlying() (602-631줄)
- *       + SmartMovingBase.moveFlying() (56-93줄)
+ * Original: SmartMovingSelf.handleAlternativeFlying() (lines 602-631)
+ *           + SmartMovingBase.moveFlying() (lines 56-93)
  *
- * 활성 조건: sm.isFlying && cfg.fly (= capabilities.isFlying && Config.isFlyingEnabled())
- * 처리:
- *   1. sneak(하강): motionY += 0.15D, moveUpward -= 0.98F
- *   2. jump(상승): motionY -= 0.15D, moveUpward += 0.98F
- *   3. moveFlying(): yaw 기반 수평 + pitch 기반 수직(treeDimensional=true 시) 속도 합산
- *   4. 감쇠: motionX/Y/Z * HorizontalAirDamping(0.91F)
+ * Activation condition: sm.isFlying && cfg.fly (= capabilities.isFlying && Config.isFlyingEnabled())
+ * Processing:
+ *   1. sneak(descend): motionY += 0.15D, moveUpward -= 0.98F
+ *   2. jump(ascend): motionY -= 0.15D, moveUpward += 0.98F
+ *   3. moveFlying(): yaw-based horizontal + pitch-based vertical (when treeDimensional=true) velocity summed
+ *   4. damping: motionX/Y/Z * HorizontalAirDamping(0.91F)
  */
 public class SmartMovingFlyer {
 
     /**
-     * SM 비행 물리를 적용한다.
+     * Apply SM flying physics.
      *
-     * @param jumping LivingEntity.jumping 필드 (Space 키 보유 여부)
-     * @return true → SM이 처리함, 호출 측에서 ci.cancel() + return
+     * @param jumping LivingEntity.jumping field (whether Space key is held)
+     * @return true → SM handles it, caller should ci.cancel() + return
      */
     public static boolean handleFlying(LocalPlayer player, SmartMovingClientState sm,
                                        Vec3 movementInput, boolean jumping) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
-        // 원본 SmartMovingSelf.handleAlternativeFlying L604:
+        // Original SmartMovingSelf.handleAlternativeFlying L604:
         //   handleAlternativeFlying = !handledSwimming && !handledLava && capabilities.isFlying && Config.isFlyingEnabled()
-        //   1.21.1: 호출 측 sm_travel_client 가 handleSwimming/handleLava 후 도달 = !handledSwimming
-        //   && !handledLava 자동 충족. sm.isFlying = isFlyingEnabled() && abilities.flying && !swim
-        //   && !dive — 원본 L2510 isFlying 공식 1:1 매핑. cfg.fly 중복 가드 (sm.isFlying 안에 포함).
+        //   1.21.1: caller sm_travel_client reached after handleSwimming/handleLava = !handledSwimming
+        //   && !handledLava automatically satisfied. sm.isFlying = isFlyingEnabled() && abilities.flying && !swim
+        //   && !dive — original L2510 isFlying formula 1:1 mapped. cfg.fly redundant guard (included in sm.isFlying).
         if (!sm.isFlying) return false;
 
-        // 원본 L607-L608: resetSwimming(); resetClimbing();
-        //   1.21.1: sm_travel_client 가 handleSwimming/handleLava 후 도달 = SM 수영 분기 ci.cancel
-        //   되지 않은 경우만 → 수영/lava 처리 안 됨 = reset 의미 동일 (이미 false 유지). 매핑 생략.
+        // Original L607-L608: resetSwimming(); resetClimbing();
+        //   1.21.1: sm_travel_client reached after handleSwimming/handleLava = SM swimming branch ci.cancel
+        //   not applied only → swimming/lava processing not done = reset meaning identical (already maintained false). Mapping omitted.
 
         // 원본 L611-L620: sneak/jump → motionY ± 0.15 + moveUpward ± 0.98 (esp.movementInput 직접)
         // 🔴 sneak 검사 정정 (사용자 보고 fix — 비행 sneak 빠른 하강 BUG, 2026-05-03):

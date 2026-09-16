@@ -98,18 +98,18 @@ public class SmartMoving implements ModInitializer {
             (payload, context) ->
                 SmartMovingServer.processConfigChangePacket(context.player()));
 
-        // SpeedChange: 클라이언트 속도 변경 요청 수신 → 권한 검증 후 응답 (C-18)
+        // SpeedChange: Receive client speed change request → verify permission and respond (C-18)
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.SpeedChangePayload.ID,
             (payload, context) ->
                 SmartMovingServer.processSpeedChangePacket(context.player(), payload.difference()));
 
-        // HungerChange: 클라이언트 소진값 수신 — 서버 hunger 필드 갱신
+        // HungerChange: Receive client exhaustion value — update server hunger field
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.HungerChangePayload.ID,
             (payload, context) -> {
                 SmartMovingServer.get(context.player()).hunger = payload.hunger();
             });
 
-        // Sound: SM 사운드 요청 수신 → 주변 플레이어에게 재생 (C-19)
+        // Sound: Receive SM sound request → play to nearby players (C-19)
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.SoundPayload.ID,
             (payload, context) -> {
                 ServerPlayer sender = context.player();

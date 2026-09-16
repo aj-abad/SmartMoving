@@ -7,18 +7,18 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
 /**
- * SM 패킷 채널 등록 및 7종 Payload 타입 정의.
- * 원본 ObjectOutputStream/FML → Fabric PacketByteBuf/CustomPayload 변환.
+ * SM packet channel registration and 7 types of Payload definition.
+ * Original ObjectOutputStream/FML → Fabric PacketByteBuf/CustomPayload conversion.
  *
- * 채널 방향:
+ * Channel directions:
  *  C2S: state, config_info, config_change, speed_change, hunger_change, sound
  *  S2C: state, config_content, config_change, speed_change
  */
 public final class SmartMovingNetwork {
 
-    // ── Payload 타입 ──────────────────────────────────────────────
+    // ── Payload types ──────────────────────────────────────────────
 
-    /** State 패킷 (C2S + S2C): 클라이언트가 자신의 이동 상태를 전송, 서버가 추적 플레이어에게 릴레이 */
+    /** State packet (C2S + S2C): Client sends its movement state, server relays to tracking players */
     public record StatePayload(int entityId, long state) implements CustomPacketPayload {
         public static final Type<StatePayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "state"));
         public static final StreamCodec<FriendlyByteBuf, StatePayload> CODEC = new StreamCodec<>() {
@@ -35,7 +35,7 @@ public final class SmartMovingNetwork {
         @Override public Type<? extends CustomPacketPayload> type() { return ID; }
     }
 
-    /** ConfigInfo 패킷 (C2S): 클라이언트가 설정 정보를 서버에 전송 */
+    /** ConfigInfo packet (C2S): Client sends config info to server */
     public record ConfigInfoPayload(String config) implements CustomPacketPayload {
         public static final Type<ConfigInfoPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "config_info"));
         public static final StreamCodec<FriendlyByteBuf, ConfigInfoPayload> CODEC = new StreamCodec<>() {
@@ -52,8 +52,8 @@ public final class SmartMovingNetwork {
     }
 
     /**
-     * ConfigContent 패킷 (S2C): 서버가 설정 내용을 클라이언트에게 전송.
-     * lines = null 시 설정 비활성화. username = null 시 해당 플레이어에게 권한 없음.
+     * ConfigContent packet (S2C): Server sends config content to client.
+     * lines = null: config disabled. username = null: no permission for that player.
      */
     public record ConfigContentPayload(String[] lines, String username) implements CustomPacketPayload {
         public static final Type<ConfigContentPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "config_content"));
@@ -86,7 +86,7 @@ public final class SmartMovingNetwork {
         @Override public Type<? extends CustomPacketPayload> type() { return ID; }
     }
 
-    /** ConfigChange 패킷 (C2S + S2C): 설정 변경 알림, 페이로드 없음 */
+    /** ConfigChange packet (C2S + S2C): Config change notification, no payload */
     public record ConfigChangePayload() implements CustomPacketPayload {
         public static final Type<ConfigChangePayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "config_change"));
         public static final StreamCodec<FriendlyByteBuf, ConfigChangePayload> CODEC = new StreamCodec<>() {
@@ -96,15 +96,15 @@ public final class SmartMovingNetwork {
             }
             @Override
             public void encode(FriendlyByteBuf buf, ConfigChangePayload value) {
-                // 페이로드 없음
+                // No payload
             }
         };
         @Override public Type<? extends CustomPacketPayload> type() { return ID; }
     }
 
     /**
-     * SpeedChange 패킷 (C2S + S2C): 속도 변경 요청.
-     * username = null 시 해당 플레이어는 속도 변경 권한 없음.
+     * SpeedChange packet (C2S + S2C): Speed change request.
+     * username = null: player has no permission to change speed.
      */
     public record SpeedChangePayload(int difference, String username) implements CustomPacketPayload {
         public static final Type<SpeedChangePayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "speed_change"));
@@ -126,7 +126,7 @@ public final class SmartMovingNetwork {
         @Override public Type<? extends CustomPacketPayload> type() { return ID; }
     }
 
-    /** HungerChange 패킷 (C2S): 클라이언트 소진값을 서버에 전달. -1 = 억제 해제, 0 = 소진 없음. */
+    /** HungerChange packet (C2S): Send client exhaustion value to server. -1 = suppress release, 0 = no exhaustion. */
     public record HungerChangePayload(float hunger) implements CustomPacketPayload {
         public static final Type<HungerChangePayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "hunger_change"));
         public static final StreamCodec<FriendlyByteBuf, HungerChangePayload> CODEC = new StreamCodec<>() {
@@ -143,8 +143,8 @@ public final class SmartMovingNetwork {
     }
 
     /**
-     * Sound 패킷 (C2S): SM 전용 사운드 재생 요청.
-     * 원본 IPacketReceiver.processSoundPacket 파라미터명이 distance이지만 실제로는 volume 직렬화.
+     * Sound packet (C2S): SM exclusive sound playback request.
+     * Original IPacketReceiver.processSoundPacket parameter is named distance but actually serializes volume.
      */
     public record SoundPayload(String soundId, float volume, float pitch) implements CustomPacketPayload {
         public static final Type<SoundPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "sound"));
@@ -164,15 +164,15 @@ public final class SmartMovingNetwork {
     }
 
     /**
-     * 🔵 Stats 패킷 (C2S + S2C): self → server → REMOTE 매 tick stats angle 동기화.
-     * 원인: vanilla lerpPosAndRotation 가 REMOTE 의 위치를 5-tick 균등 분할 보간 →
-     *   sm.stats.calculate 의 realDxYz 입력이 평탄화 + spike 패턴 →
-     *   currentVerticalAngle/HorizontalAngle 가 SELF trajectory 와 다른 흐름 →
-     *   lerpFadeAngle 0.2 lerp 가 peak 추격 시간 부족.
-     * fix (2026-05-14, Option F): self 의 stats angle 매 tick packet 송신 →
-     *   REMOTE 가 자체 stats.calculate 결과를 packet 값으로 덮어쓰기 → 100% self 와 동일 trajectory.
-     * 패킷 부하: 매 tick 8 byte * tracker 수 = ~3.2 kbps/tracker (= 부담 적음).
-     * fix #96 wasSelfSlideFire bit 35 패턴 확장.
+     * 🔵 Stats packet (C2S + S2C): self → server → REMOTE per-tick stats angle synchronization.
+     * Cause: vanilla lerpPosAndRotation interpolates REMOTE position evenly over 5 ticks →
+     *   sm.stats.calculate realDxYz input becomes flattened + spike pattern →
+     *   currentVerticalAngle/HorizontalAngle different trajectory than SELF →
+     *   lerpFadeAngle 0.2 lerp insufficient peak-chasing time.
+     * Fix (2026-05-14, Option F): self stats angle sent per-tick packet →
+     *   REMOTE overwrites own stats.calculate result with packet value → 100% identical to self trajectory.
+     * Packet overhead: per tick 8 bytes * tracker count = ~3.2 kbps/tracker (= acceptable overhead).
+     * Fix #96 wasSelfSlideFire bit 35 pattern extended.
      */
     public record StatsPayload(int entityId, float verticalAngle, float horizontalAngle) implements CustomPacketPayload {
         public static final Type<StatsPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "stats"));
@@ -191,14 +191,14 @@ public final class SmartMovingNetwork {
         @Override public Type<? extends CustomPacketPayload> type() { return ID; }
     }
 
-    // ── 등록 ──────────────────────────────────────────────────────
+    // ── Registration ──────────────────────────────────────────────────────
 
     /**
-     * SmartMoving.onInitialize()에서 호출.
-     * C2S/S2C 양방향에 필요한 모든 페이로드 타입을 PayloadTypeRegistry에 등록.
+     * Called from SmartMoving.onInitialize().
+     * Register all required payload types in both C2S and S2C directions to PayloadTypeRegistry.
      */
     public static void register() {
-        // C2S (클라이언트→서버)
+        // C2S (Client→Server)
         PayloadTypeRegistry.serverboundPlay().register(StatePayload.ID,        StatePayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ConfigInfoPayload.ID,   ConfigInfoPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ConfigChangePayload.ID, ConfigChangePayload.CODEC);
@@ -207,7 +207,7 @@ public final class SmartMovingNetwork {
         PayloadTypeRegistry.serverboundPlay().register(SoundPayload.ID,        SoundPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(StatsPayload.ID,        StatsPayload.CODEC);
 
-        // S2C (서버→클라이언트)
+        // S2C (Server→Client)
         PayloadTypeRegistry.clientboundPlay().register(StatePayload.ID,         StatePayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ConfigContentPayload.ID, ConfigContentPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ConfigChangePayload.ID,  ConfigChangePayload.CODEC);

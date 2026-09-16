@@ -3,7 +3,7 @@
 ## Client Files - Main Classes
 
 - [x] src/client/java/choco/ratel/smartmoving/client/input/SmartMovingKeys.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingAvatarRenderState.java
+- [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingAvatarRenderState.java
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingClient.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingClientState.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingClimber.java
@@ -39,10 +39,10 @@
 
 ## Common Files
 
-- [ ] src/main/java/choco/ratel/smartmoving/climbing/CeilingClimbBlocks.java
-- [ ] src/main/java/choco/ratel/smartmoving/climbing/ClimbGap.java
-- [ ] src/main/java/choco/ratel/smartmoving/climbing/FeetClimbing.java
-- [ ] src/main/java/choco/ratel/smartmoving/climbing/HandsClimbing.java
+- [x] src/main/java/choco/ratel/smartmoving/climbing/CeilingClimbBlocks.java
+- [x] src/main/java/choco/ratel/smartmoving/climbing/ClimbGap.java
+- [x] src/main/java/choco/ratel/smartmoving/climbing/FeetClimbing.java
+- [x] src/main/java/choco/ratel/smartmoving/climbing/HandsClimbing.java
 - [ ] src/main/java/choco/ratel/smartmoving/climbing/Orientation.java
 - [ ] src/main/java/choco/ratel/smartmoving/config/SmartMovingConfig.java
 
@@ -62,9 +62,9 @@
 
 ## Core Files
 
-- [ ] src/main/java/choco/ratel/smartmoving/network/SmartMovingNetwork.java
-- [ ] src/main/java/choco/ratel/smartmoving/network/SmartMovingState.java
+- [x] src/main/java/choco/ratel/smartmoving/network/SmartMovingNetwork.java
+- [x] src/main/java/choco/ratel/smartmoving/network/SmartMovingState.java
 - [ ] src/main/java/choco/ratel/smartmoving/server/SmartMovingServer.java
 - [x] src/main/java/choco/ratel/smartmoving/SmartMoving.java
-- [ ] src/main/java/choco/ratel/smartmoving/SmartMovingSounds.java
+- [x] src/main/java/choco/ratel/smartmoving/SmartMovingSounds.java
 - [ ] src/main/java/choco/ratel/smartmoving/stat/SmartStatistics.java

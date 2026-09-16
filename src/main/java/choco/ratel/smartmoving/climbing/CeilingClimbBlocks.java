@@ -5,44 +5,44 @@ import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * 1-6: 천장 클라이밍 가능 블록 판정.
- * 원본: SmartMovingBase.supportsCeilingClimbing() — Block ID/Meta → BlockState 기반으로 재설계.
+ * 1-6: Determining blocks that support ceiling climbing.
+ * Original: SmartMovingBase.supportsCeilingClimbing() — redesigned from Block ID/Meta to BlockState-based.
  *
- * 기본 지원 블록 (원본 _ceilingClimbConfigurationString 기본값 이식):
+ * Supported blocks (ported from original _ceilingClimbConfigurationString defaults):
  *   tile.fenceIron → minecraft:iron_bars
- *   tile.trapdoor/0/1/2/3 → 모든 목재 트랩도어 (OPEN=false, 닫힌 상태)
+ *   tile.trapdoor/0/1/2/3 → all wooden trapdoors (OPEN=false, closed state)
  *   tile.trapdoor_iron/0/1/2/3 → minecraft:iron_trapdoor (OPEN=false)
  *
- * 원본 meta 0/1/2/3 = 닫힌 상태(각도 방향), meta 4-7 = 열린 상태.
- * 1.21.1: TrapdoorBlock.OPEN = false 이면 닫힌 상태.
+ * Original meta 0/1/2/3 = closed state (direction angles), meta 4-7 = open state.
+ * 1.21.1: TrapdoorBlock.OPEN = false indicates closed state.
  *
- * 설정 파일 기반 커스텀 블록 추가는 미확인 (추가 리서치 필요).
- * TODO: config string 파싱 시스템 재구현 시 이 메서드에 설정 기반 블록 추가.
+ * Custom block additions based on config files are not yet confirmed (additional research needed).
+ * TODO: Reimplement config string parsing system and add config-based blocks to this method.
  */
 public final class CeilingClimbBlocks {
 
     private CeilingClimbBlocks() {}
 
     /**
-     * 해당 BlockState가 천장 클라이밍을 지원하는 블록인지 판정한다.
+     * Determines if the given BlockState is a block that supports ceiling climbing.
      *
-     * @param state 판정할 BlockState (null이면 false)
-     * @return 천장 클라이밍 가능 여부
+     * @param state BlockState to check (returns false if null)
+     * @return true if the block supports ceiling climbing
      */
     public static boolean supports(BlockState state) {
         if (state == null) return false;
 
-        // tile.fenceIron → minecraft:iron_bars: 모든 상태 허용
+        // tile.fenceIron → minecraft:iron_bars: all states allowed
         if (state.is(Blocks.IRON_BARS)) return true;
 
-        // 🔴 사용자 요구: fence ≡ iron_bars 동일 동작. 천장 클라이밍도 fence 추가.
-        //   원본은 fence 천장 클라이밍 미지원 (_ceilingClimbConfigurationString 기본값에
-        //   tile.fenceIron 만 포함) 이지만 사용자 의도 "두 블록 동일 작동" 우선.
+        // 🔴 User request: fence ≡ iron_bars identical behavior. Add fence to ceiling climbing too.
+        //   Original doesn't support ceiling climbing on fences (_ceilingClimbConfigurationString defaults
+        //   only include tile.fenceIron) but user intent "both blocks behave identically" takes priority.
         //   isFence(state) = FenceBlock || WallBlock || closed FenceGate.
         if (Orientation.isFence(state)) return true;
 
-        // tile.trapdoor/trapdoor_iron → TrapdoorBlock 계열: 닫혀있는 상태만 허용
-        // 원본 meta 0-3 = OPEN=false에 해당
+        // tile.trapdoor/trapdoor_iron → TrapDoorBlock types: only closed state allowed
+        // Original meta 0-3 = OPEN=false equivalent
         if (state.getBlock() instanceof TrapDoorBlock) {
             return !state.getValue(TrapDoorBlock.OPEN);
         }

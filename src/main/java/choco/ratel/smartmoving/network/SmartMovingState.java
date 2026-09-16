@@ -1,11 +1,11 @@
 package choco.ratel.smartmoving.network;
 
 /**
- * State 패킷 long 비트맵.
- * 원본 SmartMovingOther/SmartMovingServer의 비트 레이아웃을 그대로 이식.
+ * State packet long bitmap.
+ * Original SmartMovingOther/SmartMovingServer bit layout ported as-is.
  *
- * bits 0-3:   actualFeetClimbType  (FeetClimbing ordinal, 4비트)
- * bits 4-7:   actualHandsClimbType (HandsClimbing ordinal, 4비트)
+ * bits 0-3:   actualFeetClimbType  (FeetClimbing ordinal, 4 bits)
+ * bits 4-7:   actualHandsClimbType (HandsClimbing ordinal, 4 bits)
  * bit  8:     isJumping
  * bit  9:     isDiving
  * bit  10:    isDipping
@@ -20,7 +20,7 @@ package choco.ratel.smartmoving.network;
  * bit  19:    isLevitating
  * bit  20:    isHeadJumping
  * bit  21:    isSliding
- * bits 22-24: angleJumpType 하위 3비트
+ * bits 22-24: angleJumpType lower 3 bits
  * bit  25:    isFeetVineClimbing
  * bit  26:    isHandsVineClimbing
  * bit  27:    isClimbJumping
@@ -29,10 +29,10 @@ package choco.ratel.smartmoving.network;
  * bit  30:    isFast
  * bit  31:    isWallJumping
  * bit  32:    isRopeSliding
- * bit  33:    isSneakButtonPressed (서버만 읽음)
- * bit  34:    isClimbCrawling      (서버만 읽음 — 박스 +1 mixin offset 동기화)
+ * bit  33:    isSneakButtonPressed (server-only read)
+ * bit  34:    isClimbCrawling      (server-only read — box +1 mixin offset sync)
  * bit  35:    wasSelfSlideFire
- * bit  36:    angleJumpType 상위 비트 (전방 포함 1~8 방향 코드 확장)
+ * bit  36:    angleJumpType upper bit (1-8 direction code extended with forward)
  */
 public final class SmartMovingState {
 
@@ -67,10 +67,10 @@ public final class SmartMovingState {
     public boolean isSneakButtonPressed;
     public boolean isClimbCrawling;
 
-    // 🔴 fix #96 (2026-05-13, 사용자 보고 "remote 측 여우무빙 즉시 수평 안 됨"):
-    //   self 측 자체슬라이딩 발사 시 set 되는 시각 flag. remote 측 시각 fix #81/#94/#95 적용
-    //   조건. SmartMovingClientState.tickEssential 는 self only 호출 → remote 측 동기화 누락.
-    //   해결: SmartMovingState bit 35 추가 → server relay → remote 측 packet lambda 안 set.
+    // 🔴 fix #96 (2026-05-13, user report "remote fox sliding no immediate horizontal"):
+    //   Visual flag set when self-side fire slide is triggered. Remote-side visual fix #81/#94/#95 apply
+    //   condition. SmartMovingClientState.tickEssential called self-only → remote-side sync missing.
+    //   Solution: Add SmartMovingState bit 35 → server relay → remote-side packet lambda set.
     public boolean wasSelfSlideFire;
 
     public static long encode(SmartMovingState s) {

@@ -3,9 +3,9 @@ package choco.ratel.smartmoving.climbing;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** 클라이밍 탐색 결과를 담는 데이터 클래스. 원본 Block(int)+Meta(int) 쌍을 BlockState 단일 객체로 대체. */
+/** Data class that holds climbing search results. Replaces original Block(int)+Meta(int) pair with single BlockState object. */
 public class ClimbGap {
-    /** null = 미설정 (원본 Block=-1/Meta=-1 대체) */
+    /** null = not set (replaces original Block=-1/Meta=-1) */
     public BlockState state;
     public boolean canStand;
     public boolean mustCrawl;
