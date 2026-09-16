@@ -699,11 +699,11 @@ public final class SmartMovingSwimmer {
             motionY *= DAMPING_DIVING;
             motionZ *= DAMPING_DIVING;
             if (diveUp || diveDown || sm.isLevitating) {
-                // 원본 L491-492: (motionY * 0.83 + motionYDiff) * 0.6 식 → terminal v = 1.2 m/s
-                //   surface 도달 빠름. 수평 motion 변경 X (= 원본 moveFlying=false 효과).
+                // Original L491-492: (motionY * 0.83 + motionYDiff) * 0.6 formula → terminal v = 1.2 m/s
+                //   reach surface fast. No horizontal motion change (= original moveFlying=false effect).
                 motionY = (motionY + motionYDiff) * 0.6D;
             } else {
-                // 원본 L494: 5인자 moveFlying (pitch 반영 수직 + horizontal). moveUpward=motionYDiff.
+                // Original L494: 5-arg moveFlying (pitch-reflected vertical + horizontal). moveUpward=motionYDiff.
                 Vec3 fly = moveFlying(player, (float) motionYDiff, moveStrafe, moveForward,
                         BASE_SWIM_SPEED * speedFactor, cfg.diveControlVertical);
                 motionX += fly.x;
@@ -714,17 +714,17 @@ public final class SmartMovingSwimmer {
             sm.heightOffset = -1F;
         }
 
-        // **B-11 해소 (세션 130)**: 원본 L513-L536 얕은 물 특수 분기.
+        // **B-11 Resolution (Session 130)**: Original L513-L536 shallow water special branch.
         //   isShallowDiveOrSwim && realMinPlayerSwimWaterDepth < SwimCrawlWaterBottomBorder(0.55)
-        //   → isSlow 면 크롤 전환, 아니면 걷기 전환 + 바닥 위치로 이동.
-        //   isShallowDiveOrSwim 는 B-9b 재분류 후 재계산 (원본 L507).
-        //   B-42a `getMaxPlayerSolidBetween` + B-42d `realMinPlayerSwimWaterDepth` 소비.
+        //   → if isSlow convert to crawl, else convert to walking + move to ground position.
+        //   isShallowDiveOrSwim recalculated after B-9b reclassification (original L507).
+        //   Consume B-42a `getMaxPlayerSolidBetween` + B-42d `realMinPlayerSwimWaterDepth`.
         boolean isShallowDiveOrSwim11 = couldStandUp && (sm.isDiving || sm.isSwimming_sm);
         sm.isShallowDiveOrSwim = isShallowDiveOrSwim11;
         if (isShallowDiveOrSwim11
                 && swimVals.realMinPlayerSwimWaterDepth < SWIM_CRAWL_BOTTOM) {
             if (sm.isSlow) {
-                // 얕은 물 swim/dive → 크롤 전환 (원본 L515-L524)
+                // Shallow water swim/dive → convert to crawl (original L515-L524)
                 sm.heightOffset          = -1F;
                 sm.isCrawling            = true;
                 sm.isDiving              = false;
@@ -732,7 +732,7 @@ public final class SmartMovingSwimmer {
                 sm.isShallowDiveOrSwim   = false;
                 sm.isDipping             = true;
             } else {
-                // 얕은 물 swim/dive → 걷기 전환 (원본 L525-L535)
+                // Shallow water swim/dive → convert to walking (original L525-L535)
                 sm.heightOffset = 0F;
                 double minY11 = player.getBoundingBox().minY;
                 double maxY11 = player.getBoundingBox().maxY;

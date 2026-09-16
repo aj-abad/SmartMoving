@@ -195,10 +195,10 @@ public abstract class MixinClientPlayerEntity {
         LocalPlayer player = (LocalPlayer)(Object)this;
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
-        // 🔴 등반 직후 1 틱 reset 유지 (wasClimbing). 사용자 보고: 등반 끝난 직후 vanilla
-        //   CROUCHING 발동. KeyboardInput.tick 은 tickMovement 보다 먼저 실행되므로 KeyboardInput
-        //   에서 sneaking=false 강제해도 그 틱의 vanilla 자세 처리가 이미 진행되어 자세 잔존.
-        //   tickMovement TAIL 에서도 wasClimbing 가드로 reset.
+        // 🔴 Maintain 1-tick reset right after climbing (wasClimbing). User report: vanilla
+        //   CROUCHING activates right after climbing ends. KeyboardInput.tick runs before tickMovement
+        //   so even if forced sneaking=false in KeyboardInput, vanilla pose processing for that tick
+        //   already progressed so pose persists. Also reset with wasClimbing guard in tickMovement TAIL.
         if (sm.isClimbing || sm.wasClimbing || sm.sneakHeldDuringClimb) {
             // 1. input.sneaking 강제 false
             Input input = player.input.keyPresses;
@@ -210,24 +210,24 @@ public abstract class MixinClientPlayerEntity {
             if (player.getPose() == Pose.CROUCHING) {
                 player.setPose(Pose.STANDING);
             }
-            // 🔴 isCrawling/crawlToggled 강제 reset 제거: 사다리 등반 막바지 isClimbCrawling
-            //   해제 엣지 (L1890-1908) 의 toCrawling() 호출 결과 (isCrawling=true) 를 즉시
-            //   무효화 → SM crawl 모드 진입 차단 + heightOffset=-1 잔존 (B-35 reset 미발동)
-            //   → vanilla CROUCHING + 작은 박스 잔존이 사용자 보고 "엎드리기" 자세.
-            //   isCrawling 은 메인 식 (L1535) 의 canCrawl `!isClimbing` 가드로 등반 중 자동
-            //   차단되므로 추가 강제 불필요.
+            // 🔴 Remove forced reset of isCrawling/crawlToggled: At climbing end isClimbCrawling
+            //   release edge (L1890-1908) toCrawling() call result (isCrawling=true) would be
+            //   immediately invalidated → block SM crawl mode entry + persist heightOffset=-1 (B-35 reset doesn't fire)
+            //   → vanilla CROUCHING + persisting small box becomes user report "crouching" pose.
+            //   isCrawling is auto-blocked during climbing by canCrawl `!isClimbing` guard in main expression (L1535)
+            //   so additional forced reset unnecessary.
         }
     }
 
     /**
-     * afterOnLivingUpdate: flyWhileOnGround 처리.
-     * 원본: SmartMovingSelf.afterOnLivingUpdate() (SmartMovingPlayerBase.java, 1368-1377줄)
+     * afterOnLivingUpdate: flyWhileOnGround handling.
+     * Original: SmartMovingSelf.afterOnLivingUpdate() (SmartMovingPlayerBase.java, lines 1368-1377)
      *
-     * vanilla tickMovement 실행 후 착지로 isFlying이 false가 됐지만
-     * SM flyWhileOnGround=true이면 flying을 복원한다.
-     * sneakButton+grabButton 동시 누름 시 착지 허용.
+     * After vanilla tickMovement execution, isFlying became false from landing, but
+     * if SM flyWhileOnGround=true, restore flying.
+     * Allow landing when sneakButton+grabButton pressed simultaneously.
      *
-     * 원본: sp.cameraYaw=0; sp.prevCameraYaw=0 — 1.21.1에서 해당 필드 없음 (삭제됨).
+     * Original: sp.cameraYaw=0; sp.prevCameraYaw=0 — fields don't exist in 1.21.1 (deleted).
      */
     @Inject(method = "aiStep", at = @At("TAIL"), order = 900)
     private void sm_flyWhileOnGround(CallbackInfo ci) {

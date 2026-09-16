@@ -1273,52 +1273,52 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 🔴 (2026-05-22) 사용자 보고 BUG fix: 용암 진입 시 SM 수영 기능/애니메이션 적용 안 됨.
-     *   원본 1.7.10 `_lavaLikeWater = Creative(...)` — Creative default true / Survival default false.
+     * RED (2026-05-22) User reported BUG fix: SM swimming function/animation not applied when entering lava.
+     *   Original 1.7.10 `_lavaLikeWater = Creative(...)` — Creative default true / Survival default false.
      *
-     * 사용자 명시 ("Survival 도 Creative 와 같게 해줄 수 있나?"):
-     *   SM enabled 시 mode/config 무관 항상 lava swim 활성. `lavaLikeWater` config option 무시.
-     *   원본 spec 부분 손상이지만 사용자 의도 명확.
+     * User explicit ("Can Survival be the same as Creative?"):
+     *   When SM enabled, always activate lava swim regardless of mode/config. Ignore `lavaLikeWater` config option.
+     *   Partial original spec damage but user intent clear.
      *
-     * 인자 없는 method `isLavaLikeWaterEnabled()` 는 호환 유지 (외부 호출 가능성).
+     * Argument-less method `isLavaLikeWaterEnabled()` kept for compatibility (external call possibility).
      */
     public boolean isLavaLikeWaterEnabled(net.minecraft.world.entity.player.Player player) {
         return enabled;
     }
 
     /**
-     * 원본 SmartMovingClientConfig L97-L100 `isLevitateSmallEnabled() = _levitateSmall.value && enabled`.
-     * 사용처: mustCrawl=false 조건 확장 (원본 L2404) + isLevitating 전환 엣지 블록 (원본 L2516-L2522).
-     * B-51 (세션 133).
+     * Original SmartMovingClientConfig L97-L100 `isLevitateSmallEnabled() = _levitateSmall.value && enabled`.
+     * Usage: mustCrawl=false condition expansion (original L2404) + isLevitating transition edge block (original L2516-L2522).
+     * B-51 (session 133).
      */
     public boolean isLevitateSmallEnabled() {
         return levitateSmall && enabled;
     }
 
     /**
-     * 원본 SmartMovingClientConfig L92-L95 `isFlyingEnabled() = _fly.value && enabled`.
-     * 사용처: isFlying 공식 (원본 L2510) + isLevitating 전환 엣지 (원본 L2516) +
-     * mustCrawl=false 조건 (원본 L2404). B-51 (세션 133).
+     * Original SmartMovingClientConfig L92-L95 `isFlyingEnabled() = _fly.value && enabled`.
+     * Usage: isFlying formula (original L2510) + isLevitating transition edge (original L2516) +
+     * mustCrawl=false condition (original L2404). B-51 (session 133).
      */
     public boolean isFlyingEnabled() {
         return fly && enabled;
     }
 
     /**
-     * 원본 SmartMovingClientConfig L57-L60 `isFreeClimbAutoLaddderEnabled() =
+     * Original SmartMovingClientConfig L57-L60 `isFreeClimbAutoLaddderEnabled() =
      *   _freeClimbingAutoLaddder.value && enabled`.
-     * 사용처: `wouldWantClimb` 4-OR 의 3번째 분기 (원본 L2471) 자동 사다리 진입 게이트.
-     * B-16b (세션 69).
+     * Usage: 3rd branch activation gate in `wouldWantClimb` 4-OR (original L2471) for auto ladder entry.
+     * B-16b (session 69).
      */
     public boolean isFreeClimbAutoLadderEnabled() {
         return freeClimbAutoLadder && enabled;
     }
 
     /**
-     * 원본 SmartMovingClientConfig L62-L65 `isFreeClimbAutoVineEnabled() =
+     * Original SmartMovingClientConfig L62-L65 `isFreeClimbAutoVineEnabled() =
      *   _freeClimbingAutoVine.value && enabled`.
-     * 사용처: `wouldWantClimb` 4-OR 의 4번째 분기 (원본 L2472) 자동 솔리드 덩굴 진입 게이트.
-     * B-16b (세션 69).
+     * Usage: 4th branch activation gate in `wouldWantClimb` 4-OR (original L2472) for auto solid vine entry.
+     * B-16b (session 69).
      */
     public boolean isFreeClimbAutoVineEnabled() {
         return freeClimbAutoVine && enabled;

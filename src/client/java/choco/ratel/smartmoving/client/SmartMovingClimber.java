@@ -643,7 +643,7 @@ public final class SmartMovingClimber {
                     feetGap[0] = new ClimbGap();
                     sm.isFeetVineClimbing = false;
                 }
-                // hasClimbGap / hasNeighborClimbing / hasNeighborClimbGap 도 재계산 (위 reset 반영).
+                // Recalculate hasClimbGap / hasNeighborClimbing / hasNeighborClimbGap (reflect above reset).
                 if (_handsLV || _feetLV) {
                     sm.isNeighborClimbing = handsClimbing.isRelevant() || feetClimbing.isRelevant();
                     sm.hasClimbGap = handsGap[0].canStand || feetGap[0].canStand;
@@ -1289,17 +1289,17 @@ public final class SmartMovingClimber {
     }
 
     /**
-     * 원본 SmartMovingBase L398-L409 `getMinPlayerSolidBetween(yMin, yMax, horizontalTolerance)` 1:1.
+     * Original SmartMovingBase L398-L409 `getMinPlayerSolidBetween(yMin, yMax, horizontalTolerance)` 1:1.
      *
-     * player AABB 의 Y 범위를 [yMin, yMax] 로 임시 변경 + X/Z `horizontalTolerance` 만큼
-     * 확장한 box 와 충돌하는 모든 solid 블록의 minY (블록 하단) 중 최솟값 반환.
-     * 결과 ≥ yMin 으로 clamp.
+     * Temporarily change player AABB Y range to [yMin, yMax] + expand by X/Z `horizontalTolerance`
+     * and return minimum minY (block bottom) among all solid blocks colliding with this box.
+     * Result clamped ≥ yMin.
      *
-     * 1.21.1 매핑: world.getBlockCollisions(entity, box) → Iterable<VoxelShape> (world 좌표).
-     * 각 shape 의 getBoundingBox().minY 중 최솟값.
+     * 1.21.1 mapping: world.getBlockCollisions(entity, box) → Iterable<VoxelShape> (world coordinates).
+     * Minimum getBoundingBox().minY for each shape.
      *
-     * 천장 매달림 가드 3 에서 호출: getMinPlayerSolidBetween(jd, jd + 0.6, 0.2).
-     * 머리 위 0.6 범위, X/Z 0.2 확장으로 머리 가까운 솔리드 블록 검출.
+     * Called from ceiling hang guard 3: getMinPlayerSolidBetween(jd, jd + 0.6, 0.2).
+     * 0.6 range above head, 0.2 X/Z expansion to detect solid blocks near head.
      */
     public static double getMinPlayerSolidBetween(LocalPlayer player,
                                                     double yMin, double yMax,
@@ -1314,7 +1314,7 @@ public final class SmartMovingClimber {
         for (VoxelShape shape : collisions) {
             if (shape.isEmpty()) continue;
             AABB shapeBox = shape.bounds();
-            // shape 가 yMin~yMax 와 Y 범위 겹침 (X/Z 는 getBlockCollisions 가 처리)
+            // shape Y range overlaps yMin~yMax (X/Z handled by getBlockCollisions)
             if (shapeBox.maxY > yMin && shapeBox.minY < yMax) {
                 result = Math.min(result, shapeBox.minY);
             }

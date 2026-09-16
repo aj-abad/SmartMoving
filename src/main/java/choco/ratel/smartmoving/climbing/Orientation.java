@@ -973,22 +973,22 @@ public class Orientation {
         return isStairCompact(state) && !isTopStairCompact(state) && !isStairCompactBack(state);
     }
 
-    // ── Slab (원본 L2026-L2056) ────────────────────────────────────────────
+    // ── Slab (original L2026-L2056) ───────────────────────────────────────
 
     /**
-     * 원본 L2053-L2056 `isHalfBlock(Block)` — `BlockSlab && !isOpaqueCube()`.
-     * 1.21.1: `instanceof SlabBlock` + `SlabType != DOUBLE` (double slab 은 full block).
+     * Original L2053-L2056 `isHalfBlock(Block)` — `BlockSlab && !isOpaqueCube()`.
+     * 1.21.1: `instanceof SlabBlock` + `SlabType != DOUBLE` (double slab is full block).
      *
-     * **§7 근사** (B-19a1c1-approx-2): 원본 `_knownHalfBlocks` (mod slab) 체크 생략.
+     * **§7 approximate** (B-19a1c1-approx-2): Original `_knownHalfBlocks` (mod slab) check skipped.
      */
     public static boolean isHalfBlock(BlockState state) {
-        // 근사 이식 — 원본과 차이: _knownHalfBlocks (mod slab) 제외
+        // Approximate port — difference from original: _knownHalfBlocks (mod slab) excluded
         if (state == null || !(state.getBlock() instanceof SlabBlock)) return false;
         return state.getValue(SlabBlock.TYPE) != SlabType.DOUBLE;
     }
 
     /**
-     * 원본 L2038-L2041 `isTopHalfBlock(Block, int metadata)` — `isHalfBlock && (metadata & 8) != 0`.
+     * Original L2038-L2041 `isTopHalfBlock(Block, int metadata)` — `isHalfBlock && (metadata & 8) != 0`.
      * 1.21.1: `SlabType.TOP`.
      */
     public static boolean isTopHalfBlock(BlockState state) {
@@ -996,25 +996,25 @@ public class Orientation {
     }
 
     /**
-     * 원본 L2026-L2036 `isBottomHalfBlock(Block, int metadata)`.
+     * Original L2026-L2036 `isBottomHalfBlock(Block, int metadata)`.
      *   (1) `isHalfBlock && (metadata & 8) == 0`
      *   (2) `block == bed` (BedBlock)
-     *   (3) BetterThanWolves anchor + metadata == 1 (mod) — **§7 근사 생략**
+     *   (3) BetterThanWolves anchor + metadata == 1 (mod) — **§7 approximate skipped**
      *
-     * **§7 근사** (B-19a1c1-approx-3): BetterThanWolves anchor 체크 생략. vanilla BedBlock
-     * 예외는 `instanceof BedBlock` 로 1:1 이식.
+     * **§7 approximate** (B-19a1c1-approx-3): BetterThanWolves anchor check skipped. Vanilla BedBlock
+     * exception 1:1 ported via `instanceof BedBlock`.
      */
     public static boolean isBottomHalfBlock(BlockState state) {
         if (state == null) return false;
         if (isHalfBlock(state) && state.getValue(SlabBlock.TYPE) == SlabType.BOTTOM) return true;
-        // 근사 이식 — 원본과 차이: BetterThanWolves anchor 제외
+        // Approximate port — difference from original: BetterThanWolves anchor excluded
         return state.getBlock() instanceof net.minecraft.world.level.block.BedBlock;
     }
 
-    // ── Fence / FenceGate (원본 L2177-L2222) ────────────────────────────────
+    // ── Fence / FenceGate (original L2177-L2222) ──────────────────────────
 
     /**
-     * 원본 L2177-L2181 `isFenceBase(Block)` — `FenceBlock || WallBlock`.
+     * Original L2177-L2181 `isFenceBase(Block)` — `FenceBlock || WallBlock`.
      */
     public static boolean isFenceBase(BlockState state) {
         return state != null && (state.getBlock() instanceof FenceBlock
@@ -1022,28 +1022,28 @@ public class Orientation {
     }
 
     /**
-     * 원본 L2208-L2212 `isFenceGate(Block)` — `FenceGateBlock` (+ mod 리스트 근사 제외).
+     * Original L2208-L2212 `isFenceGate(Block)` — `FenceGateBlock` (+ mod list approximation excluded).
      */
     public static boolean isFenceGate(BlockState state) {
         return state != null && state.getBlock() instanceof FenceGateBlock;
     }
 
-    /** 원본 L2219-L2222 `isClosedFenceGate(int metadata)` — `(metadata & 4) == 0`. */
+    /** Original L2219-L2222 `isClosedFenceGate(int metadata)` — `(metadata & 4) == 0`. */
     public static boolean isClosedFenceGate(BlockState state) {
         return isFenceGate(state) && !state.getValue(FenceGateBlock.OPEN);
     }
 
-    /** 원본 L2214-L2217 `isOpenFenceGate(Block, int metadata)`. */
+    /** Original L2214-L2217 `isOpenFenceGate(Block, int metadata)`. */
     public static boolean isOpenFenceGate(BlockState state) {
         return isFenceGate(state) && state.getValue(FenceGateBlock.OPEN);
     }
 
-    /** 원본 L2183-L2187 `isFence(Block, int i, int j_offset, int k)` — base + closed gate. */
+    /** Original L2183-L2187 `isFence(Block, int i, int j_offset, int k)` — base + closed gate. */
     public static boolean isFence(BlockState state) {
         return isFenceBase(state) || isClosedFenceGate(state);
     }
 
-    /** 원본 L2189-L2192 `isFence(int i, int j_offset, int k)` — 좌표 기반 래퍼. */
+    /** Original L2189-L2192 `isFence(int i, int j_offset, int k)` — Coordinate-based wrapper. */
     public static boolean isFence(int i, int j_offset, int k) {
         return isFence(getBlock(i, j_offset, k));
     }

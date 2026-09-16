@@ -1361,24 +1361,24 @@ public final class SmartMovingClientState {
         dodgeJustPressed = curDodgePressed && !prevDodgeKeyPressed;
         prevDodgeKeyPressed = curDodgePressed;
 
-        // 원본 SmartMovingSelf triggerWallJumping — 매 틱 시작에 리셋.
-        // 리서치 파일에 원본 리셋 위치 기록 없음 → 보수적으로 "매 틱 1회용 이벤트" 로 처리.
+        // Original SmartMovingSelf triggerWallJumping — reset at start of every tick.
+        // Original reset location not recorded in research file → conservatively treat as "per-tick one-time event".
         triggerWallJumping = false;
 
-        // C-33: wasClimbing = 이전 틱의 isClimbing 값 저장
+        // C-33: wasClimbing = save isClimbing value from previous tick
         wasClimbing = isClimbing;
-        // 원본 간소 감소 `exhaustion -= 1.0F` 은 H-9 handleExhaustion 의
-        // `exhaustion -= exhaustionLoss(=1F*factor)` 로 교체됨 (tickEssential 말미 호출).
-        // 비활성 경로에서는 resetState() 가 exhaustion=0 리셋.
+        // Original simple decrement `exhaustion -= 1.0F` replaced with H-9 handleExhaustion
+        // `exhaustion -= exhaustionLoss(=1F*factor)` (called at end of tickEssential).
+        // In inactive path, resetState() resets exhaustion=0.
 
-        // IMPL-04: 설정 토글 키 처리 (원본: toggleButton.update() + StartPressed 분기)
-        // 싱글: toggle() 직접 호출 + 채팅 피드백 / 멀티: 서버에 변경 요청 패킷 전송
+        // IMPL-04: Config toggle key handling (original: toggleButton.update() + StartPressed branch)
+        // Single-player: direct toggle() call + chat feedback / Multi-player: send config change request packet to server
         if (SmartMovingKeys.configToggle.consumeClick()) {
             if (SmartMovingConfig.Config == SmartMovingConfig.INSTANCE) {
                 SmartMovingConfig.INSTANCE.toggle();
-                // H-18 (세션 23): 2갈래 단순화. 2상태 토글(disabled↔enabled) 기준이므로
-                // 원본 4갈래(named/unnamed/enabled/disabled) 분기 불필요. configKeyName /
-                // CONFIG_KEY_ENABLED 등 잉여 코드 전부 H-19 에서 제거 예정.
+                // H-18 (Session 23): Simplified to 2-branch. Since 2-state toggle (disabled↔enabled) basis,
+                // original 4-branch (named/unnamed/enabled/disabled) unnecessary. configKeyName /
+                // CONFIG_KEY_ENABLED redundant code to be removed in H-19.
                 SmartMovingConfig cfg = SmartMovingConfig.INSTANCE;
                 Component msg = Component.translatable(cfg.enabled
                         ? "smartmoving.message.config.client.enabled"
