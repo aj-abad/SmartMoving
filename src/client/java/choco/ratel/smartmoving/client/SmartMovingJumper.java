@@ -790,13 +790,13 @@ public final class SmartMovingJumper {
             jumpAngle = horizontalCollisionAngle;
         }
 
-        // Phase G BUG-1 1:1 정정: while>360 + orthogonalTolerance 분기 외부 적용 (원본 L1977-L1988).
-        //   기존: !wasCollidedHorizontally 분기 안에만 적용 → wasCollidedHorizontally=true (Slide 타입)
-        //         시 90° 정렬 미적용 → 점프 각도 부정확. 원본은 둘 다 적용.
-        // 🔴 fix #167 (2026-05-27): jumpAngle 범위 0~360 정규화. 원본 식 `while > 360` 만 → 음수
-        //   또는 정확 360.0 case 미처리. setYaw(360.0) → vanilla yaw field=360.0 그대로 (mod X)
-        //   → 매 tick yaw 누적 변동 → 인벤토리 player 모델 회전 진동/뒤틀림.
-        //   해결: while < 0 추가 + 정확 360 case 처리. jumpAngle 항상 [0, 360) 범위.
+        // Phase G BUG-1 1:1 correction: Apply while>360 + orthogonalTolerance outside branch (original L1977-L1988).
+        //   Previous: Only applied inside !wasCollidedHorizontally branch → when wasCollidedHorizontally=true (Slide type)
+        //         90° alignment not applied → inaccurate jump angle. Original applies both.
+        // 🔴 fix #167 (2026-05-27): Normalize jumpAngle range to 0~360. Original formula `while > 360` only → doesn't handle
+        //   negative or exactly 360.0 case. setYaw(360.0) → vanilla yaw field stays 360.0 (no mod)
+        //   → yaw accumulates change each tick → inventory player model rotation oscillation/distortion.
+        //   Solution: Add while < 0 + handle exact 360 case. jumpAngle always in [0, 360) range.
         while (jumpAngle > 360F) jumpAngle -= 360F;
         while (jumpAngle < 0F) jumpAngle += 360F;
         if (jumpAngle >= 360F) jumpAngle = 0F;

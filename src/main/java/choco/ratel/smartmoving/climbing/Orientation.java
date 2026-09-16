@@ -743,32 +743,32 @@ public class Orientation {
         }
     }
 
-    // ── Ladder/Vine front/back + Behind (원본 L1160-L1180, L1217-L1238) ────
+    // ── Ladder/Vine front/back + Behind (original L1160-L1180, L1217-L1238) ─
 
-    /** 원본 L1217-L1220 — base 위치 ladder 가 이 방향으로 정면인지. */
+    /** Original L1217-L1220 — Whether ladder at base position is front-facing in this direction. */
     protected boolean isOnLadderFront(int j_offset) {
         return hasLadderOrientation(base_i, j_offset, base_k);
     }
 
     /**
-     * 원본 L1222-L1226 — remote 위치 ladder 가 이 방향의 **반대** 방향 (rotate(180)) 기준
-     * 정면인지. 즉 "반대편에서 잡을 수 있는 ladder" 판정.
+     * Original L1222-L1226 — Whether ladder at remote position is front-facing relative to
+     * **opposite** direction (rotate(180)). I.e., determines "ladder graspable from opposite side".
      */
     protected boolean isOnLadderBack(int j_offset) {
         return rotate(180).hasLadderOrientation(remote_i, j_offset, remote_k);
     }
 
-    /** 원본 L1228-L1232 — base 위치 vine 이 이 방향으로 붙어있는지. */
+    /** Original L1228-L1232 — Whether vine at base position is attached in this direction. */
     protected boolean isOnVineFront(int j_offset) {
         return hasVineOrientation(world, base_i, local_offset + j_offset, base_k);
     }
 
-    /** 원본 L1234-L1238 — remote 위치 vine 이 반대 방향에서 붙어있는지. */
+    /** Original L1234-L1238 — Whether vine at remote position is attached from opposite direction. */
     protected boolean isOnVineBack(int j_offset) {
         return rotate(180).hasVineOrientation(world, remote_i, local_offset + j_offset, remote_k);
     }
 
-    /** 원본 L1160-L1170 — remote 위치에 ladder 가 있는지 (뒤쪽 ladder 탐색용). */
+    /** Original L1160-L1170 — Whether ladder exists at remote position (for rear ladder search). */
     protected static boolean isBehindLadder(int j_offset) {
         BlockState state = getRemoteBlockId(j_offset);
         if (isLadder(state)) return true;
@@ -777,7 +777,7 @@ public class Orientation {
         return false;
     }
 
-    /** 원본 L1177-L1180 — remote 위치에 vine 이 있는지. */
+    /** Original L1177-L1180 — Whether vine exists at remote position. */
     protected static boolean isBehindVine(int j_offset) {
         return isVine(getRemoteBlockId(j_offset));
     }

@@ -1084,13 +1084,13 @@ public final class SmartMovingClientState {
      */
     public float smCachedYawLerpedRad = 0f;
     /**
-     * 🔴 (2026-04-27) sm_modifyBodyYaw 의 input (vanilla 1 frame lerped bodyYaw, degrees).
-     * sm_modifyNetHeadYaw 의 head 보정식에 사용.
+     * 🔴 (2026-04-27) sm_modifyBodyYaw's input (vanilla 1 frame lerped bodyYaw, degrees).
+     * Used in sm_modifyNetHeadYaw's head correction formula.
      */
     public float smCachedBodyYawNaturalDeg = 0f;
     /**
-     * 🔴 (2026-04-27) sm_modifyBodyYaw 의 output (fade lerp 적용 후 lagged bodyYaw, degrees).
-     * sm_modifyNetHeadYaw 의 head 보정식에 사용 (lagged - natural 차이로 head world yaw 보정).
+     * 🔴 (2026-04-27) sm_modifyBodyYaw's output (lagged bodyYaw after fade lerp, degrees).
+     * Used in sm_modifyNetHeadYaw's head correction formula (corrects head world yaw by lagged - natural difference).
      */
     public float smCachedBodyYawLaggedDeg = 0f;
 
@@ -1248,8 +1248,8 @@ public final class SmartMovingClientState {
 
     /**
      * Extract client-required bits from long bit field of other player's State packet.
-     * 원본: SmartMovingOther.processStatePacket(long state)
-     * 렌더링/애니메이션에 사용되는 필드만 갱신한다.
+     * Original: SmartMovingOther.processStatePacket(long state)
+     * Only update fields used in rendering/animation.
      */
     public void processStatePacket(long bits) {
         actualFeetClimbType  = (int) (bits & 0xF);           // bits 0-3

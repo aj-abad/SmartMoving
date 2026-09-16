@@ -1147,12 +1147,12 @@ public final class SmartMovingClimber {
     // ── 7-3: handleCeilingClimbing ───────────────────────────────────────
 
     /**
-     * 원본: SmartMovingSelf.handleCeilingClimbing()
+     * Original: SmartMovingSelf.handleCeilingClimbing()
      *
-     * 천장 클라이밍 메인 로직.
-     * 조건: wantClimbCeiling && !isClimbing && (!isCrawling || conflict) && !isCrawlClimbing
+     * Main ceiling climbing logic.
+     * Condition: wantClimbCeiling && !isClimbing && (!isCrawling || conflict) && !isCrawlClimbing
      *
-     * jgap(머리 위 갭 크기)에 따른 수평 속도:
+     * Horizontal speed based on jgap (gap size above head):
      *   jgap > 1.2  → 0.12
      *   jgap > 1.115 → 0.08
      *   else         → 0.04

@@ -1108,22 +1108,22 @@ public class SmartMovingConfig {
     public boolean sprintEnableStanding = true;
 
     /**
-     * 원본 `SmartMovingConfig.java` L348:
+     * Original `SmartMovingConfig.java` L348:
      *   `public final Property<Float> _fallingDistanceMinimum = Positive("move.fall.distance.minimum").defaults(3F);`
-     * 기본값 3F. 사용처:
-     *   - canCrawl (원본 L2439) `sp.fallDistance < _fallingDistanceMinimum` — 크롤 진입 차단
-     *   - isSliding fallDistance 분기 (원본 L2569) — 슬라이드 해제 + 크롤 전환
-     * B-32 (세션 44).
+     * default 3F. Usage:
+     *   - canCrawl (original L2439) `sp.fallDistance < _fallingDistanceMinimum` — block crawl entry
+     *   - isSliding fallDistance branch (original L2569) — release slide + convert to crawl
+     * B-32 (session 44).
      */
     public float fallingDistanceMinimum = 3F;
 
     /**
-     * 원본 `SmartMovingConfig.java` L223:
+     * Original `SmartMovingConfig.java` L223:
      *   `public final Property<Float> _fallAnimationDistanceMinimum = Positive("move.fall.animation.distance.minimum").min(_fallingDistanceMinimum).defaults(3F, _pre_sm_1_6);`
-     * 기본값 3F. `_fallingDistanceMinimum` 과 별도 — 애니메이션 트리거 전용.
-     * 사용처: doFallingAnimation (원본 SmartMovingSelf.java L3281)
+     * default 3F. Separate from `_fallingDistanceMinimum` — animation trigger only.
+     * Usage: doFallingAnimation (original SmartMovingSelf.java L3281)
      *   `!sp.onGround && sp.fallDistance > _fallAnimationDistanceMinimum.value`.
-     * 1.21.1 매핑: MixinPlayerEntityModelClient.sm_setAngles isFalling 진입 조건.
+     * 1.21.1 mapping: MixinPlayerEntityModelClient.sm_setAngles isFalling entry condition.
      */
     public float fallAnimationDistanceMinimum = 3F;
 
