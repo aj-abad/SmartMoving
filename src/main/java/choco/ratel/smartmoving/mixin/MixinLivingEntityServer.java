@@ -51,11 +51,11 @@ public abstract class MixinLivingEntityServer {
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
 
-        // 🔴 v26.18 가드 확장: head/feet/below ClimbableBlock 검사 추가.
-        //   - sm bit OR = SM relay packet 결과 (= 이전 server tick 의 networkIo 결과, lag 1 tick).
-        //   - vanilla isClimbing() = 발 BlockPos 의 ClimbableBlock 검사 (즉시).
-        //   - climbHead = 머리 BlockPos (y+1) ClimbableBlock 검사 (= 사다리 끝 도달 case cover).
-        //   - climbBelow = 발 아래 BlockPos (y-1) ClimbableBlock 검사 (= 사다리 끝 통과 직후 case).
+        // 🔴 v26.18 guard expansion: add head/feet/below ClimbableBlock checks.
+        //   - sm bit OR = SM relay packet result (= previous server tick's networkIo result, lag 1 tick).
+        //   - vanilla isClimbing() = ClimbableBlock check of feet BlockPos (immediate).
+        //   - climbHead = ClimbableBlock check of head BlockPos (y+1) (= covers ladder end reach case).
+        //   - climbBelow = ClimbableBlock check of below BlockPos (y-1) (= immediately after ladder end case).
         boolean smBitClimb = sm.isClimbCrawling || sm.isClimbing || sm.isCrawlClimbing
                 || sm.isCeilingClimbing;
         boolean vanillaClimb = player.onClimbable();
@@ -86,11 +86,11 @@ public abstract class MixinLivingEntityServer {
         }
         player.fallDistance = 0;
 
-        // 2) self side L409 동등: 우리 clamp velocity 로 직접 move (vanilla 의 추가 friction/
-        //    gravity 적용 전 위치 갱신). collision 검사 진행.
+        // 2) self side L409 equivalent: direct move with our clamped velocity (update position before
+        //    vanilla friction/gravity application). collision check proceeds.
         player.move(MoverType.SELF, player.getDeltaMovement());
 
-        // 3) self side L411 동등: vanilla travel 자체 cancel — 추가 motion 차단.
+        // 3) self side L411 equivalent: cancel vanilla travel itself — block additional motion.
         ci.cancel();
     }
 }
