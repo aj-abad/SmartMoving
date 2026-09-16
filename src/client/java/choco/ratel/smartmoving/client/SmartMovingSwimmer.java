@@ -767,23 +767,23 @@ public final class SmartMovingSwimmer {
         return true;
     }
 
-    // ── moveFlying (원본 SmartMovingBase.md L77-114 — 5-인자 버전 1:1) ──────
+    // ── moveFlying (Original SmartMovingBase.md L77-114 — 5-arg version 1:1) ──────
 
     /**
-     * 원본 SmartMovingBase.moveFlying(moveUpward, strafe, forward, speed, treeDimensional)
-     * 1:1 이식. 기존 4-인자 버전(수평 전용)의 정규화 누락 [오역] 도 함께 복원.
+     * Original SmartMovingBase.moveFlying(moveUpward, strafe, forward, speed, treeDimensional)
+     * 1:1 port. Also restore missing normalization [mistranslation] of existing 4-arg version (horizontal-only).
      *
-     * 1단계: 수평 방향 벡터 (YAW 기반) — 정규화 하한 1.0F 포함
+     * Step 1: Horizontal direction vector (YAW-based) — includes normalization floor 1.0F
      *   total = sqrt(strafe² + forward²); if (total < 0.01) skip; if (total < 1.0) total = 1.0
-     *   factor 기반 strafe/forward 성분 × (cos, -sin, sin, cos) 조합
+     *   factor-based strafe/forward component × (cos, -sin, sin, cos) combination
      *
-     * 2단계: 피치 기반 수직 보정 (treeDimensional=true 시)
+     * Step 2: Pitch-based vertical correction (when treeDimensional=true)
      *   rotation = toRadians(pitch); horizFactor = cos; vertFactor = -sin * signum(forward)
      *
-     * 3단계: 최종 모션 합산
+     * Step 3: Final motion summation
      *   diffMY = sqrt(diffMXForward² + diffMZForward²) * vertFactor + moveUpward
      *
-     * 4단계: 비대칭 total 공식 sqrt(sqrt(dx²+dz²) + dy²) 로 factor 적용
+     * Step 4: Asymmetric total formula sqrt(sqrt(dx²+dz²) + dy²) apply factor
      */
     private static Vec3 moveFlying(LocalPlayer player, float moveUpward,
                                      float strafe, float forward, float speed, boolean treeDimensional) {
@@ -811,7 +811,7 @@ public final class SmartMovingSwimmer {
                        * vertFactor + moveUpward;
         float diffMZ = diffMZForward * horizFactor + diffMZStrafing;
 
-        // 비대칭 total 공식 — 원본 주의 사항: sqrt(sqrt(x²+z²) + y²), NOT sqrt(x²+y²+z²)
+        // Asymmetric total formula — original note: sqrt(sqrt(x²+z²) + y²), NOT sqrt(x²+y²+z²)
         float total2 = (float) Math.sqrt(Math.sqrt(diffMX * diffMX + diffMZ * diffMZ) + diffMY * diffMY);
         if (total2 > 0.01F) {
             float factor = speed / total2;
@@ -820,7 +820,7 @@ public final class SmartMovingSwimmer {
         return Vec3.ZERO;
     }
 
-    /** 4-인자 wrapper (수평 전용) — moveUpward=0, treeDimensional=false. */
+    /** 4-arg wrapper (horizontal-only) — moveUpward=0, treeDimensional=false. */
     private static Vec3 moveFlying(LocalPlayer player, float strafe, float forward, float speed) {
         return moveFlying(player, 0F, strafe, forward, speed, false);
     }

@@ -92,18 +92,18 @@ public abstract class MixinClientPlayerEntity {
         if (sm.forceIsSneaking != null) { cir.setReturnValue(sm.forceIsSneaking); return; }
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
-        // 🔴 fix #75 (BUG #2): weeping/twisting vines 위 + sneak 시 vanilla 위임.
-        //   상세는 MixinEntityClient.sm_isSneaking 주석 참조.
+        // 🔴 fix #75 (BUG #2): weeping/twisting vines on + sneak apply vanilla delegation.
+        //   See details in MixinEntityClient.sm_isSneaking comment.
         net.minecraft.world.level.block.Block _blockAtPos = player.level()
                 .getBlockState(player.blockPosition()).getBlock();
         if (_blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES
                 || _blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES_PLANT
                 || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES
                 || _blockAtPos == net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT) {
-            return;  // override skip → vanilla isSneaking 그대로
+            return;  // override skip → vanilla isSneaking as-is
         }
 
-        // 🔴 fix #83 (2026-05-12): 슬라이딩 시 isSneaking()=true 강제. 자세한 사유 = MixinEntityClient 동일 inject.
+        // 🔴 fix #83 (2026-05-12): Force isSneaking()=true during sliding. Detailed reason = same inject in MixinEntityClient.
         boolean result = (sm.isSlow && player.onGround())
                 || (!cfg.sneak && sm.wouldIsSneaking && sm.jumpCharge > 0)
                 || (!cfg.crawlOverEdge && sm.isCrawling && !sm.isClimbing)
@@ -321,29 +321,28 @@ public abstract class MixinClientPlayerEntity {
     }
 
     /**
-     * 낙하 중 sneak 시 모델/카메라 Y -0.125 점프 차단 — `inSneakingPose` 필드 결정 가로채기.
+     * Block model/camera Y -0.125 jump when sneaking during fall — intercept `inSneakingPose` field decision.
      *
-     * 배경: ClientPlayerEntity 가 자체 `inSneakingPose` boolean 필드를 보유하며,
-     * `isInSneakingPose()` 를 override 해 entity.pose 가 아니라 이 필드를 반환.
-     * `PlayerEntityRenderer.getPositionOffset` 가 `isInSneakingPose()=true` 시
-     * Y = scale × -2/16 = -0.125 offset 적용 → 모델/카메라 점프.
+     * Background: ClientPlayerEntity has own `inSneakingPose` boolean field, and
+     * overrides `isInSneakingPose()` returning this field instead of entity.pose.
+     * `PlayerEntityRenderer.getPositionOffset` when `isInSneakingPose()=true` applies
+     * Y = scale × -2/16 = -0.125 offset → model/camera jump.
      *
-     * `inSneakingPose` 필드는 ClientPlayerEntity.tickMovement (bytecode offset 80-145)
-     * 에서 매 tick 별도로 결정:
+     * `inSneakingPose` field is determined separately every tick in ClientPlayerEntity.tickMovement (bytecode offset 80-145):
      *   inSneakingPose = !flying && !swimming && !hasVehicle && canChangeIntoPose(CROUCHING)
      *                    && (isSneaking() || (!isSleeping() && !canChangeIntoPose(STANDING)));
      *
-     * MixinPlayerEntity.sm_redirectIsSneakingForFallingPose 가 PlayerEntity.updatePose 의
-     * isSneaking() 만 가로챘으나, 이 ClientPlayerEntity.tickMovement 의 isSneaking() 호출은
-     * 별도라 그대로 통과 → inSneakingPose=true → getPositionOffset Y -0.125 적용.
+     * MixinPlayerEntity.sm_redirectIsSneakingForFallingPose only intercepted PlayerEntity.updatePose's
+     * isSneaking(), but this ClientPlayerEntity.tickMovement's isSneaking() call is separate so passes through →
+     * inSneakingPose=true → getPositionOffset Y -0.125 applies.
      *
-     * 해결: tickMovement 안의 `isSneaking()` 호출 (offset 114) 만 redirect → 일반 낙하 중 false
-     * 반환 → inSneakingPose 의 isSneaking() term 무력화 → inner = (!isSleeping &&
-     * !canChangeIntoPose(STANDING)) 만 남음 → 일반 공중 낙하 시 false → inSneakingPose=false.
-     * 엘리트라 활공 중에는 redirect 결과를 바꾸지 않아 vanilla 자세 처리를 보존한다.
+     * Fix: Redirect only `isSneaking()` call inside tickMovement (offset 114) → return false during normal fall
+     * → null out inSneakingPose's isSneaking() term → inner = (!isSleeping &&
+     * !canChangeIntoPose(STANDING)) remains only → returns false during normal aerial fall → inSneakingPose=false.
+     * During elytra gliding don't change redirect result preserving vanilla pose handling.
      *
-     * 좁은 천장 시나리오 (canChangeIntoPose(STANDING)=false) 에서는 vanilla 가 자체 판단으로
-     * inSneakingPose=true 강제 — vanilla 안전 fallback 으로 사용자 강제 STANDING 시 끼임 방지.
+     * In tight ceiling scenario (canChangeIntoPose(STANDING)=false) vanilla self-judges
+     * inSneakingPose=true forced — vanilla safety fallback prevents jamming when forced STANDING.
      */
     @Redirect(method = "aiStep",
             at = @At(value = "INVOKE",
@@ -360,18 +359,18 @@ public abstract class MixinClientPlayerEntity {
                 && !self.getAbilities().flying;
         if (isFalling) return false;
 
-        // 🔴 fix #78 (BUG #2.6, 2026-05-11, 사용자 보고 "weeping/twisting vines + sneak 시 모델 살짝 아래"):
-        //   ClientPlayerEntity 의 자체 inSneakingPose 필드는 entity.pose 무관하게 별도 식으로 결정:
+        // 🔴 fix #78 (BUG #2.6, 2026-05-11, user report "weeping/twisting vines + sneak model slightly below"):
+        //   ClientPlayerEntity's own inSneakingPose field determined separately regardless of entity.pose:
         //     inSneakingPose = !flying && !swimming && !hasVehicle && canChangeIntoPose(CROUCHING)
         //                      && (isSneaking() || (!isSleeping() && !canChangeIntoPose(STANDING)));
-        //   fix #77 은 PlayerEntity.updatePose 의 isSneaking() 만 redirect (= entity.pose=STANDING).
-        //   하지만 여기 ClientPlayerEntity.tickMovement 의 isSneaking() 호출은 별도 → fix #75 후
-        //   vanilla 위임 → true → inSneakingPose=true → PlayerEntityRenderer.getPositionOffset
-        //   `Y = -2/16 = -0.125` offset 적용 → 모델 살짝 아래.
+        //   fix #77 redirects only PlayerEntity.updatePose's isSneaking() (= entity.pose=STANDING).
+        //   But this ClientPlayerEntity.tickMovement's isSneaking() call is separate → after fix #75
+        //   delegates to vanilla → true → inSneakingPose=true → PlayerEntityRenderer.getPositionOffset
+        //   applies `Y = -2/16 = -0.125` offset → model slightly below.
         //
-        //   해결: 같은 redirect 에 weeping/twisting vines 가드 추가 → 해당 isSneaking() 호출만 false
-        //   반환 → inSneakingPose=false → 모델 정상 위치.
-        //   다른 isSneaking() 호출 (isHoldingOntoLadder 등) 영향 X → 매달림 유지 (= 기능 보존).
+        //   Fix: Add weeping/twisting vines guard to same redirect → return false only for that isSneaking() call
+        //   → inSneakingPose=false → model normal position.
+        //   No impact on other isSneaking() calls (isHoldingOntoLadder etc) → maintain hanging (= preserve functionality).
         net.minecraft.world.level.block.Block blockAtPos = self.level()
                 .getBlockState(self.blockPosition()).getBlock();
         if (blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES

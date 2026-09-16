@@ -1431,16 +1431,16 @@ public final class SmartMovingClientState {
             // B-44b (Session 84): wasCrawling save also moved before B-33 isCrawling per-tick formula (original L2441)
             //   completed — all batch saves here removed.
 
-            // ── mustCrawl / inputContinueCrawl / contextContinueCrawl 해제 / wantCrawl pre-compute ─
-            // 원본 L1792-L1794 (mustCrawl), L2407-L2418 (inputContinueCrawl + contextContinueCrawl 해제),
-            // L2419-L2432 (wouldWantCrawl + wantCrawl) 1:1 이식.
+            // ── mustCrawl / inputContinueCrawl / contextContinueCrawl release / wantCrawl pre-compute ─
+            // Original L1792-L1794 (mustCrawl), L2407-L2418 (inputContinueCrawl + contextContinueCrawl release),
+            // L2419-L2432 (wouldWantCrawl + wantCrawl) 1:1 port.
             //
-            // `player.isSneaking()` 은 sm_isSneaking override 가 isSlow 를 참조하여 순환 가능 →
-            // 원본처럼 raw sneakKey + sneakToggled 사용(원본 L1801).
+            // `player.isSneaking()` can cycle as sm_isSneaking override references isSlow →
+            // Use raw sneakKey + sneakToggled like original (original L1801).
             boolean sneakPressedRaw = net.minecraft.client.Minecraft.getInstance().options.keyShift.isDown();
             SmartMovingConfig cfg0 = SmartMovingConfig.Config;
-            // B-46 (세션 66): `SmartMovingKeys.grab.wasPressed()` 지역 호출 제거 —
-            // tickEssential 초반 1회 저장된 `grabJustPressed` 필드 참조.
+            // B-46 (Session 66): Remove local call to `SmartMovingKeys.grab.wasPressed()` —
+            // Reference `grabJustPressed` field saved once at start of tickEssential.
             boolean grabHeld0 = SmartMovingKeys.grab.isDown();
             boolean proneHeld0 = SmartMovingKeys.prone.isDown();
             if (cfg0.isCrawlToggleEnabled() && proneJustPressed && player.onGround()) {
@@ -1448,7 +1448,7 @@ public final class SmartMovingClientState {
             }
             boolean proneRequested0 = cfg0.isCrawlToggleEnabled() ? crawlToggled : proneHeld0;
 
-            // B-31c-post (세션 113): 원본 L2343-L2356 initializeCrawling true 설정 블록 이식.
+            // B-31c-post (Session 113): Port original L2343-L2356 initializeCrawling true setting block.
             //   boolean initializeCrawling = false;
             //   if (!initialized && !(remote && multiPlayerInitialized != 0) && !isRiding()) {
             //       if (getMaxPlayerSolidBetween(minY, maxY, 0) > minY) {
@@ -1458,29 +1458,29 @@ public final class SmartMovingClientState {
             //   }
             //   if (multiPlayerInitialized > 0) multiPlayerInitialized--;
             //
-            // 원본은 지역 변수 `initializeCrawling = false` 매 틱 초기화 (뒤에서 B-35 등이 참조).
-            // 1.21.1 은 필드 승격 (B-31c 세션 38) → 매 틱 진입 시 리셋.
+            // Original uses local variable `initializeCrawling = false` initialized every tick (B-35 etc reference later).
+            // 1.21.1 promoted to field (B-31c Session 38) → reset on tick entry.
             //
-            // **B-31c-post 해소 (세션 134)**: 원본 L2346 `getMaxPlayerSolidBetween(minY, maxY, 0)
-            //   > minY` (머리 위 AABB 내 고체 존재) 정밀 복원. B-42a 헬퍼 소비로 기존
-            //   `!canStandUp` 근사 해소.
+            // **B-31c-post resolution (Session 134)**: Precise restoration of original L2346 `getMaxPlayerSolidBetween(minY, maxY, 0)
+            //   > minY` (solid exists within AABB above head). B-42a helper consumption resolves previous
+            //   `!canStandUp` approximation.
             this.initializeCrawling = false;
-            // 🔴 사용자 보고 fix (2026-05-04 — "5 tick 동안 SWIMMING 잔존"):
-            //   원본 SmartMovingSelf L2344: `!(remote && multiPlayerInitialized != 0)`.
-            //   `remote` = multi player (외부 서버) — vanilla 1.7.10 의 worldObj.isRemote 동등.
-            //   1.21.1 매핑: `world.isClient()` 가 항상 true (integrated server 도 client world)
-            //   → single player 도 multiPlayerInitialized=5 (= server sync) 동안 init 미진입.
-            //   정확 매핑: MinecraftClient.getInstance().getServer() == null = multi player.
+            // 🔴 User report fix (2026-05-04 — "SWIMMING persists for 5 ticks"):
+            //   Original SmartMovingSelf L2344: `!(remote && multiPlayerInitialized != 0)`.
+            //   `remote` = multi player (external server) — equivalent to vanilla 1.7.10 worldObj.isRemote.
+            //   1.21.1 mapping: `world.isClient()` always true (integrated server also client world)
+            //   → single player also doesn't init during multiPlayerInitialized=5 (= server sync).
+            //   Accurate mapping: MinecraftClient.getInstance().getServer() == null = multi player.
             boolean isRemoteServer = net.minecraft.client.Minecraft.getInstance().getSingleplayerServer() == null;
             if (!this.initialized
                     && !(isRemoteServer && this.multiPlayerInitialized != 0)
                     && !player.isPassenger()) {
-                // 🔴 사용자 보고 fix (2026-05-03 — "1칸 공간 엎드린 채 게임 나갔다 들어오면
-                //   SM crawl 미인식, vanilla SWIMMING pose"):
-                //   원인: player.getBoundingBox() 가 동적 pose 박스 (= SWIMMING 0.6m). 1칸 공간
-                //     안 fit → bb 안 solid 검사 false → toCrawling 미호출 → SM 인식 X.
-                //   원본 1.7.10 vanilla 박스는 항상 STANDING (1.8m) → 자연스럽게 천장 검사 매칭.
-                //   fix: STANDING height 로 yMax 명시 → 원본 동작 1:1 매핑.
+                // 🔴 User report fix (2026-05-03 — "1-block space crawled, game quit+rejoin causes
+                //   SM crawl unrecognized, vanilla SWIMMING pose"):
+                //   Cause: player.getBoundingBox() is dynamic pose box (= SWIMMING 0.6m). Doesn't fit in 1-block space
+                //     → solid check in bb false → toCrawling not called → SM unrecognized.
+                //   Original 1.7.10 vanilla box always STANDING (1.8m) → naturally matches ceiling check.
+                //   Fix: Explicitly yMax with STANDING height → 1:1 original behavior mapping.
                 AABB bb31c = player.getBoundingBox();
                 double standingHeight = player.getDimensions(net.minecraft.world.entity.Pose.STANDING).height();
                 double standMinY = bb31c.minY;

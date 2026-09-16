@@ -1389,53 +1389,53 @@ public class SmartMovingConfig {
     private static final String[] DEFAULT_KEYS = new String[] { null };
 
     /**
-     * 원본 SmartMovingProperties.keys (L31) 대응.
-     * 현재 유효한 config key 배열. 초기값 {null} (단순 on/off) — `setKeys(...)` 호출로
-     * 게임타입별 배열({"e","m","h"} / {"c"} 등) 로 교체. `initializeForGameIfNeccessary()`
-     * 이식(F 섹션)에서 gameType 판정 후 setKeys 호출.
+     * Original SmartMovingProperties.keys (L31) corresponding.
+     * Current valid config key array. Initial value {null} (simple on/off) — replaced by `setKeys(...)` call
+     * with per-game-type arrays ({"e","m","h"} / {"c"} etc). setKeys called after gameType determination in
+     * `initializeForGameIfNeccessary()` porting (F section).
      */
     public String[] configKeys = DEFAULT_KEYS;
 
     /**
-     * 원본 SmartMovingProperties.toggler (L30) 대응. 초기값 -2 (load 전 센티넬).
-     * 상태표:
-     *   -2 : 초기화 전 (load() 미호출)
+     * Original SmartMovingProperties.toggler (L30) corresponding. Initial value -2 (pre-load sentinel).
+     * State table:
+     *   -2 : before initialization (load() not called)
      *   -1 : disabled (enabled = false)
-     *   0..configKeys.length-1 : enabled, 현재 key 인덱스
-     * 파생: `enabled = (toggler != -1)` — `update()` 에서 동기화. 직접 쓰기 금지, toggle()/
-     *   setCurrentKey() 경유.
+     *   0..configKeys.length-1 : enabled, current key index
+     * Derived: `enabled = (toggler != -1)` — synced in `update()`. Direct writing prohibited, use toggle()/
+     *   setCurrentKey() instead.
      */
     public int toggler = -2;
 
-    // H-18 (세션 23): configKeyName Map 삭제. 2상태 토글(configKeys={null}) 에서 currentKey
-    // 는 항상 null 이므로 "Easy"/"Medium"/"Hard" 라벨 표시 경로 전부 제거됨. Medium/Hard
-    // 프리셋 복원 시(`focus_09_difficulty_presets.md` 후속) 재도입.
+    // H-18 (session 23): Deleted configKeyName Map. In 2-state toggle (configKeys={null}), currentKey
+    // is always null so all "Easy"/"Medium"/"Hard" label display paths removed. Will reintroduce when
+    // restoring Medium/Hard presets (follow-up to `focus_09_difficulty_presets.md`).
     //
-    // H-20 (세션 23): gameType 시스템 전체 삭제. 2상태 토글에선 gameType 감지/전환이
-    // 불필요. 원본 SmartMovingOptions.initializeForGameIfNeccessary / resetForNewGame /
-    // gameType 캐시 + GAME_TYPE_UNKNOWN/SURVIVAL/CREATIVE/ADVENTURE 4상수 + 게임타입별
-    // 6필드 (survival/creative/adventure × configKeys+defaultConfigKey) 전부 제거.
-    // 세이브 파일 호환: 기존 키(move.config.{survival,creative,adventure}.keys{,.default})
-    // 는 단순히 무시됨 (readFrom 호출 삭제). Medium/Hard 프리셋 복원 시 재도입.
+    // H-20 (session 23): Deleted entire gameType system. GameType detection/switching unnecessary for
+    // 2-state toggle. Removed original SmartMovingOptions.initializeForGameIfNeccessary / resetForNewGame /
+    // gameType cache + GAME_TYPE_UNKNOWN/SURVIVAL/CREATIVE/ADVENTURE 4 constants + 6 per-game-type
+    // fields (survival/creative/adventure × configKeys+defaultConfigKey) all deleted.
+    // Save file compatibility: existing keys (move.config.{survival,creative,adventure}.keys{,.default})
+    // simply ignored (readFrom call deleted). Will reintroduce when restoring Medium/Hard presets.
 
 
-    // ── Singleton / Config 전환 ────────────────────────────────
-    /** 클라이언트 파일 기반 설정 (Options). 불변 싱글톤. */
+    // ── Singleton / Config transition ────────────────────────────────
+    /** Client file-based config (Options). Immutable singleton. */
     public static final SmartMovingConfig INSTANCE = new SmartMovingConfig();
 
     /**
-     * 서버 수신 설정 인스턴스. loadFromArray()로 갱신.
-     * 연결 해제 시 resetServerConfig() 호출로 새 인스턴스 교체 — 원본 SmartMovingServerConfig.reset() 대응.
-     * volatile — 클라이언트 렌더/틱 스레드 간 가시성 보장.
+     * Server-received config instance. Updated via loadFromArray().
+     * Replaced with new instance via resetServerConfig() call on disconnect — corresponding to original SmartMovingServerConfig.reset().
+     * volatile — ensures visibility between client render/tick threads.
      */
     public static volatile SmartMovingConfig SERVER_CONFIG = new SmartMovingConfig();
 
     /**
-     * 현재 활성 설정 참조 (원본: SmartMovingContext.Config).
-     * 초기값: INSTANCE (클라이언트 자체 설정).
-     * 서버 설정 수신 시: SERVER_CONFIG로 전환.
-     * 서버 설정 해제 시: INSTANCE로 복원.
-     * volatile — 클라이언트 렌더/틱 스레드 간 가시성 보장.
+     * Current active config reference (original: SmartMovingContext.Config).
+     * Initial value: INSTANCE (client's own config).
+     * On server config reception: switched to SERVER_CONFIG.
+     * On server config unset: restored to INSTANCE.
+     * volatile — ensures visibility between client render/tick threads.
      */
     public static volatile SmartMovingConfig Config = INSTANCE;
 
@@ -1527,10 +1527,10 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 서버 수신 설정 인스턴스를 기본값으로 리셋한다.
-     * 원본: SmartMovingServerConfig.reset() — properties/topProperties 저장소 clear.
-     * 1.21.1: 단일 저장소 구조이므로 새 인스턴스로 교체하여 모든 필드를 기본값으로 복원.
-     * 호출: 서버 연결 해제 시 (SmartMovingClient.DISCONNECT).
+     * Reset server-received config instance to default values.
+     * Original: SmartMovingServerConfig.reset() — clears properties/topProperties storage.
+     * 1.21.1: single storage structure, so replaced with new instance to restore all fields to defaults.
+     * Called: on server disconnect (SmartMovingClient.DISCONNECT).
      */
     public static void resetServerConfig() {
         SERVER_CONFIG = new SmartMovingConfig();
@@ -1546,9 +1546,9 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 서버로부터 수신한 flat String[] 배열 [k1,v1,k2,v2,...] 을 이 인스턴스에 적용한다.
-     * 원본: SmartMovingServerConfig.loadFromProperties(String[] content, boolean blockCode)
-     * 패리티 수준: 홀수 길이 배열은 malformed로 간주하고 처리 중단.
+     * Apply flat String[] array [k1,v1,k2,v2,...] received from server to this instance.
+     * Original: SmartMovingServerConfig.loadFromProperties(String[] content, boolean blockCode)
+     * Parity level: odd-length arrays considered malformed and processing stops.
      */
     public void loadFromArray(String[] content) {
         if (content.length % 2 != 0) return;

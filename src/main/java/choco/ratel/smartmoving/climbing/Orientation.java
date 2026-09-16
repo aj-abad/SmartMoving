@@ -1105,76 +1105,76 @@ public class Orientation {
         return isTrapDoor(state) && !isClosedTrapDoor(state);
     }
 
-    // ── isFullEmpty 좌표 오버로드 (B-19a1a 확장 — static world 활용) ──────
+    // ── isFullEmpty Coordinate Overload (B-19a1a extension — using static world) ─
 
     /**
-     * 원본 `isFullEmpty(Block)` 단일 파라미터를 좌표 기반으로 오버로드.
-     * 1.21.1 `isFullEmpty(BlockState, World, BlockPos)` 로 전달. 호출부 단순화.
+     * Overloads original single-parameter `isFullEmpty(Block)` to coordinate-based.
+     * Passes to 1.21.1 `isFullEmpty(BlockState, World, BlockPos)`. Simplifies call sites.
      */
     protected static boolean isFullEmpty(int i, int j_offset, int k) {
         BlockPos pos = new BlockPos(i, local_offset + j_offset, k);
         return isFullEmpty(world.getBlockState(pos), world, pos);
     }
 
-    // ── isEmpty (원본 L2537-L2541) ──────────────────────────────────────────
+    // ── isEmpty (original L2537-L2541) ────────────────────────────────────
 
     /**
-     * 원본 L2537-L2541 `isEmpty(int i, int j_offset, int k)`:
+     * Original L2537-L2541 `isEmpty(int i, int j_offset, int k)`:
      *   `isFullEmpty(getBlock(i, j_offset, k)) && !isFence(i, j_offset - 1, k)`.
      *
-     * 플레이어 지나갈 수 있는 공간 + 바로 아래가 fence 가 아님 (fence 는 1.5-높이 → 막힘).
+     * Space player can traverse + directly below is not fence (fence is 1.5-high → blocks).
      */
     protected static boolean isEmpty(int i, int j_offset, int k) {
-        // 🔴 사용자 요구: fence ≡ iron_bars 동일 동작.
-        //   원본은 `!isFence(i, j-1, k)` 만 체크 (fence 1.5 높이 → 위 칸 막힘 처리).
-        //   iron_bars 도 1.5 높이로 동일하게 위 칸 막혀야 하나 isFence 미포함 → isEmpty=true.
-        //   → 사용자 fence 위에 서서 grab+W: isEmpty(base,0)=false → hasHalfHold L2421
-        //     미진입 → L2427 wallState 분기 (grabRemote=false) 활성.
-        //   → 사용자 iron_bars 위에 서서 grab+W: isEmpty(base,0)=true → L2421 진입
-        //     (grabRemote=true) → 다른 isLadderSubstitute gap → 다른 motion → 다른 속도.
-        //   해결: iron_bars 도 fence 와 동일하게 차단 → 둘 다 L2427 분기로 통일.
+        // 🔴 User requirement: fence ≡ iron_bars same behavior.
+        //   Original only checks `!isFence(i, j-1, k)` (fence 1.5 height → blocks above space).
+        //   iron_bars also 1.5 height should block above space equally, but not in isFence → isEmpty=true.
+        //   → User standing on fence grab+W: isEmpty(base,0)=false → hasHalfHold L2421
+        //     not entered → L2427 wallState branch (grabRemote=false) active.
+        //   → User standing on iron_bars grab+W: isEmpty(base,0)=true → L2421 entered
+        //     (grabRemote=true) → different isLadderSubstitute gap → different motion → different speed.
+        //   Solution: Block iron_bars same as fence → both unified to L2427 branch.
         BlockState belowState = getBlock(i, j_offset - 1, k);
         return isFullEmpty(i, j_offset, k)
             && !isFence(belowState)
             && belowState.getBlock() != Blocks.IRON_BARS;
     }
 
-    // ── isBaseAccessible 2 오버로드 (원본 L2342-L2399) ──────────────────────
+    // ── isBaseAccessible 2 Overloads (original L2342-L2399) ─────────────────
 
     /**
-     * 원본 L2342-L2345 `isBaseAccessible(int j_offset)` — 단순 래퍼, bottom=false/full=false.
+     * Original L2342-L2345 `isBaseAccessible(int j_offset)` — Simple wrapper, bottom=false/full=false.
      */
     protected static boolean isBaseAccessible(int j_offset) {
         return isBaseAccessible(j_offset, false, false);
     }
 
     /**
-     * 원본 L2347-L2399 `isBaseAccessible(int j_offset, boolean bottom, boolean full)` —
-     * base 위치가 플레이어 점유 가능한 공간인지.
+     * Original L2347-L2399 `isBaseAccessible(int j_offset, boolean bottom, boolean full)` —
+     * Whether base position is space player can occupy.
      *
-     * 7 분기 (OR 누적):
-     *   (1) `isEmpty(base_i, j_offset, base_k)` — 빈 공간 + 아래 fence 없음
-     *   (2) [§7 근사 생략] RedPower wire 특수 처리
-     *   (3) `isFullEmpty(baseBlock)` — 블록 공간 자체 비어있음
-     *   (4) `isOpenTrapDoor(base_i, j_offset, base_k)` — 열린 trap door
-     *   (5) bottom && `isClosedTrapDoor(base_i, j_offset, base_k)` — bottom 플래그 + 닫힌 trapdoor
-     *   (6) !full && `isWallBlock(baseBlock, base_i, j_offset, base_k)` — full=false + 얇은 벽/펜스
-     *   (7) [§7 근사 생략] ASRope — !full && mod rope
-     *   (8) `isDoor(baseBlock)` — door 블록
-     *   (9) [§7 근사 생략] Carpenters `_blockCarpentersLadder`
+     * 7 branches (OR accumulated):
+     *   (1) `isEmpty(base_i, j_offset, base_k)` — Empty space + no fence below
+     *   (2) [§7 approximate skipped] RedPower wire special handling
+     *   (3) `isFullEmpty(baseBlock)` — Block space itself empty
+     *   (4) `isOpenTrapDoor(base_i, j_offset, base_k)` — Open trap door
+     *   (5) bottom && `isClosedTrapDoor(base_i, j_offset, base_k)` — bottom flag + closed trapdoor
+     *   (6) !full && `isWallBlock(baseBlock, base_i, j_offset, base_k)` — full=false + thin wall/fence
+     *   (7) [§7 approximate skipped] ASRope — !full && mod rope
+     *   (8) `isDoor(baseBlock)` — door block
+     *   (9) [§7 approximate skipped] Carpenters `_blockCarpentersLadder`
      *
-     * **§7 B-19a1c2 근사 3건**:
-     *   - RedPower wire 특수 판정 (`isRedPowerWire`/`getRpCoverSides`/`isRedPowerWireBottom/Top`
-     *     체인) 전체 생략 — RedPower mod 1.21.1 미이식
-     *   - ASRope 분기 생략 — ASRope mod 1.21.1 미이식 (B-19a1b `isRope`/`isOnWallRope`
-     *     false 근사와 연동)
-     *   - Carpenters `_blockCarpentersLadder` 분기 생략 — Carpenters mod 1.21.1 미이식
+     * **§7 B-19a1c2 3 approximates**:
+     *   - RedPower wire special judgment (`isRedPowerWire`/`getRpCoverSides`/`isRedPowerWireBottom/Top`
+     *     chain) entirely skipped — RedPower mod not ported to 1.21.1
+     *   - ASRope branch skipped — ASRope mod not ported to 1.21.1 (linked to B-19a1b `isRope`/`isOnWallRope`
+     *     false approximate)
+     *   - Carpenters `_blockCarpentersLadder` branch skipped — Carpenters mod not ported to 1.21.1
      */
     protected static boolean isBaseAccessible(int j_offset, boolean bottom, boolean full) {
         BlockState id = getBaseBlockId(j_offset);
         boolean accessible = isEmpty(base_i, j_offset, base_k);
 
-        // 근사 이식 — 원본과 차이: RedPower wire 분기 (원본 L2352-L2369) 생략
+        // Approximate port — difference from original: RedPower wire branch (original L2352-L2369) skipped
 
         if (!accessible && isFullEmpty(getBaseBlockId(j_offset), world,
                 new BlockPos(base_i, local_offset + j_offset, base_k)))
@@ -1189,12 +1189,12 @@ public class Orientation {
         if (!accessible && !full && isWallBlock(id))
             accessible = true;
 
-        // 근사 이식 — 원본과 차이: ASRope 분기 (원본 L2385-L2389) 생략
+        // Approximate port — difference from original: ASRope branch (original L2385-L2389) skipped
 
         if (!accessible && isDoor(id))
             accessible = true;
 
-        // 근사 이식 — 원본과 차이: Carpenters _blockCarpentersLadder 분기 (원본 L2394-L2396) 생략
+        // Approximate port — difference from original: Carpenters _blockCarpentersLadder branch (original L2394-L2396) skipped
 
         return accessible;
     }
