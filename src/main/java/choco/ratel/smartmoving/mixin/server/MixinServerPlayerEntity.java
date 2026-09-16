@@ -10,21 +10,21 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 서버 플레이어 전용 동작을 Player 선언 메서드에 inject하고 ServerPlayer로 제한한다.
+ * Inject server-player-only behaviors to Player-declared methods, restricted to ServerPlayer.
  *
- * - 3-1-B: tick() HEAD — crawlingCooldown 카운트다운
- * - C-22: travel() HEAD/TAIL — SM 소진 배치 처리
+ * - 3-1-B: tick() HEAD — crawlingCooldown countdown
+ * - C-22: travel() HEAD/TAIL — SM exhaustion batch handling
  *
- * 주의: isSneaking(Entity), isInsideWall(LivingEntity), addExhaustion(PlayerEntity)은
- * ServerPlayer에 선언되어 있지 않으므로 선언 클래스인 Player를 대상으로 한다.
+ * Note: isSneaking(Entity), isInsideWall(LivingEntity), addExhaustion(PlayerEntity) are not
+ * declared in ServerPlayer, so target Player declaration class.
  */
 @Mixin(Player.class)
 public abstract class MixinServerPlayerEntity {
 
     /**
-     * 3-1-B: crawlingCooldown 카운트다운 (beforeOnUpdate 해당).
-     * 크롤링 종료 후 10틱간 isInsideWall() 억제 타이머를 매 틱 감소한다.
-     * 원본: SmartMovingServer.beforeOnUpdate() → if (crawlingCooldown > 0) crawlingCooldown--
+     * 3-1-B: crawlingCooldown countdown (beforeOnUpdate equivalent).
+     * Decrements isInsideWall() suppression timer each tick for 10 ticks after crawling ends.
+     * Original: SmartMovingServer.beforeOnUpdate() → if (crawlingCooldown > 0) crawlingCooldown--
      */
     @Inject(method = "tick", at = @At("HEAD"))
     private void sm_beforeTick(CallbackInfo ci) {
@@ -33,10 +33,10 @@ public abstract class MixinServerPlayerEntity {
         if (sm.crawlingCooldown > 0) sm.crawlingCooldown--;
     }
 
-    // ── C-22: travel() HEAD/TAIL — SM 소진 배치 처리 ─────────────────────────
-    // 원본: addMovementStat()이 없어짐 → travel() 인라인 처리 (A-27 확인)
-    // HEAD: beforeAddMovingHungerBatch() — 소진 차단 시작
-    // TAIL: hunger 반영 후 afterAddMovingHungerBatch() — 소진 차단 해제
+    // ── C-22: travel() HEAD/TAIL — SM exhaustion batch handling ─────────────────────────
+    // Original: addMovementStat() removed → travel() inline handling (see A-27)
+    // HEAD: beforeAddMovingHungerBatch() — start exhaustion blocking
+    // TAIL: after hunger applied, afterAddMovingHungerBatch() — end exhaustion blocking
 
     @Inject(method = "travel", at = @At("HEAD"))
     private void sm_beforeTravel(Vec3 movementInput, CallbackInfo ci) {
