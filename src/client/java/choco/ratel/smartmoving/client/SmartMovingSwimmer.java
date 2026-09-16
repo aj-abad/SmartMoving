@@ -748,19 +748,19 @@ public final class SmartMovingSwimmer {
         }
 
         // ── [8-5] isJumpingOutOfWater ────────────────────────────────────────
-        // 🔵 (2026-05-20, Phase 0 검증 fix): 원본 L499-500 `else if(isJumpingOutOfWater) sp.motionY = 0.3`
-        //   1:1 매핑. sm.isJumpingOutOfWater 필드는 updateSwimState L212-220 에서 원본 L486-487
-        //   완전 식 (`!isSlow` + `wasJumpingOutOfWater` 포함) 으로 이미 갱신됨.
-        //   기존 매핑은 식 재계산 — `!sm.isSlow` 가드 누락 + `sm.wasJumpingOutOfWater` OR 항 누락 →
-        //   sneak hold 중 수면 점프 차단 안 됨 + 연속 frame jump 유지 매치 안 됨. 사용자 자각
-        //   가능 차이 (sneak 잠수 중 모서리 벽 충돌 시 의도치 않은 surface 점프).
+        // 🔵 (2026-05-20, Phase 0 validation fix): Original L499-500 `else if(isJumpingOutOfWater) sp.motionY = 0.3`
+        //   1:1 mapping. sm.isJumpingOutOfWater field is already updated at updateSwimState L212-220 with original L486-487
+        //   complete formula (including `!isSlow` + `wasJumpingOutOfWater`).
+        //   Previous mapping recalculated formula — missing `!sm.isSlow` guard + missing `sm.wasJumpingOutOfWater` OR term →
+        //   jump not blocked during sneak hold + continuous frame jump match failed. User-perceptible
+        //   difference (unexpected surface jump on corner wall collision during sneak dive).
         if (sm.isJumpingOutOfWater) {
             motionY = JUMP_OUT_OF_WATER_VELOCITY;
         }
 
-        // 🔴 fix #128 reverted (2026-05-21, 사용자 보고 "swim 속도 자체가 느려졌다"):
-        //   fix #128 의 swim 후 friction 0.91 적용이 swim speed 변경 (= 1.5배 느림). 사용자 의도 X.
-        //   사용자 verbatim "머리 회전 속도만 보라" — swim physics 변경 회피.
+        // 🔴 fix #128 reverted (2026-05-21, user report "swim speed itself slowed down"):
+        //   fix #128 applying 0.91 friction after swim changed swim speed (= 1.5× slower). Not user intent.
+        //   User verbatim "only look at head rotation speed" — avoid swim physics change.
         player.setDeltaMovement(motionX, motionY, motionZ);
         player.move(MoverType.SELF, player.getDeltaMovement());
         player.fallDistance = 0F;

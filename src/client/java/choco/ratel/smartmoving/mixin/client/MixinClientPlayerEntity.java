@@ -296,20 +296,20 @@ public abstract class MixinClientPlayerEntity {
         for (; player.yBodyRot - player.yBodyRotO >= 180F; player.yBodyRotO += 360F) {}
     }
 
-    // R-01: tickMovement TAIL — 모든 이동 처리 후 State 패킷 전송
+    // R-01: tickMovement TAIL — send State packet after all movement processing
     @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_sendStatePacket(CallbackInfo ci) {
         LocalPlayer player = (LocalPlayer)(Object)this;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         sm.sendStatePacket(player);
 
-        // 🔵 (2026-05-14, Option F fix #97) StatsPayload — self stats angle 매 tick 송신.
-        //   원인: vanilla lerpPosAndRotation 가 REMOTE 의 위치를 5-tick 균등 분할 보간 → REMOTE
-        //     자체 stats.calculate 결과 (= realDxYz atan2) 가 self trajectory 와 다른 흐름 →
-        //     lerpFadeAngle 0.2 peak 추격 시간 부족.
-        //   적용: self 의 sm.stats.currentVerticalAngle/HorizontalAngle 매 tick C2S → server
-        //     릴레이 → REMOTE 가 자체 계산 결과를 packet 값으로 덮어쓰기.
-        //   부하: 매 tick 12 byte (= int + float*2) * tracker 수. ~5 kbps/tracker.
+        // 🔵 (2026-05-14, Option F fix #97) StatsPayload — send self stats angle every tick.
+        //   Cause: vanilla lerpPosAndRotation interpolates REMOTE position in 5-tick equal division → REMOTE
+        //     own stats.calculate result (= realDxYz atan2) flows differently from self trajectory →
+        //     lerpFadeAngle 0.2 insufficient time to chase peak.
+        //   Application: self sm.stats.currentVerticalAngle/HorizontalAngle every tick C2S → server
+        //     relay → REMOTE overwrites own calculation result with packet value.
+        //   Load: every tick 12 bytes (= int + float*2) * tracker count. ~5 kbps/tracker.
         if (net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(
                 choco.ratel.smartmoving.network.SmartMovingNetwork.StatsPayload.ID)) {
             net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(

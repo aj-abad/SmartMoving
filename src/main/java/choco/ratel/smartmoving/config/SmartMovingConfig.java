@@ -1378,13 +1378,13 @@ public class SmartMovingConfig {
         return crawlToggle && enabled;
     }
 
-    // ── Config key 토글 시스템 (원본 SmartMovingProperties L26-L31) ─────────────────
-    // H-19 (세션 23): CONFIG_KEY_ENABLED/DISABLED 상수 삭제. getCurrentKey/getKey/getNextKey/
-    //   hasKey/setCurrentKey 메서드 5개도 삭제 (외부 호출처 0건 확인). DEFAULT_KEYS 만 유지
-    //   — setKeys(null) 시 fallback 으로 사용됨.
+    // ── Config key toggle system (original SmartMovingProperties L26-L31) ─────────────────
+    // H-19 (session 23): Deleted CONFIG_KEY_ENABLED/DISABLED constants. Also deleted 5 methods
+    //   getCurrentKey/getKey/getNextKey/hasKey/setCurrentKey (confirmed 0 external call sites).
+    //   Kept DEFAULT_KEYS only — used as fallback when setKeys(null).
     /**
-     * 원본 SmartMovingProperties._defaultKeys = new String[1] = {null}.
-     * 단일 null 요소 — `keys[0] == null` 이면 단순 on/off 토글 모드.
+     * Original SmartMovingProperties._defaultKeys = new String[1] = {null}.
+     * Single null element — if `keys[0] == null` simple on/off toggle mode.
      */
     private static final String[] DEFAULT_KEYS = new String[] { null };
 
