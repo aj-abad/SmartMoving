@@ -106,12 +106,12 @@ public abstract class MixinPlayerEntity {
             return;
         }
 
-        // 🔴 비행 콜리전 원본 1:1 복원 시도 (사용자 요청, 단계 1):
-        //   원본 setHeightOffset(-1F) (L1694-L1704) → height 0.8, eyeHeight 변경 없음 (1.62).
-        //   1.21.1 매핑: dimensions = (0.6, 0.8, eyeHeight=1.62).
-        //   서버 측 isFlying 공식 (원본 L2510): cfg.fly && abilities.flying && !swim && !dive.
-        //   클라/서버 hitbox 일관 위해 양측 동일 적용. instanceof ServerPlayerEntity 가드는
-        //   메서드 진입부에 이미 있음 — player 변수 사용 가능.
+        // 🔴 Attempt to restore original flying collision 1:1 (user request, phase 1):
+        //   Original setHeightOffset(-1F) (L1694-L1704) → height 0.8, eyeHeight unchanged (1.62).
+        //   1.21.1 mapping: dimensions = (0.6, 0.8, eyeHeight=1.62).
+        //   Server side isFlying formula (original L2510): cfg.fly && abilities.flying && !swim && !dive.
+        //   Apply same on both sides for client/server hitbox consistency. instanceof ServerPlayerEntity guard
+        //   already exists at method entry — player variable available.
         boolean serverIsFlying = SmartMovingConfig.Config.fly
                               && player.getAbilities().flying
                               && !sm.isSwimming
@@ -121,33 +121,33 @@ public abstract class MixinPlayerEntity {
             return;
         }
 
-        // SLIDING POSE 가 vanilla 가 아닌 경로로 들어온 경우 보강 (외부 모드 등).
+        // SLIDING POSE entered from non-vanilla path (reinforcement for external mods etc).
         if (pose == Pose.SLIDING) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(0.62F));
             return;
         }
 
-        // 🔴 orphan SWIMMING pose 가드 (2026-05-04 사용자 보고 — "1칸 진입 직전 슬라이딩 풀면
-        //   가끔 콜리전 정상 엎드리기보다 작음"):
-        //   클라 sm_getBaseDimensions_client 와 동일 가드 — pose=SWIMMING + smSmall 미매치 시
-        //   STANDING dim 강제. 클라/서버 대칭으로 박스 sync 일관 유지 (server reconcile 차단).
+        // 🔴 orphan SWIMMING pose guard (2026-05-04 user report — "releasing sliding just before entering 1 space
+        //   sometimes has collision smaller than normal lying down"):
+        //   Same guard as client sm_getBaseDimensions_client — when pose=SWIMMING + smSmall mismatch,
+        //   force STANDING dim. Keep box sync consistent by client/server symmetry (block server reconcile).
         if (pose == Pose.SWIMMING) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 1.8F).withEyeHeight(1.62F));
         }
     }
 
     /**
-     * 6-4 (서버): SM 이동 상태에서 vanilla updatePose() 취소 후 SM 포즈 강제 설정.
+     * 6-4 (server): Cancel vanilla updatePose() and force SM pose setting in SM movement states.
      *
-     * **포커스 #2.7 Phase D-1 (세션 4, 2026-04-25)**: 클라와 완전 대칭 (옵션 3).
-     *   클라 (MixinPlayerEntityClient.sm_updatePose_client) 와 동일 4 분기 매핑:
-     *     isCrawling || isCrawlClimbing            → SWIMMING (엎드림)
-     *     isHeadJumping || isSliding               → SLIDING  (납작)
-     *     isSwimming || isDiving                   → SWIMMING (수영)
-     *     isFlying (원본 공식) || isLevitating     → SLIDING  (비행)
-     *     이외                                     → vanilla 통과
+     * **Focus #2.7 Phase D-1 (session 4, 2026-04-25)**: Completely symmetric with client (option 3).
+     *   Same 4 branch mapping as client (MixinPlayerEntityClient.sm_updatePose_client):
+     *     isCrawling || isCrawlClimbing            → SWIMMING (lying down)
+     *     isHeadJumping || isSliding               → SLIDING  (flat)
+     *     isSwimming || isDiving                   → SWIMMING (swimming)
+     *     isFlying (original formula) || isLevitating     → SLIDING  (flying)
+     *     others                                   → vanilla pass through
      *
-     * 클라/서버 POSE 동일 sync → datatracker 진동 0.
+     * Client/server POSE same sync → datatracker oscillation 0.
      */
     @Inject(method = "updatePlayerPose", at = @At("HEAD"), cancellable = true)
     private void sm_updatePose_server(CallbackInfo ci) {
@@ -164,37 +164,37 @@ public abstract class MixinPlayerEntity {
             player.setPose(Pose.SWIMMING);
             ci.cancel();
         }
-        // 🔴 BUG-29 진짜 원인 정정 (Flying Phase / 세션 45): 비행/Levitate 분기 제거 (서버측).
-        //   클라측 sm_updatePose_client 와 동일 정정 — 비행 시 vanilla STANDING POSE 통과.
-        //   원본 1.7.10 vanilla 에 POSE 시스템 없음 → 비행 시 STANDING 그대로. 1.21.1 잘못 매핑
-        //   = SLIDING 강제 → 카메라 발끝. 정정: vanilla 통과 → STANDING POSE → eyeHeight 1.62.
-        //   클라/서버 대칭 유지 → datatracker 진동 0.
-        // isFlying/isLevitating/isDipping/그 외 → vanilla updatePose() 통과 (STANDING 등)
+        // 🔴 BUG-29 real cause fix (Flying Phase / session 45): Remove flying/Levitate branch (server side).
+        //   Same fix as client side sm_updatePose_client — pass vanilla STANDING POSE during flying.
+        //   Original 1.7.10 vanilla has no POSE system → flying stays STANDING. 1.21.1 incorrect mapping
+        //   = force SLIDING → camera at feet. Fix: pass vanilla → STANDING POSE → eyeHeight 1.62.
+        //   Keep client/server symmetry → datatracker oscillation 0.
+        // isFlying/isLevitating/isDipping/others → pass vanilla updatePose() (STANDING etc)
     }
 
     /**
-     * 낙하 중 sneak pose 차단 — vanilla updatePose() 의 isSneaking() 호출만 redirect.
+     * Block sneak pose during falling — redirect only isSneaking() call in vanilla updatePose().
      *
-     * 원본 1.7.10 1:1 근거 (SmartMovingModel.animateSneaking L681-685):
+     * Original 1.7.10 1:1 basis (SmartMovingModel.animateSneaking L681-685):
      *   `if(isStandard && !isAngleJumping) imp.superAnimateSneaking(...);`
-     *   isFalling 분기 진입 시 isStandard=false → vanilla sneak 시각 적용 SKIP.
+     *   When isFalling branch entered, isStandard=false → skip vanilla sneak visual application.
      *
-     * 1.21.1 EntityPose 시스템 차이:
-     *   1.7.10 vanilla 는 sneak 시 boundingBox 변경 없음 + eyeHeight 0.08 차감만 → 떨림 미미.
-     *   1.21.1 vanilla 는 pose=CROUCHING → boundingBox.height 1.5 (vs 1.8) + eyeHeight 1.27
-     *     (vs 1.62) → 카메라/hitbox 토글 시 lerp 점프 발생.
+     * 1.21.1 EntityPose system difference:
+     *   1.7.10 vanilla: no boundingBox change during sneak + only 0.08 eyeHeight reduction → minimal jitter.
+     *   1.21.1 vanilla: pose=CROUCHING → boundingBox.height 1.5 (vs 1.8) + eyeHeight 1.27
+     *     (vs 1.62) → lerp jump occurs on camera/hitbox toggle.
      *
-     * 해결: PlayerEntity.updatePose 의 isSneaking() 호출 (bytecode offset 68) 만 redirect →
-     *   낙하 중에는 false 반환 → CROUCHING 분기 (offset 67-88) skip → STANDING fallthrough.
-     *   vanilla 의 다른 분기 (FallFlying/Sleeping/Swimming/SpinAttack) 우선순위는 그대로.
+     * Solution: Redirect only isSneaking() call (bytecode offset 68) in PlayerEntity.updatePose →
+     *   return false during falling → skip CROUCHING branch (offset 67-88) → STANDING fallthrough.
+     *   Other vanilla branches (FallFlying/Sleeping/Swimming/SpinAttack) priority unchanged.
      *
-     * 위치: main mixin set 이라 client + server 양측 자동 적용 (instanceof 가드 불필요).
-     *   - 클라: pose=STANDING → hitbox/eye height 토글 없음 + setModelPose 가 model.sneaking=false
-     *     자동 set → BipedEntityModel.setAngles 의 sneak 분기 자동 SKIP.
-     *   - 서버: pose=STANDING → 클라/서버 hitbox 동기화 → 좁은 천장 통과 등 위치 reject 회피.
+     * Location: main mixin set so auto-applies to both client + server (no instanceof guard needed).
+     *   - Client: pose=STANDING → no hitbox/eye height toggle + setModelPose auto sets model.sneaking=false
+     *     → auto skip sneak branch in BipedEntityModel.setAngles.
+     *   - Server: pose=STANDING → client/server hitbox sync → avoid position reject like passing narrow ceiling.
      *
-     * SM 상태 (Crawling/CrawlClimbing/HeadJumping/Sliding/Swimming/Diving) 는 sm_updatePose_*
-     * 가 이미 ci.cancel() 후 setPose() 처리 → vanilla 본체 미실행 → 이 redirect 영향 없음.
+     * SM states (Crawling/CrawlClimbing/HeadJumping/Sliding/Swimming/Diving) are already handled by sm_updatePose_*
+     * after ci.cancel() with setPose() → vanilla body not executed → this redirect unaffected.
      */
     @Redirect(method = "getDesiredPose",
             at = @At(value = "INVOKE",
@@ -204,12 +204,12 @@ public abstract class MixinPlayerEntity {
         if (!original) return false;
         if (!SmartMovingConfig.Config.enabled) return original;
 
-        // isFalling 가드 (sm_setAnglesHead 와 동일 조건):
+        // isFalling guard (same condition as sm_setAnglesHead):
         //   !onGround && fallDistance > fallAnimationDistanceMinimum && !touchingWater &&
         //   !fallFlying && !abilities.flying.
-        // SM 상태 (isClimbing 등) 는 SmartMovingClientState/Server 에 분리 저장이라 양측
-        // 직접 참조 불가. 그러나 climbing 중에는 SmartMovingClimber 가 fallDistance=0 으로
-        // reset 하므로 fallDistance > minimum 조건이 자연스레 climbing 제외.
+        // SM states (isClimbing etc) are stored separately in SmartMovingClientState/Server so cannot
+        // directly reference from both sides. However, SmartMovingClimber resets fallDistance=0 during climbing,
+        // so fallDistance > minimum condition naturally excludes climbing.
         boolean isFalling = !self.onGround()
                 && self.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
                 && !self.isInWater()
@@ -217,18 +217,18 @@ public abstract class MixinPlayerEntity {
                 && !self.getAbilities().flying;
         if (isFalling) return false;
 
-        // 🔴 fix #77 (BUG #2.6, 2026-05-10, 사용자 보고 "weeping/twisting vines + sneak 시 박스 작아짐"):
-        //   일반 사다리/덩굴 + sneak: sm_resetSneakInClimb 가드 (`sm.isClimbing` 등) 매치 →
-        //     setPose(STANDING) 강제 → 박스 1.8m 유지. 매달림 = SM 자체 motion 처리.
-        //   weeping/twisting vines (vanilla bypass = sm.isClimbing=false): sm_resetSneakInClimb 미트리거
-        //     → fix #75 후 vanilla isSneaking()=true → vanilla updatePose → CROUCHING → 박스 1.5m.
+        // 🔴 fix #77 (BUG #2.6, 2026-05-10, user report "weeping/twisting vines + sneak causes box to shrink"):
+        //   Normal ladder/vine + sneak: sm_resetSneakInClimb guard (`sm.isClimbing` etc) matches →
+        //     force setPose(STANDING) → maintain box 1.8m. Hanging = SM's own motion handling.
+        //   weeping/twisting vines (vanilla bypass = sm.isClimbing=false): sm_resetSneakInClimb not triggered
+        //     → after fix #75, vanilla isSneaking()=true → vanilla updatePose → CROUCHING → box 1.5m.
         //
-        //   해결: vanilla updatePose 안 isSneaking() 호출만 redirect → false 반환 → CROUCHING 분기
-        //     skip → STANDING fallthrough. isHoldingOntoLadder() = isSneaking() 호출은 redirect 영향
-        //     X (이건 vanilla 의 다른 메서드 안에서 호출) → 매달림 유지 (= 기능 보존).
-        //   메모리 project_vine_animation_complete.md 의 "weeping/twisting vines = 사다리 자세
-        //     + vanilla 매달림 motion" 의도와 정합.
-        //   이 redirect 는 PlayerEntity (main mixin) 라 client + server 양측 자동 적용.
+        //   Solution: Redirect only isSneaking() call in vanilla updatePose → return false → skip CROUCHING branch
+        //     → STANDING fallthrough. isHoldingOntoLadder() = isSneaking() call not affected by redirect
+        //     (called from different vanilla method) → maintain hanging (= preserve functionality).
+        //   Align with intent in project_vine_animation_complete.md "weeping/twisting vines = ladder pose
+        //     + vanilla hanging motion".
+        //   This redirect is PlayerEntity (main mixin) so auto-applies to both client + server.
         net.minecraft.world.level.block.Block blockAtPos = self.level()
                 .getBlockState(self.blockPosition()).getBlock();
         if (blockAtPos == net.minecraft.world.level.block.Blocks.WEEPING_VINES
@@ -242,11 +242,11 @@ public abstract class MixinPlayerEntity {
     }
 
     /**
-     * 3-3: addExhaustion() 소진 차단.
-     * disableAddExhaustion이 true인 동안 vanilla 소진 추가를 전부 차단한다.
+     * 3-3: Block addExhaustion() exhaustion.
+     * Blocks all vanilla exhaustion addition while disableAddExhaustion is true.
      *
-     * addExhaustion()은 PlayerEntity에서 선언되므로 여기서 inject.
-     * ServerPlayerEntity에는 선언되어 있지 않아 MixinServerPlayerEntity에서 inject 불가.
+     * addExhaustion() is declared in PlayerEntity so inject here.
+     * Not declared in ServerPlayerEntity so cannot inject in MixinServerPlayerEntity.
      */
     @Inject(method = "causeFoodExhaustion", at = @At("HEAD"), cancellable = true)
     private void sm_addExhaustion(float exhaustion, CallbackInfo ci) {

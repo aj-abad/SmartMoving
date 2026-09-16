@@ -290,190 +290,190 @@ public final class SmartMovingClientState {
     public boolean wouldWantClimb;
 
     /**
-     * 원본 SmartMovingSelf L2419-L2430 `wouldWantCrawl` = 4-OR 조건 (isCrawling 유지 또는
-     * grab.StartPressed + sneak). 1.21.1 L855-L861 지역 변수 `wouldWantCrawl_` 이식 완료.
-     * B-36-pre (세션 77): 필드 승격 — B-36 grab.StartPressed 3분기 의 분기 (b)/(c) 에서 참조.
-     * 사용처: wantCrawl 전구체 + B-36 수영/다이빙 전환 분기 + 얕은 물 크롤 분기.
+     * Original SmartMovingSelf L2419-L2430 `wouldWantCrawl` = 4-OR condition (maintain isCrawling or
+     * grab.StartPressed + sneak). 1.21.1 L855-L861 local variable `wouldWantCrawl_` porting completed.
+     * B-36-pre (session 77): promote to field — referenced in branch (b)/(c) of B-36 grab.StartPressed 3-way.
+     * Usage: wouldWantCrawl precursor + B-36 swim/dive transition branch + shallow water crawl branch.
      */
     public boolean wouldWantCrawl;
 
     /**
-     * 원본 SmartMovingSelf L2491-L2495 `wantClimbUp`:
+     * Original SmartMovingSelf L2491-L2495 `wantClimbUp`:
      *   (wantClimb && moveForward > 0F)
      *   || (isVineAnyClimbing && jumpButton.Pressed
      *       && !(sneakButton.Pressed && isFacedToSolidVine))
      *      && (!isCrawling || isCollidedHorizontally)
      *      && (!isSliding  || isCollidedHorizontally)
-     * 연산자 우선순위 주의 (&& > ||): 전진 등반 OR (덩굴+점프 + 크롤/슬라이딩 충돌 조건).
-     * B-17b2-pre 세션 72. Climber 지역 변수 L374 은 동일 로직 축약 — 필드 값 사용 전환 예정.
+     * Note operator precedence (&& > ||): forward climbing OR (vine+jump + crawl/sliding collision conditions).
+     * B-17b2-pre session 72. Climber local variable L374 is equivalent logic abbreviated — field value usage planned.
      */
     public boolean wantClimbUp;
 
     /**
-     * 원본 SmartMovingSelf L2497-L2500 `wantClimbDown = wantClimb && moveForward <= 0F && !wantCrawl`.
-     * B-17b2-pre 세션 72. Climber 지역 변수 L375 은 단순 버전 — 필드 값 사용 전환 예정.
+     * Original SmartMovingSelf L2497-L2500 `wantClimbDown = wantClimb && moveForward <= 0F && !wantCrawl`.
+     * B-17b2-pre session 72. Climber local variable L375 is simplified version — field value usage planned.
      */
     public boolean wantClimbDown;
 
     /**
-     * 원본 SmartMovingSelf L132 `isLiquidClimbing` 지역 변수 필드 승격.
+     * Original SmartMovingSelf L132 `isLiquidClimbing` local variable promoted to field.
      *   isLiquidClimbing = Config.isFreeClimbingEnabled() && sp.fallDistance <= 3.0
      *                   && wantClimbUp && sp.isCollidedHorizontally && !isDiving;
      *
-     * 원본은 `updateEntityActionState` 내부에서 계산되어 `handleSwimming` /
-     * `handleLava` 에 파라미터로 전달. 1.21.1 은 updateSwimState + handleSwimming
-     * 두 정적 메서드로 분리되어 지역 변수 공유 불가 → **public 필드로 승격**.
+     * Original calculated inside `updateEntityActionState` and passed as parameter to `handleSwimming` /
+     * `handleLava`. 1.21.1 split into two static methods updateSwimState + handleSwimming,
+     * cannot share local variables → **promote to public field**.
      *
-     * 소비처:
-     *   - `Swimmer.updateSwimState` 진입 조건 (원본 L232 `!isFlying && !isLiquidClimbing
-     *     && (...)` 중 `!isLiquidClimbing` 항 — B-7c 에서 복원).
-     *   - `handleLava` 진입 조건 (원본 L580, B-7 범위 외).
+     * Consumption points:
+     *   - `Swimmer.updateSwimState` entry condition (original L232 `!isFlying && !isLiquidClimbing
+     *     && (...)` the `!isLiquidClimbing` term — restored in B-7c).
+     *   - `handleLava` entry condition (original L580, outside B-7 scope).
      *
-     * 갱신 시점: MixinLivingEntityClient.sm_beforeTravel 의 updateSwimState 호출 직전.
-     * B-7a (세션 127).
+     * Update timing: right before updateSwimState call in MixinLivingEntityClient.sm_beforeTravel.
+     * B-7a (session 127).
      */
     public boolean isLiquidClimbing;
 
-    /** 클라이밍 중 크롤 공간 전환 상태 (손이 낮은 천장 아래로 들어갈 때). */
+    /** Crawl space transition state during climbing (hands enter below low ceiling). */
     public boolean isClimbCrawling;
 
-    /** 머리 위에 크롤 갭이 있는지 여부. setShouldClimbSpeed 속도 상한 판정용. */
+    /** Whether there is a crawl gap above the head. Used to determine speed upper limit in setShouldClimbSpeed. */
     public boolean hasClimbCrawlGap;
 
-    /** 크롤 갭 진입 카운터. > 0이면 setShouldClimbSpeed에서 HoldMotion 강제. */
+    /** Crawl gap entry counter. If > 0, force HoldMotion in setShouldClimbSpeed. */
     public int climbIntoCount;
 
-    // ── B Phase 1 등반 9 필드 (세션 40) — 원본 SmartMovingSelf.java L1421-L1446 ──────
+    // ── B Phase 1 climbing 9 fields (session 40) — original SmartMovingSelf.java L1421-L1446 ──────
 
     /**
-     * 원본 SmartMovingSelf L1421 `public boolean isVineOnlyClimbing;`.
-     * 덩굴만 잡은 상태 (사다리 없이). handleClimbing Free 분기에서 갱신.
-     * 애니메이션 파라미터. B-15d.
+     * Original SmartMovingSelf L1421 `public boolean isVineOnlyClimbing;`.
+     * State when holding vines only (without ladder). Updated in handleClimbing Free branch.
+     * Animation parameter. B-15d.
      */
     public boolean isVineOnlyClimbing;
 
     /**
-     * 원본 SmartMovingSelf L1422 `public boolean isVineAnyClimbing;`.
-     * 덩굴 또는 사다리 클라이밍 중. wantClimbUp (L1827) 조건에 사용.
+     * Original SmartMovingSelf L1422 `public boolean isVineAnyClimbing;`.
+     * Currently climbing vines or ladder. Used in wantClimbUp (L1827) condition.
      * B-15d.
      */
     public boolean isVineAnyClimbing;
 
     /**
-     * 원본 SmartMovingSelf L1424 `public boolean isClimbingStill;`.
-     * 클라이밍 정지 상태. 애니메이션 파라미터.
+     * Original SmartMovingSelf L1424 `public boolean isClimbingStill;`.
+     * Climbing stillness state. Animation parameter.
      * B-15e.
      */
     public boolean isClimbingStill;
 
     /**
-     * 원본 SmartMovingSelf L1426 `public boolean isNeighborClimbing;`.
-     * 인접 블록 등반 가능 여부. handleClimbing Free 분기에서 갱신.
-     * **isCrawlClimbing 메인 공식 (원본 L2737)** 의 5-AND 중 하나로 필수.
-     * B-15a / B-17 의존.
+     * Original SmartMovingSelf L1426 `public boolean isNeighborClimbing;`.
+     * Whether neighboring block climbing is possible. Updated in handleClimbing Free branch.
+     * **Essential as one of the 5-AND in isCrawlClimbing main formula (original L2737)**.
+     * Depends on B-15a / B-17.
      */
     public boolean isNeighborClimbing;
 
     /**
-     * 원본 SmartMovingSelf L1427 `public boolean hasClimbGap;`.
-     * 등반 갭 (중간 빈 공간) 존재 여부.
-     * **isClimbCrawling 메인 공식 (원본 L2787)** 의 needClimbCrawling = hasClimbCrawlGap
-     * || (hasClimbGap && isClimbHolding) 에 필수.
-     * B-15b / B-18 의존.
+     * Original SmartMovingSelf L1427 `public boolean hasClimbGap;`.
+     * Whether climbing gap (middle empty space) exists.
+     * **Essential in needClimbCrawling = hasClimbCrawlGap
+     * || (hasClimbGap && isClimbHolding) of isClimbCrawling main formula (original L2787)**.
+     * Depends on B-15b / B-18.
      */
     public boolean hasClimbGap;
 
     /**
-     * 원본 SmartMovingSelf L1429 `public boolean hasNeighborClimbGap;`.
-     * 인접 블록 등반 갭. handleClimbing Free 분기 판정용.
+     * Original SmartMovingSelf L1429 `public boolean hasNeighborClimbGap;`.
+     * Neighboring block climbing gap. Used for determination in handleClimbing Free branch.
      * B-15c.
      */
     public boolean hasNeighborClimbGap;
 
     /**
-     * 원본 SmartMovingSelf L1430 `public boolean hasNeighborClimbCrawlGap;`.
-     * 인접 블록 등반 크롤 갭.
+     * Original SmartMovingSelf L1430 `public boolean hasNeighborClimbCrawlGap;`.
+     * Neighboring block climbing crawl gap.
      * B-15c.
      */
     public boolean hasNeighborClimbCrawlGap;
 
     /**
-     * 원본 SmartMovingSelf L1443 `public Block handsEdgeBlock;`.
-     * 손이 잡은 edge 블록. 원본 Block + L1444 meta 는 1.21.1 BlockState 에 흡수
-     * (vanilla API 표면 매핑 — metadata 정보 BlockState 가 내포).
-     * 애니메이션 파라미터 (hands edge 렌더).
+     * Original SmartMovingSelf L1443 `public Block handsEdgeBlock;`.
+     * Edge block held by hands. Original Block + L1444 meta absorbed into 1.21.1 BlockState
+     * (vanilla API surface mapping — metadata information contained in BlockState).
+     * Animation parameter (hands edge rendering).
      * B-15f.
      */
     public net.minecraft.world.level.block.state.BlockState handsEdgeBlock;
 
     /**
-     * 원본 SmartMovingSelf L1445 `public Block feetEdgeBlock;`.
-     * 발이 잡은 edge 블록. L1446 meta 는 BlockState 에 흡수.
+     * Original SmartMovingSelf L1445 `public Block feetEdgeBlock;`.
+     * Edge block held by feet. L1446 meta absorbed into BlockState.
      * B-15f.
      */
     public net.minecraft.world.level.block.state.BlockState feetEdgeBlock;
 
     // ─────────────────────────────────────────────────────────────────
 
-    /** 로프 슬라이딩 상태 */
+    /** Rope sliding state */
     public boolean isRopeSliding;
 
     /**
-     * 원본: SmartMovingSelf.isJumping (bit 8 of State 패킷).
-     * 일반 점프/공중 상태. 애니메이션(isDive)에서 수직각 0 적용 조건.
-     * 로컬 플레이어는 sendStatePacket 에서 즉석 계산, 원격 플레이어는 processStatePacket 에서 갱신.
+     * Original: SmartMovingSelf.isJumping (bit 8 of State packet).
+     * General jump/airborne state. Animation (isDive) condition for vertical angle 0 application.
+     * Local player calculated immediately in sendStatePacket, remote player updated in processStatePacket.
      */
     public boolean isJumping;
 
     /**
-     * 원본: SmartMovingSelf.doFallingAnimation (bit 16 of State 패킷).
-     * 낙하 애니메이션 플래그. 원격 플레이어 추락 애니메이션에 사용.
+     * Original: SmartMovingSelf.doFallingAnimation (bit 16 of State packet).
+     * Falling animation flag. Used for remote player falling animation.
      */
     public boolean doFallingAnimation;
 
     /**
-     * 원본: SmartMovingSelf.isLevitating (bit 19 of State 패킷).
-     * 원본 L505 갱신 공식: `isLevitating = diving && !diveUp && !diveDown &&
-     *   moveStrafing==0 && moveForward==0` (수중 정적 자세).
-     * 로프 블록 용도는 1.21.1 미구현이나 주요 용도는 수중 정적 조건이라 유효.
-     * 애니메이션(isDive)에서 Quarter-Sixteenth 수직각 적용 조건.
-     * B-10d (세션 71): updateSwimState 에서 매 틱 갱신.
+     * Original: SmartMovingSelf.isLevitating (bit 19 of State packet).
+     * Original L505 update formula: `isLevitating = diving && !diveUp && !diveDown &&
+     *   moveStrafing==0 && moveForward==0` (static underwater posture).
+     * Rope block usage not implemented in 1.21.1 but primary usage is underwater static condition, so valid.
+     * Animation (isDive) condition for Quarter-Sixteenth vertical angle application.
+     * B-10d (session 71): updated each tick in updateSwimState.
      */
     public boolean isLevitating;
 
-    // ── R-01: State 패킷 인코딩용 클라이밍 타입 필드 ─────────────────────────
-    /** 현재 발 클라이밍 타입 (FeetClimbing.ordinal()). getOnLadderOrVine() 결과 저장. */
+    // ── R-01: Climbing type fields for State packet encoding ─────────────────────────
+    /** Current feet climbing type (FeetClimbing.ordinal()). Stores getOnLadderOrVine() result. */
     public int actualFeetClimbType;
-    /** 현재 손 클라이밍 타입 (HandsClimbing.ordinal()). getOnLadderOrVine() 결과 저장. */
+    /** Current hands climbing type (HandsClimbing.ordinal()). Stores getOnLadderOrVine() result. */
     public int actualHandsClimbType;
-    /** 발이 넝쿨 클라이밍 중인지 여부 (사다리와 구분). */
+    /** Whether feet are currently climbing vines (distinguished from ladder). */
     public boolean isFeetVineClimbing;
-    /** 손이 넝쿨 클라이밍 중인지 여부 (사다리와 구분). */
+    /** Whether hands are currently climbing vines (distinguished from ladder). */
     public boolean isHandsVineClimbing;
-    /** 클라이밍 백점프 상태 (SmartMovingJumper에서 갱신). */
+    /** Climbing back jump state (updated in SmartMovingJumper). */
     public boolean isClimbBackJumping;
-    /** 마지막으로 전송한 State 비트맵 (중복 전송 방지). */
+    /** Last sent State bitmap (prevents duplicate sending). */
     private long lastSentBits = 0L;
 
-    // ── IMPL-01: 크롤링 토글 상태 ────────────────────────────────────────
-    /** 크롤링이 토글로 진입됨 — 다음 grab.wasPressed()로 해제 */
+    // ── IMPL-01: Crawling toggle state ────────────────────────────────────────
+    /** Crawling entered via toggle — released by next grab.wasPressed() */
     public boolean crawlToggled;
-    /** toCrawling() 직후 한 틱 스니크 StopPressed 무시 플래그 */
+    /** One tick flag after toCrawling() to ignore sneak StopPressed */
     public boolean ignoreNextStopSneakButtonPressed;
 
     /**
-     * 원본 SmartMovingSelf L3099 `sneakToggled = false`.
-     * 스닉 토글 모드에서 sneak 활성 상태 유지. L2576 sneakContinueInput 계산에 사용:
+     * Original SmartMovingSelf L3099 `sneakToggled = false`.
+     * Maintain sneak active state in sneak toggle mode. Used in L2576 sneakContinueInput calculation:
      *   sneakContinueInput = isSneakToggleEnabled ? sneakToggled || sneakStartPressed : sneakPressed.
      */
     public boolean sneakToggled;
 
     /**
-     * 원본 SmartMovingSelf L95 `isFakeShallowWaterSneaking`.
-     * 얕은 물에서의 가짜 스니킹 제스처 판정. wouldWantSneak 의
+     * Original SmartMovingSelf L95 `isFakeShallowWaterSneaking`.
+     * Fake sneaking gesture determination in shallow water. Used in wouldWantSneak
      *   !(isSwimming && swimDownOnSneak && !isFakeShallowWaterSneaking)
-     * 조건에 사용 — true 면 수영 + swimDownOnSneak 상태에서도 스니크 허용.
-     * 1.21.1: true 설정 경로는 현재 리서치 불충분 → 기본 false 유지, 후속 이식.
+     * condition — when true, allow sneak even in swimming + swimDownOnSneak state.
+     * 1.21.1: current research on true setting path insufficient → maintain false by default, port later.
      */
     public boolean isFakeShallowWaterSneaking;
 
