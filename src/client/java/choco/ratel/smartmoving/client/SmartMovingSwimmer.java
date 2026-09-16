@@ -549,28 +549,28 @@ public final class SmartMovingSwimmer {
             return false;
         }
 
-        // 🔴 fix #202 (2026-05-29): 1.7.10 L445-446 식 부분 적용 — sneak 가드.
-        //   사용자 verbatim "jump로 수면위까지 올라왔을 때 그냥 스탠딩이 됨" = swim+jump 단독 시
-        //   위로 안 됨 (= 수면 도달 X = SM swim state 유지) 이 사용자 의도.
-        //   사용자 verbatim "sneak+jump 동시 → 위로 정상" = sneak 누름 시 -= 0.04 미적용.
+        // 🔴 fix #202 (2026-05-29): Partial apply 1.7.10 L445-446 formula — sneak guard.
+        //   User verbatim "just standing when jumped up to water surface" = swim+jump solo
+        //   doesn't go up (= water surface not reached = SM swim state maintained) user intent.
+        //   User verbatim "sneak+jump simultaneous → upward normal" = when sneak pressed -= 0.04 not applied.
         //
-        //   식: jump 단독 시 (= !sneak) motion -= 0.04 → 위로 안 됨 → 수면 도달 X.
-        //       jump+sneak 시 (= sneak) -= 0.04 미적용 + swimDown jump 가드 (= swim 분기 미매치)
-        //       → motion += motionYDiff → 위로 정상.
+        //   Formula: jump solo (= !sneak) motion -= 0.04 → doesn't go up → water surface not reached.
+        //           jump+sneak (= sneak) -= 0.04 not applied + swimDown jump guard (= swim branch no match)
+        //           → motion += motionYDiff → upward normal.
         if (diveUp && !player.input.keyPresses.shift()) {
             motionY -= 0.039999999105930328D;
         }
 
-        // **B-9a 해소 (세션 128)**: handleSwimming 내부 offset 계산도 AABB 정밀화.
-        //   `dippingDepth` 가 이미 `playerSwimWaterBorder` 시멘틱이므로 직접 사용.
-        //   원본 L305: `offset = playerSwimWaterBorder + 0.1625D`
+        // **B-9a Resolution (Session 128)**: Also AABB-precision offset calculation inside handleSwimming.
+        //   `dippingDepth` already `playerSwimWaterBorder` semantics, so use directly.
+        //   Original L305: `offset = playerSwimWaterBorder + 0.1625D`
         if (sm.isDipping) {
-            // **B-9c dipping 분기 (세션 129)**: 원본 L309-L316 (A) / L362-L369 (B).
-            //   A 경로: offset < 1.0 → -0.02D, else → -0.01D
-            //   B 경로: 양 branch 모두 -0.02D (원본 L365-L368 — 중복이지만 원본 그대로)
-            // 🔵 (BUG 4 fix #106) damping 순서 정정 — 원본 L450-471 (damping 먼저) →
-            //   L502 (motionY += motionYDiff). 기존 (motion+diff)*damp 식은 terminal velocity
-            //   ~15% 작음. damp 먼저 → diff/fly 가산 식 1:1 매핑.
+            // **B-9c dipping branch (Session 129)**: Original L309-L316 (A) / L362-L369 (B).
+            //   A path: offset < 1.0 → -0.02D, else → -0.01D
+            //   B path: both branches -0.02D (original L365-L368 — redundant but original as-is)
+            // 🔵 (BUG 4 fix #106) Correct damping order — original L450-471 (damping first) →
+            //   L502 (motionY += motionYDiff). Existing (motion+diff)*damp formula terminal velocity
+            //   ~15% smaller. Damp first → add diff/fly formula 1:1 mapping.
             double dippingOffset = sm.dippingDepth + 0.1625D;
             double dippingYDiff;
             if (isPathA) {

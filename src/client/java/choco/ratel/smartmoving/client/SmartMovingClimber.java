@@ -1198,16 +1198,16 @@ public final class SmartMovingClimber {
         boolean bottomClimb = CeilingClimbBlocks.supports(bottomState);
         if (!topClimb && !bottomClimb) return;
 
-        // C-35: jgap = 플레이어 머리(bb.maxY)에서 천장 블록까지의 거리
-        // 원본: ceil(bb.maxY) 이상에서 첫 번째 솔리드 블록 Y - bb.maxY
+        // C-35: jgap = distance from player head (bb.maxY) to ceiling block
+        // Original: first solid block Y above ceil(bb.maxY) - bb.maxY
         double jgap = computeJgap(player);
 
-        // 🔴 원본 SmartMovingSelf L1151-1153 가드 2 + 3 — 천장 매달림 진입 범위 제한.
-        //   가드 2: jgap < 1.9 — 매달림 위치가 너무 아래면 비활성. bottomCeilingClimbing
-        //           시 jgap += 1 → bb.maxY 가 j+1 의 0.1 위쪽까지만 허용 (j+1 이 천장 블록).
-        //   가드 3: actuallySolidHeight < jd + 0.5 — 머리 위 0.5 이내에 솔리드 블록 있어야.
-        //           실제 천장 (fence/iron_bars + 일반 솔리드) 가 머리 가까이 있어야 매달림.
-        //   사용자 보고 #: "천장 그랩 범위가 원본보다 더 아래까지 잡힘" 직접 원인 = 두 가드 누락.
+        // 🔴 Original SmartMovingSelf L1151-1153 guards 2 + 3 — limit ceiling hang entry range.
+        //   Guard 2: jgap < 1.9 — disable if hang position too low. During bottomCeilingClimbing
+        //           jgap += 1 → bb.maxY allowed only up to 0.1 above j+1 (j+1 is ceiling block).
+        //   Guard 3: actuallySolidHeight < jd + 0.5 — solid block must be within 0.5 above head.
+        //           Real ceiling (fence/iron_bars + general solid) must be close to head for hang.
+        //   User report #: "ceiling grab range reaches lower than original" root cause = missing both guards.
         double jd = bb.maxY;
         double actuallySolidHeight = getMinPlayerSolidBetween(player, jd, jd + 0.6, 0.2);
         if (jgap >= 1.9 || actuallySolidHeight >= jd + 0.5) return;

@@ -807,28 +807,28 @@ public final class SmartMovingJumper {
                 jumpAngle = Math.round(jumpAngle / 90F) * 90F;
         }
 
-        // Phase G 차이 2/3 1:1 정정: tryJump 결과 if 분기 + 후처리는 성공 시에만 (원본 L1990-L1996).
-        //   기존: tryJump 결과 무시 + isWallJumping 이중 set + tryJump 호출 전 후처리.
+        // Phase G difference 2/3 1:1 correction: tryJump result if branch + post-processing only on success (original L1990-L1996).
+        //   Previous: Ignored tryJump result + double set isWallJumping + post-processing before tryJump call.
         if (tryJump(player, sm, jumpType, null, null, jumpAngle)) {
-            // 원본 L1992: continueWallJumping = !isHeadJumping (WallHead 시 false)
+            // Original L1992: continueWallJumping = !isHeadJumping (false for WallHead)
             sm.continueWallJumping = !sm.isHeadJumping;
-            // 원본 L1993: sp.isCollidedHorizontally = false
+            // Original L1993: sp.isCollidedHorizontally = false
             player.horizontalCollision = false;
-            // 원본 L1994: sp.rotationYaw = jumpAngle
+            // Original L1994: sp.rotationYaw = jumpAngle
             player.setYRot(jumpAngle);
-            player.yBodyRot = jumpAngle;       // (Phase G 차이 4 보류 — 회전 동기화 의도 유지)
-            // 원본 L1995 onStartWallJump(jumpAngle) inline:
-            //   - prev rotateAngleY = angle / RadiantToAngle  (Phase G 차이 5 보류 — 애니메이션 사이클)
-            sm.isWallJumping = true;          // 원본 onStartWallJump (SmartMoving.java L154)
-            player.fallDistance = 0F;          // 원본 onStartWallJump (SmartMoving.java L155)
+            player.yBodyRot = jumpAngle;       // (Phase G difference 4 deferred — maintain rotation sync intent)
+            // Original L1995 onStartWallJump(jumpAngle) inline:
+            //   - prev rotateAngleY = angle / RadiantToAngle  (Phase G difference 5 deferred — animation cycle)
+            sm.isWallJumping = true;          // Original onStartWallJump (SmartMoving.java L154)
+            player.fallDistance = 0F;          // Original onStartWallJump (SmartMoving.java L155)
         }
     }
 
     /**
-     * 4방향 AABB 충돌 감지 후 벽 법선 각도를 반환한다.
-     * 원본: SmartMovingSelf.calculateSeparateCollisions() + getHorizontalCollisionangle() 호출.
+     * Detect 4-axis AABB collision then return wall normal angle.
+     * Original: SmartMovingSelf.calculateSeparateCollisions() + getHorizontalCollisionangle() call.
      *
-     * 원본 call site: getHorizontalCollisionangle(posZ, negZ, posX, negX) — X/Z swap 유지.
+     * Original call site: getHorizontalCollisionangle(posZ, negZ, posX, negX) — maintain X/Z swap.
      */
     private static float calculateSeparateCollisionAngle(LocalPlayer player) {
         Level world = player.level();
@@ -838,21 +838,21 @@ public final class SmartMovingJumper {
         boolean negX = !world.noCollision(player, bb.move(-delta, 0, 0));
         boolean posZ = !world.noCollision(player, bb.move(0, 0,  delta));
         boolean negZ = !world.noCollision(player, bb.move(0, 0, -delta));
-        // 🔴 fix #165 revert (2026-05-27): corner case NaN skip 제거.
-        //   사용자 verbatim (재): "대각선 벽 모서리는 일반적인 벽점프가 되어야되는데 안되고 있음".
-        //   원본 헬퍼 spec = corner case 시 corner angle (45/135/225/315) 반환 → 일반 wall jump
-        //   발동. corner case 도 사용자 의도 wall jump 발동.
+        // 🔴 fix #165 revert (2026-05-27): Remove corner case NaN skip.
+        //   User verbatim (restate): "Diagonal wall corner should do normal wall jump but isn't".
+        //   Original helper spec = corner case returns corner angle (45/135/225/315) → normal wall jump
+        //   triggers. Corner case should also trigger user intended wall jump.
         return getHorizontalCollisionangle(posZ, negZ, posX, negX);
     }
 
     /**
-     * 4방향 충돌 조합 → 벽 법선 각도(도) 변환.
-     * 원본: SmartRenderUtilities.getHorizontalCollisionangle() — A-23 확인 완료.
+     * 4-axis collision combination → wall normal angle (degrees) conversion.
+     * Original: SmartRenderUtilities.getHorizontalCollisionangle() — A-23 verified.
      *
-     * 주의: 원본 call site(SmartMovingSelf.beforeMoveEntity)에서 X/Z 파라미터가 swap됨.
-     * 여기서도 같은 순서 유지: (posZ, negZ, posX, negX) → (param1, param2, param3, param4)
+     * Note: Original call site (SmartMovingSelf.beforeMoveEntity) X/Z parameters are swapped.
+     * Maintain same order here: (posZ, negZ, posX, negX) → (param1, param2, param3, param4)
      *
-     * 단일 방향 충돌 결과: +Z→0°(남벽), -Z→180°(북벽), +X→90°(동벽), -X→270°(서벽)
+     * Single axis collision results: +Z→0° (south wall), -Z→180° (north wall), +X→90° (east wall), -X→270° (west wall)
      */
     public static float getHorizontalCollisionangle(
             boolean isCollidedPositiveX, boolean isCollidedNegativeX,

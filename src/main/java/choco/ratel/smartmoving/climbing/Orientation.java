@@ -805,10 +805,10 @@ public class Orientation {
         return false;
     }
 
-    // ── TrapDoor (원본 L1367-L1384, L1513-L1541) ───────────────────────────
+    // ── TrapDoor (original L1367-L1384, L1513-L1541) ───────────────────────
 
     /**
-     * 원본 L1513-L1517 `isOnOpenTrapDoor(int j_offset)` — base 위치에 열린 trap door 존재.
+     * Original L1513-L1517 `isOnOpenTrapDoor(int j_offset)` — Open trap door exists at base position.
      */
     protected static boolean isOnOpenTrapDoor(int j_offset) {
         BlockState state = getBaseBlockId(j_offset);
@@ -816,16 +816,16 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1519-L1541 `isTrapDoorFront(int trapDoorMetadata)` — trap door facing 이 이
-     * Orientation 방향과 매치하는지.
+     * Original L1519-L1541 `isTrapDoorFront(int trapDoorMetadata)` — Whether trap door facing
+     * matches this Orientation direction.
      *
-     * 원본 metadata 매핑 (vanilla 1.7.10 `metadata & 3`):
+     * Original metadata mapping (vanilla 1.7.10 `metadata & 3`):
      *   0 = SOUTH, 1 = NORTH, 2 = EAST, 3 = WEST
      *
-     * orthogonal: 단일 방향 매치. diagonal: 2개 중 어느 하나 매치.
+     * Orthogonal: single direction match. Diagonal: either of 2 directions match.
      *
-     * 1.21.1 매핑: `TrapdoorBlock.FACING` Direction 직접 비교. 원본은 int metadata 받으나
-     * 1.21.1 은 BlockState 객체 내장이라 BlockState 파라미터로 수정 (표면 매핑).
+     * 1.21.1 mapping: `TrapdoorBlock.FACING` Direction compared directly. Original takes int metadata,
+     * 1.21.1 embeds BlockState object so modified to BlockState parameter (surface mapping).
      */
     private boolean isTrapDoorFront(BlockState state) {
         if (!isTrapDoor(state)) return false;

@@ -254,84 +254,84 @@ public abstract class MixinPlayerEntityClient {
     }
 
     /**
-     * 6-4 (클라이언트): SM 이동 상태에서 vanilla updatePose() 취소 후 SM 포즈 강제 설정.
+     * 6-4 (client): cancel vanilla updatePose() in SM movement state and forcibly set SM pose.
      *
-     * **1:1 번역 원칙** (세션 137): 원본 SM 이 vanilla POSE 시스템 없던 시대 설계라
-     * 상태별로 수동 bbox 조작. 1.21.1 는 POSE 기반 bbox 관리. SM 이 쓰는 상태별로 POSE 를
-     * 독점 설정하여 vanilla 가 덮어쓰지 못하게 차단.
+     * **1:1 translation principle** (session 137): original SM designed for era without vanilla POSE system
+     * so manual bbox manipulation per state. 1.21.1 manages bbox based on POSE. SM exclusively sets POSE per state
+     * to prevent vanilla from overwriting.
      *
-     * 우선순위 매핑 (원본 heightOffset=-1F 활성 상태 전수):
-     *   isCrawling / isClimbCrawling             → SWIMMING (엎드림 애니)
-     *   isHeadJumping / isSliding                 → SLIDING  (납작 자세)
-     *   isSwimming_sm / isDiving                  → SWIMMING (수영 애니)
-     *   isFlying (SM) / isLevitating              → SLIDING  (비행 시 bbox 0.8 유지)
-     *   isDipping                                 → STANDING (heightOffset=0, 수면 서있기)
-     *   그 외                                     → vanilla updatePose() 통과 (elytra/trident 등 유지)
+     * Priority mapping (original heightOffset=-1F active state transmitted):
+     *   isCrawling / isClimbCrawling             → SWIMMING (crouch anim)
+     *   isHeadJumping / isSliding                 → SLIDING  (flat pose)
+     *   isSwimming_sm / isDiving                  → SWIMMING (swim anim)
+     *   isFlying (SM) / isLevitating              → SLIDING  (maintain bbox 0.8 during flight)
+     *   isDipping                                 → STANDING (heightOffset=0, standing on water)
+     *   others                                    → vanilla updatePose() pass (elytra/trident etc. maintained)
      *
-     * dimensions 값 (0.6 × 0.8 + eyeHeight 0.62) 는 sm_getBaseDimensions_client 에서 전수 반영.
+     * dimensions values (0.6 × 0.8 + eyeHeight 0.62) reflected in full by sm_getBaseDimensions_client.
      */
     @Inject(method = "updatePlayerPose", at = @At("HEAD"), cancellable = true)
     private void sm_updatePose_client(CallbackInfo ci) {
         if (!((Object) this instanceof LocalPlayer player)) return;
-        // BUG-22 (세션 36): SM disabled 시 vanilla updatePose 그대로 — sm.* 잔존 timing
-        //   영향 차단. 비행 진입 첫 프레임에 SLIDING POSE 강제 잔존 가능 → motion 영향.
+        // BUG-22 (session 36): use vanilla updatePose as-is when SM disabled — block sm.* residual timing
+        //   effect. SLIDING POSE may forcibly remain on first flight entry frame → affects motion.
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
         if (sm.isCrawling && !sm.isClimbing) {
-            // 엎드림 자세 — SWIMMING POSE 재활용 (vanilla 수영 애니 공유)
-            // 🔴 isClimbCrawling 분기 제거: 원본 1.7.10 vanilla 에 EntityPose 시스템 없음 →
-            //   isClimbCrawling 시 자세 STANDING 유지 (박스만 0.6×0.8 축소). SWIMMING POSE
-            //   강제 시 사용자 시각적으로 사다리 막바지에서 수평 엎드림 자세 → "엎드리기" 인식.
-            //   원본 1:1 매핑은 STANDING POSE + 작은 박스. dimensions 는 sm_getBaseDimensions
-            //   가 isClimbCrawling 시에도 0.6×0.8 적용 (원본 setHeightOffset(-1F) 1:1).
-            // 🔴 !isClimbing 가드: isClimbCrawling 해제 엣지의 toCrawling() 호출 → 1 틱
-            //   isCrawling=true → 등반 중 SWIMMING POSE 발동 → STANDING↔SWIMMING 토글 →
-            //   사용자 보고 "몸 애니메이션 주기적 요동". 등반 중이면 자세 STANDING 유지.
+            // Crouch pose — reuse SWIMMING POSE (share vanilla swim anim)
+            // 🔴 isClimbCrawling branch removed: original 1.7.10 vanilla has no EntityPose system →
+            //   during isClimbCrawling keep pose STANDING (only box reduces 0.6×0.8). when forcing SWIMMING POSE
+            //   user visually sees horizontal crouch at end of ladder → perceive as "crouch".
+            //   original 1:1 mapping is STANDING POSE + small box. dimensions sm_getBaseDimensions
+            //   also applies 0.6×0.8 during isClimbCrawling (original setHeightOffset(-1F) 1:1).
+            // 🔴 !isClimbing guard: toCrawling() call at isClimbCrawling release edge
+            //   → 1 tick isCrawling=true → during climbing SWIMMING POSE activates → STANDING↔SWIMMING toggle →
+            //   user report "body animation periodic wobble". during climbing keep STANDING pose.
             player.setPose(Pose.SWIMMING);
             ci.cancel();
         } else if (sm.isHeadJumping || sm.isSliding) {
-            // 납작 자세 — SLIDING POSE
+            // Flat pose — SLIDING POSE
             player.setPose(Pose.SLIDING);
             ci.cancel();
         } else if (sm.isSwimming_sm || sm.isDiving) {
-            // 수영/잠수 — SWIMMING POSE (vanilla 도 동일, 명시적 고정)
+            // Swimming/diving — SWIMMING POSE (vanilla same, explicit lock)
             player.setPose(Pose.SWIMMING);
             ci.cancel();
         }
-        // 🔴 BUG-29 진짜 원인 정정 (Flying Phase / 세션 45): isFlying/isLevitating 분기 제거.
-        //   원본 1.7.10 vanilla 에 EntityPose 시스템 없음 → 비행 시 STANDING 모델 그대로 유지.
-        //   1.21.1 잘못된 매핑: SLIDING POSE 강제 → vanilla 가 eyeHeight 작게 적용 → 카메라
-        //   발끝으로 내려옴 + 모델 작게 그려짐. 사용자 보고 BUG-29 직접 원인.
-        //   정정: 분기 제거 → vanilla 1.21.1 STANDING POSE 그대로 → 카메라 정상 (1.62 eyeHeight)
-        //   + 모델 정상 (1.8 height) = 원본 1.7.10 동작 1:1 매칭.
-        // isFlying/isLevitating/isDipping/그 외 → vanilla updatePose() 통과 (STANDING 등)
+        // 🔴 BUG-29 real root corrected (Flying Phase / session 45): remove isFlying/isLevitating branch.
+        //   Original 1.7.10 vanilla has no EntityPose system → during flight keep STANDING model as-is.
+        //   1.21.1 incorrect mapping: force SLIDING POSE → vanilla applies small eyeHeight → camera
+        //   drops to feet + model drawn small. user report BUG-29 direct cause.
+        //   Correction: remove branch → vanilla 1.21.1 STANDING POSE as-is → camera normal (1.62 eyeHeight)
+        //   + model normal (1.8 height) = original 1.7.10 behavior 1:1 matching.
+        // isFlying/isLevitating/isDipping/others → vanilla updatePose() pass (STANDING etc.)
     }
 
     /**
-     * 🔴 BUG-27 진짜 원인 정정 (Flying Phase / 세션 51): vanilla PlayerEntity.travel() 의 비행
-     *   분기 motionY 덮어쓰기 차단.
+     * 🔴 BUG-27 real root corrected (Flying Phase / session 51): block vanilla PlayerEntity.travel() flying
+     *   branch motionY overwrite.
      *
-     * vanilla PlayerEntity.travel(Vec3d) 디컴파일:
+     * vanilla PlayerEntity.travel(Vec3d) decompiled:
      * <pre>
      *   if (this.getAbilities().flying && !this.hasVehicle()) {
-     *       double d = this.getVelocity().y;          // 이전 motionY 저장
+     *       double d = this.getVelocity().y;          // save previous motionY
      *       super.travel(movementInput);               // → LivingEntity.travel
      *                                                  //   → sm_travel_client (HEAD inject)
-     *                                                  //   → handleFlying (motionY 변경) + ci.cancel
-     *                                                  //   → LivingEntity.travel 본체 skip
-     *       Vec3d vec3d = this.getVelocity();          // 우리 SM 변경된 velocity
-     *       this.setVelocity(vec3d.x, d * 0.6, vec3d.z); // ← motionY = 이전 * 0.6 강제!
+     *                                                  //   → handleFlying (change motionY) + ci.cancel
+     *                                                  //   → LivingEntity.travel body skip
+     *       Vec3d vec3d = this.getVelocity();          // our modified velocity
+     *       this.setVelocity(vec3d.x, d * 0.6, vec3d.z); // ← motionY = previous * 0.6 forced!
      *       this.onLanding();
      *       this.setFlag(7, false);
      *   }
      * </pre>
      *
-     * setVelocity(vec3d.x, **d * 0.6**, vec3d.z) 가 우리 SM motionY 변경 덮어씀 → SM 비행 시
-     * 마우스 pitch → W 진행 방향 (motionY +0.0322) 효과 완전 무시 = 사용자 보고 BUG-27 직접 원인.
+     * setVelocity(vec3d.x, **d * 0.6**, vec3d.z) overwrites our SM motionY change → during SM flight
+     * mouse pitch → W progress direction (motionY +0.0322) effect completely ignored = user report BUG-27 direct cause.
      *
-     * 정정: setVelocity 호출 가로채서 SM 비행 활성 시 y 인자 무시 (현재 SM motionY 유지).
-     * X/Z 는 vanilla 처리 그대로.
+     * Correction: intercept setVelocity call, ignore y argument when SM flight active (preserve current SM motionY).
+     * X/Z handled vanilla as-is.
      */
     @Redirect(
         method = "travel",

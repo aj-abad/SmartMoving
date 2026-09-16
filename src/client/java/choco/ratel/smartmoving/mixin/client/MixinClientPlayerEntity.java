@@ -26,19 +26,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MixinClientPlayerEntity {
 
     /**
-     * 🔴 비행 재진입 시 vanilla 의 자동 yaw 회전 차단 (사용자 보고 fix):
-     *   사용자 motion 잔존 (떨어지는 큰 motionY) + 비행 재진입 시 vanilla
-     *   LivingEntity.tickMovement 안의 어떤 처리 가 motion 방향 기반 yaw 보정.
-     *   결과: 앞 (W) → +180°, 뒤 (S) → ?, 좌우 (A/D) → ±90°.
+     * 🔴 Block vanilla automatic yaw rotation when re-entering flight (user report fix):
+     *   Remaining user motion (falling large motionY) + vanilla processing inside
+     *   LivingEntity.tickMovement on flight re-entry applies yaw correction based on motion direction.
+     *   Result: Forward (W) → +180°, Back (S) → ?, Left/Right (A/D) → ±90°.
      *
-     *   해결:
-     *   1. tickMovement HEAD 시점 yaw + abilFly 저장.
-     *   2. TAIL 시점 비행 진입 엣지 (HEAD 시 abilFly=false → TAIL 시 abilFly=true)
-     *      검출 → 그 시점만 yaw 복구.
-     *   3. 임계값 30° (좌우 ±90° 회전 케이스도 잡음).
+     *   Solution:
+     *   1. Save yaw + abilFly at tickMovement HEAD time.
+     *   2. TAIL time detect flying entry edge (HEAD abilFly=false → TAIL abilFly=true)
+     *      → restore yaw only at that moment.
+     *   3. Threshold 30° (catches left/right ±90° rotation cases too).
      *
-     *   mouse 입력은 별도 메서드 (changeLookDirection) 라 tick 안 yaw 변경은
-     *   vanilla 자동 처리만 → 안전하게 복구 가능.
+     *   Mouse input is separate method (changeLookDirection) so yaw change inside tick is
+     *   only vanilla automatic processing → can safely restore.
      */
     @org.spongepowered.asm.mixin.Unique
     private float sm_yawAtTickStart;
@@ -54,18 +54,18 @@ public abstract class MixinClientPlayerEntity {
     }
 
     /**
-     * 🔴 (세션 145 BUG-sneak속도): vanilla 1.21.1 `KeyboardInput.tick(slowDown, factor)` 가
-     *   `slowDown=true` 시 movementForward/Sideways *= **PLAYER_SNEAKING_SPEED** (=**0.3**)
-     *   곱셈 적용. `slowDown` 결정자 = `ClientPlayerEntity.shouldSlowDown()` =
+     * 🔴 (Session 145 BUG-sneak-speed): vanilla 1.21.1 `KeyboardInput.tick(slowDown, factor)` when
+     *   `slowDown=true` applies movementForward/Sideways *= **PLAYER_SNEAKING_SPEED** (=**0.3**)
+     *   multiplication. `slowDown` decider = `ClientPlayerEntity.shouldSlowDown()` =
      *   `isInSneakingPose() || isCrawling()`.
      *
-     * SM 의 `getSlowInputSpeedFactor` 도 sneak/crawl 시 sneakFactor (0.3) / crawlFactor (0.15)
-     * 곱 추가 → vanilla 0.3 × SM 0.3 = **0.09** 이중 감속 BUG. SM 활성/비활성 시 약 3.3x
-     * 차이 (사용자 보고).
+     * SM's `getSlowInputSpeedFactor` also adds sneak/crawl time sneakFactor (0.3) / crawlFactor (0.15)
+     * multiplication → vanilla 0.3 × SM 0.3 = **0.09** double slowdown BUG. About 3.3x
+     * difference when SM active/inactive (user report).
      *
-     * 해결: SM 활성 시 vanilla 의 `shouldSlowDown()` 결과 강제 false → vanilla movement 곱
-     * 차단. SM 자체 sneakFactor/crawlFactor 만 적용 → 0.3/0.15 base. SM 비활성 시 inject
-     * 통과 → vanilla 정상 작동 (0.3) + SM 가드 자동 비활성 → 0.3 base. 동일 효과.
+     * Fix: When SM active, force vanilla `shouldSlowDown()` result to false → block vanilla movement multiply.
+     * Apply only SM's sneakFactor/crawlFactor → 0.3/0.15 base. When SM inactive, inject
+     * passes → vanilla works correctly (0.3) + SM guard auto-inactive → 0.3 base. Same effect.
      */
     @Inject(method = "isMovingSlowly", at = @At("HEAD"), cancellable = true)
     private void sm_blockVanillaSlowDown(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
@@ -74,15 +74,15 @@ public abstract class MixinClientPlayerEntity {
     }
 
     /**
-     * 🔴 (세션 145 BUG-edge): vanilla `ClientPlayerEntity.isSneaking()` override 가
-     *   `input.sneaking` 직접 검사 — Entity.isSneaking() 의 DataTracker flag 우회.
-     *   우리 MixinEntityClient.sm_isSneaking inject (Entity.isSneaking 대상) 가
-     *   ClientPlayerEntity 에서 우회됨 → shift 누름 시 무조건 isSneaking()=true →
-     *   `clipAtLedge()=true` → vanilla edge protection 발동 → 엎드린 채 안 떨어짐.
+     * 🔴 (Session 145 BUG-edge): vanilla `ClientPlayerEntity.isSneaking()` override
+     *   directly checks `input.sneaking` — bypasses Entity.isSneaking() DataTracker flag.
+     *   Our MixinEntityClient.sm_isSneaking inject (targeting Entity.isSneaking)
+     *   is bypassed in ClientPlayerEntity → shift pressed always gives isSneaking()=true →
+     *   `clipAtLedge()=true` → vanilla edge protection activates → can't fall while crouched.
      *
-     * 원본 SmartMovingSelf.isSneaking() L3226-L3232 1:1 동일 식 적용.
-     *   crawlOverEdge=true (기본) + isCrawling 시 모든 항 false → return false →
-     *   edge protection 미발동 → 떨어짐.
+     * Apply 1:1 same expression from original SmartMovingSelf.isSneaking() L3226-L3232.
+     *   crawlOverEdge=true (default) + isCrawling all terms become false → return false →
+     *   edge protection doesn't activate → falls.
      */
     @Inject(method = "isShiftKeyDown", at = @At("HEAD"), cancellable = true)
     private void sm_isSneaking_ClientPlayer(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {

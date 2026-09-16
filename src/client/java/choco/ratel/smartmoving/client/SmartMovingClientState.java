@@ -1254,7 +1254,7 @@ public final class SmartMovingClientState {
     public void processStatePacket(long bits) {
         actualFeetClimbType  = (int) (bits & 0xF);           // bits 0-3
         actualHandsClimbType = (int) ((bits >> 4) & 0xF);    // bits 4-7
-        isJumping         = ((bits >>  8) & 1) != 0;   // 원본 SmartMovingOther bit 8 _isJumping
+        isJumping         = ((bits >>  8) & 1) != 0;   // Original SmartMovingOther bit 8 _isJumping
         isDiving          = ((bits >>  9) & 1) != 0;
         isDipping         = ((bits >> 10) & 1) != 0;
         isSwimming_sm     = ((bits >> 11) & 1) != 0;
@@ -1262,10 +1262,10 @@ public final class SmartMovingClientState {
         isCrawling        = ((bits >> 13) & 1) != 0;
         isClimbing        = ((bits >> 14) & 1) != 0;
         isSmall           = ((bits >> 15) & 1) != 0;
-        doFallingAnimation = ((bits >> 16) & 1) != 0;  // 원본 bit 16 _doFallingAnimation
+        doFallingAnimation = ((bits >> 16) & 1) != 0;  // Original bit 16 _doFallingAnimation
         isFlying          = ((bits >> 17) & 1) != 0;   // doFlyingAnimation bit
         isCeilingClimbing = ((bits >> 18) & 1) != 0;
-        isLevitating      = ((bits >> 19) & 1) != 0;   // 원본 bit 19 isLevitating
+        isLevitating      = ((bits >> 19) & 1) != 0;   // Original bit 19 isLevitating
         isHeadJumping     = ((bits >> 20) & 1) != 0;
         isSliding         = ((bits >> 21) & 1) != 0;
         angleJumpType     = (int) ((bits >> 22) & 0x7)
