@@ -438,29 +438,29 @@ public final class SmartMovingSwimmer {
         float moveForward = (float) movementInput.z;
         float moveStrafe  = (float) movementInput.x;
 
-        // 🔵 (2026-05-20, BUG 3 fix #105) speedFactor 4-factor 곱 + swim/dive 분기 별도 곱셈.
-        //   원본 SmartMovingSelf L119: `speedFactor = getConfigSpeedFactor() * getPotionSpeedFactor()
-        //     * getNonSlowInputSpeedFactor(moveForward, moveStrafing)` 후 L129
-        //     `speedFactor *= getSlowInputSpeedFactor()` (vanilla 아닐 때).
-        //   원본 L477-479: `if(diving) sf *= _diveSpeedFactor; if(swimming) sf *= _swimSpeedFactor;` —
-        //     swim/dive 분기만 별도 곱. dipping 시 적용 X.
-        //   기존 매핑 BUG:
-        //     1. `getCombinedSpeedFactor` (= config × potion) 만 사용 → nonSlow (sprint 1.5×)
-        //        + slow factor 누락 → 원본보다 ~33% 느림 (= 사용자 보고 "속도 느림").
-        //     2. dipping 시도 `swimSpeedFactor` 곱셈 (= sm.isDiving ? dive : swim, dipping false 매치) —
-        //        원본은 dipping 시 적용 X.
-        //   해결: `Mover.getSpeedFactor` (= 4 factor 곱 1:1) 사용 + swim/dive 매치 시만 분기별 곱셈.
+        // 🔵 (2026-05-20, BUG 3 fix #105) speedFactor 4-factor multiplication + swim/dive branch separate multiplication.
+        //   Original SmartMovingSelf L119: `speedFactor = getConfigSpeedFactor() * getPotionSpeedFactor()
+        //     * getNonSlowInputSpeedFactor(moveForward, moveStrafing)` then L129
+        //     `speedFactor *= getSlowInputSpeedFactor()` (when not vanilla).
+        //   Original L477-479: `if(diving) sf *= _diveSpeedFactor; if(swimming) sf *= _swimSpeedFactor;` —
+        //     separate multiply only for swim/dive branch. Not applied during dipping.
+        //   Existing mapping BUG:
+        //     1. Using only `getCombinedSpeedFactor` (= config × potion) → nonSlow (sprint 1.5×)
+        //        + slow factor missing → ~33% slower than original (= user report "speed slow").
+        //     2. Dipping also multiply `swimSpeedFactor` (= sm.isDiving ? dive : swim, match dipping false) —
+        //        original does not apply during dipping.
+        //   Resolution: Use `Mover.getSpeedFactor` (= 4 factor multiply 1:1) + branch multiply only on swim/dive match.
         float speedFactor = SmartMovingMover.getSpeedFactor(player, sm, cfg);
         if (sm.isDiving)         speedFactor *= cfg.diveSpeedFactor;
         else if (sm.isSwimming_sm) speedFactor *= cfg.swimSpeedFactor;
-        // dipping 시 분기별 factor 적용 X (원본 L477-479)
+        // Do not apply branch factor during dipping (original L477-479)
 
         Vec3 vel = player.getDeltaMovement();
         double motionX = vel.x;
         double motionY = vel.y;
         double motionZ = vel.z;
 
-        // 점프(다이브업) / 스닉(다이브다운) 키
+        // Jump (diveUp) / Sneak (diveDown) keys
         // 🔵 (BUG 5 fix #107) diveDown 식 원본 L279 1:1 — raw sneak + cfg gate.
         //   기존: `player.isSneaking() && sm.isDiving` — isSneaking override 우회 X +
         //         cfg.diveDownOnSneak 가드 누락 + `sm.isDiving` 가드 잘못 추가
@@ -482,7 +482,7 @@ public final class SmartMovingSwimmer {
             diveDown = false;
         }
 
-        // **B-9b 해소 (세션 129)**: 원본 L306 `moveSwim` + A/B 경로 판정 이식.
+        // **B-9b Resolution (Session 129)**: Port original L306 `moveSwim` + A/B path determination.
         //   moveSwim = pitch < 0 && forward > 0 || pitch > 0 && forward < 0
         //   (pitch 와 forward 부호 반대 — 위 보며 후진 또는 아래 보며 전진 = 입수 자세)
         //   isPathA = diveUp || moveSwim || wantShallowSwim

@@ -399,59 +399,59 @@ public class Orientation {
     }
 
     /**
-     * 원본 L231-L234 `getHorizontalBorderGap()` — 인스턴스 필드 `base_id`/`base_kd` 기반.
-     * `seekClimbGap` 진입 시 `initialize(world, i, id, jhd, k, kd)` 가 `base_id=id`/`base_kd=kd`
-     * 설정한 후 호출되는 패턴.
+     * Original L231-L234 `getHorizontalBorderGap()` — Based on instance fields `base_id`/`base_kd`.
+     * Pattern: upon `seekClimbGap` entry, `initialize(world, i, id, jhd, k, kd)` sets `base_id=id`/`base_kd=kd`,
+     * then this is called.
      */
     public double getHorizontalBorderGap() {
         return getHorizontalBorderGap(base_id, base_kd);
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a1a (세션 91) — 상태 필드 + 기본 블록 식별/판정 헬퍼
-    // 원본: Orientation.java L2729-L2744 static 필드 + L1148-L2625 메서드 대역
+    // B-19a1a (session 91) — State fields + basic block identification/judgment helpers
+    // Original: Orientation.java L2729-L2744 static fields + L1148-L2625 method equivalents
     // ════════════════════════════════════════════════════════════════════════
 
-    // ── 인스턴스 상태 필드 (원본 L2729-L2744) ───────────────────────────────
+    // ── Instance State Fields (original L2729-L2744) ──────────────────────────
     //
-    // 원본은 `Orientation extends SmartMovingContext` 의 static 필드. 1.21.1 에선 쓰레드
-    // 안정성 개선 여지 있으나 **1:1 이식 원칙** 유지 — 동일하게 static 보관. 호출자가
-    // `initialize(world, i, id, jhd, k, kd)` 로 전역 상태 설정 후 헬퍼 호출하는 패턴.
+    // Original is static fields in `Orientation extends SmartMovingContext`. In 1.21.1 there is
+    // room for thread-safety improvement, but **1:1 port principle** is maintained — stored as static
+    // identically. Caller pattern: `initialize(world, i, id, jhd, k, kd)` sets global state, then helpers called.
 
-    /** 원본 L2729 — 현재 처리 중인 World. `initialize` 에서 설정. */
+    /** Original L2729 — World currently being processed. Set in `initialize`. */
     protected static Level world;
-    /** 원본 L2731 — 플레이어 기준 Y (base_j). `all_offset = local_offset` 의 절대 Y 기준. */
+    /** Original L2731 — Player reference Y (base_j). Absolute Y basis for `all_offset = local_offset`. */
     protected static int all_j;
-    /** 원본 L2731 — 현재 탐색 대상 Y 오프셋 누적. `isLadderSubstitute` 진입 시 0 리셋. */
+    /** Original L2731 — Accumulated Y offset for current search target. Reset to 0 on `isLadderSubstitute` entry. */
     protected static int all_offset;
-    /** 원본 L2732 — base (플레이어 위치) X. */
+    /** Original L2732 — Base (player position) X. */
     protected static int base_i;
-    /** 원본 L2732 — base (플레이어 위치) Z. */
+    /** Original L2732 — Base (player position) Z. */
     protected static int base_k;
-    /** 원본 L2733 — base X 소수부 포함 (플레이어 정확한 위치). */
+    /** Original L2733 — Base X including fractional part (player exact position). */
     protected static double base_id;
-    /** 원본 L2733 — base Z 소수부 포함. */
+    /** Original L2733 — Base Z including fractional part. */
     protected static double base_kd;
-    /** 원본 L2734 — remote (이 Orientation 방향 인접 블록) X. `base_i + _i`. */
+    /** Original L2734 — Remote (adjacent block in this Orientation direction) X. `base_i + _i`. */
     protected static int remote_i;
-    /** 원본 L2734 — remote Z. `base_k + _k`. */
+    /** Original L2734 — Remote Z. `base_k + _k`. */
     protected static int remote_k;
-    /** 원본 L2735 — 플레이어 크롤링 상태 (isSmallClimbing). */
+    /** Original L2735 — Player crawling state (isSmallClimbing). */
     protected static boolean crawl;
-    /** 원본 L2738 — local_offset 과 결합해 실제 Y 좌표 결정 (half block 단위 탐색). */
+    /** Original L2738 — Combined with local_offset to determine actual Y coordinate (half-block unit search). */
     protected static int local_half;
-    /** 원본 L2739 — `all_j + all_offset` 의 상대 오프셋. 각 `isLadderSubstitute` 호출마다 변동. */
+    /** Original L2739 — Relative offset of `all_j + all_offset`. Varies with each `isLadderSubstitute` call. */
     protected static int local_offset;
 
-    /** 원본 L2741 — 잡기 대상이 remote 블록인지 (base 가 아닌). */
+    /** Original L2741 — Whether grab target is remote block (not base). */
     protected static boolean grabRemote;
-    /** 원본 L2742 — 잡기 종류 (NoGrab/HalfGrab/AroundGrab). */
+    /** Original L2742 — Grab type (NoGrab/HalfGrab/AroundGrab). */
     protected static int grabType;
-    /** 원본 L2743 — 잡은 블록 state. (원본은 `Block` + `grabMeta` int 쌍; 1.21.1 은
-     *  `BlockState` 단일 객체 표면 매핑 — metadata 는 BlockState property 로 내장.) */
+    /** Original L2743 — Grabbed block state. (Original is `Block` + `grabMeta` int pair; 1.21.1 is
+     *  `BlockState` single object surface mapping — metadata embedded as BlockState property.) */
     protected static BlockState grabBlock;
-    /** 원본 L2744 — `grabMeta` 원본 Meta 정수. 1.21.1 `grabBlock` 내부 property 로 접근 가능
-     *  하므로 `DefaultMeta` (=-1) 기본값 유지. 세부 메타 쿼리는 `grabBlock` property 직접 읽기. */
+    /** Original L2744 — `grabMeta` original Meta integer. In 1.21.1, accessible via property inside `grabBlock`,
+     *  so `DefaultMeta` (=-1) default value retained. Detailed meta queries read `grabBlock` property directly. */
     protected static int grabMeta = DefaultMeta;
 
     /**

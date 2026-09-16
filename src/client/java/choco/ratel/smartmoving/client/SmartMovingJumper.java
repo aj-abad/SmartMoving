@@ -372,35 +372,35 @@ public final class SmartMovingJumper {
      */
     public static void handleJumping(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
-        // BUG-14 (세션 36): SM disabled 시 점프 처리 안 함 → vanilla 점프 정상 작동.
-        //   기존: 가드 부재 → SM disabled 시에도 jumpPending 클리어 / jumpAvoided 세팅 등 →
-        //   vanilla jump() 가로챔 + SM 점프도 작동 안 함 → 점프 자체 작동 안 함 (사용자 보고).
-        //   해결: cfg.enabled false 시 즉시 return → vanilla 점프 그대로.
+        // BUG-14 (Session 36): Don't process jump when SM disabled → vanilla jump works normally.
+        //   Previous: No guard → even with SM disabled jumpPending cleared / jumpAvoided set etc →
+        //   vanilla jump() intercepted + SM jump also doesn't work → jump itself doesn't work (user report).
+        //   Solution: Immediately return when cfg.enabled false → vanilla jump as-is.
         if (!cfg.enabled) return;
 
-        // B-7 (Phase B 1:1 정정): 원본 esp.movementInput.jump 매핑 — raw KeyBinding 대신
-        //   player.input.jumping 사용. `feedback_movementInput_vs_isSneaking` 패턴 적용
-        //   (vanilla 측 가공 후 값 — 비행/sleeping 등 시나리오 정합).
+        // B-7 (Phase B 1:1 correction): Map original esp.movementInput.jump — use player.input.jumping
+        //   instead of raw KeyBinding. Apply `feedback_movementInput_vs_isSneaking` pattern
+        //   (processed value from vanilla side — matches flying/sleeping etc scenarios).
         boolean jumpKeyPressed  = player.input.keyPresses.jump();
         boolean grabKeyPressed  = SmartMovingKeys.grab.isDown();
 
-        // 1. jumpPending 클리어 (원본 L1844 — 메서드 시작) ★ B-3 정정
+        // 1. Clear jumpPending (original L1844 — method start) ★ B-3 correction
         sm.jumpPending = false;
 
-        // 2. blockJumpTillButtonRelease 해제 (원본 L1846-L1847)
+        // 2. Release blockJumpTillButtonRelease (original L1846-L1847)
         if (sm.blockJumpTillButtonRelease && !jumpKeyPressed) {
             sm.blockJumpTillButtonRelease = false;
         }
 
-        // 3. isSwimming/isDiving early return (원본 L1849-L1850) ★ B-3 신규
+        // 3. isSwimming/isDiving early return (original L1849-L1850) ★ B-3 new
         if (sm.isSwimming_sm || sm.isDiving) return;
 
-        // 4. jump = jumpAvoided && isJumpingField && !isInWater && !isInLava (원본 L1852)
-        //    + jumpMotionX/Z 저장 (원본 L1853-L1854)
-        boolean jump = sm.jumpAvoided && sm.jumpPending  // sm_jump 가로채기 시 둘 다 set
+        // 4. jump = jumpAvoided && isJumpingField && !isInWater && !isInLava (original L1852)
+        //    + save jumpMotionX/Z (original L1853-L1854)
+        boolean jump = sm.jumpAvoided && sm.jumpPending  // both set when sm_jump intercepted
                 && !player.isInWater() && !player.isInLava();
-        // 단 sm.jumpPending 은 위 L1 에서 false 로 클리어됨 → 의미 차이.
-        // 1.21.1 매핑: jumpAvoided 만 사용 (sm_jump 인터셉트 시 set, 매 tick 시작 false 초기화).
+        // But sm.jumpPending cleared to false above in L1 → semantic difference.
+        // 1.21.1 mapping: use only jumpAvoided (set on sm_jump intercept, reset false at each tick start).
         jump = sm.jumpAvoided && !player.isInWater() && !player.isInLava();
         {
             Vec3 cv = player.getDeltaMovement();
@@ -408,14 +408,14 @@ public final class SmartMovingJumper {
             sm.jumpMotionZ = cv.z;
         }
 
-        // 5. 차지 점프 (원본 L1856-L1878) ★ B-3 1:1 정정
-        // 원본 식:
+        // 5. Charge jump (original L1856-L1878) ★ B-3 1:1 correction
+        // Original formula:
         //   isJumpChargingPossible = sp.onGround && isStanding
         //   isJumpCharging = isJumpChargingPossible && wouldIsSneaking
         //   actualJumpCharging = isJumpChargingPossible
         //                      && (!_jumpChargeCancelOnSneakRelease || wouldIsSneaking)
         //   if (actualJumpCharging)
-        //     if (esp.movementInput.jump && (cancelOnSneak || wouldIsSneaking))  ★ jump 키 hold
+        //     if (esp.movementInput.jump && (cancelOnSneak || wouldIsSneaking))  ★ jump key hold
         //         jumpCharge++
         //     else  if (jumpCharge > 0)  tryJump(ChargeUp); jumpCharge = 0;
         //   else  if (jumpCharge > 0) blockJumpTillButtonRelease = true; jumpCharge = 0;

@@ -16,42 +16,42 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 6-1 (클라이언트): getBaseDimensions() 커스텀 EntityDimensions 반환.
- * 6-4 (클라이언트): updatePose() Mixin — SM 상태별 포즈 강제 설정.
+ * 6-1 (client): getBaseDimensions() returns custom EntityDimensions.
+ * 6-4 (client): updatePose() Mixin — forcibly set pose per SM state.
  *
- * getDimensions()는 final → getBaseDimensions()가 유일한 오버라이드 진입점.
- * Yarn: getBaseDimensions (intermediary: method_55694 확인 완료)
- * Yarn: updatePose (intermediary: method_7318 확인 완료)
+ * getDimensions() is final → getBaseDimensions() is the only override entry point.
+ * Yarn: getBaseDimensions (intermediary: method_55694 verified)
+ * Yarn: updatePose (intermediary: method_7318 verified)
  *
- * 서버 측 → MixinPlayerEntity.sm_getBaseDimensions_server(), sm_updatePose_server()
+ * Server side → MixinPlayerEntity.sm_getBaseDimensions_server(), sm_updatePose_server()
  */
 @Mixin(Player.class)
 @Environment(EnvType.CLIENT)
 public abstract class MixinPlayerEntityClient {
 
     /**
-     * 6-1 (클라이언트): SM 포즈별 커스텀 EntityDimensions 반환.
+     * 6-1 (client): returns custom EntityDimensions per SM pose.
      *
-     * **1:1 번역 원칙** (세션 137): 원본 `setHeightOffset(-1F)` 시맨틱
-     *   = `boundingBox.minY -= -1 = +1` + `height += -1` → bbox 키 1.8 → 0.8 축소
-     *   = 원본 `getEyeHeight() = sp.height - 0.18F` → 0.62F
-     *   → **모든 SM 활성 상태**: bbox 0.6 × 0.8 + eyeHeight 0.62F 로 통일.
+     * **1:1 translation principle** (session 137): original `setHeightOffset(-1F)` semantics
+     *   = `boundingBox.minY -= -1 = +1` + `height += -1` → bbox height 1.8 → 0.8 reduced
+     *   = original `getEyeHeight() = sp.height - 0.18F` → 0.62F
+     *   → **all SM active states**: unified bbox 0.6 × 0.8 + eyeHeight 0.62F.
      *
-     * SM 활성 상태 (원본 setHeightOffset(-1F) 설정되는 경우):
-     *   - isCrawling        (원본 L2829 crawl 진입 / L2798 climbCrawl 진입 등)
-     *   - isClimbCrawling   (원본 L2798)
-     *   - isHeadJumping     (원본 L2129 tryJump head)
-     *   - isSliding         (원본 L2555 slide 직접 진입)
-     *   - isSwimming_sm     (원본 L511 handleSwimming)
-     *   - isDiving          (원본 L511)
-     *   - isFlying (SM)     (원본 L2512 `isFlying && !wasFlying` 엣지)
-     *   - isLevitating      (원본 L2519 `isLevitating && !wasLevitating` 엣지)
+     * SM active states (original setHeightOffset(-1F) set):
+     *   - isCrawling        (original L2829 crawl entry / L2798 climbCrawl entry etc.)
+     *   - isClimbCrawling   (original L2798)
+     *   - isHeadJumping     (original L2129 tryJump head)
+     *   - isSliding         (original L2555 slide direct entry)
+     *   - isSwimming_sm     (original L511 handleSwimming)
+     *   - isDiving          (original L511)
+     *   - isFlying (SM)     (original L2512 `isFlying && !wasFlying` edge)
+     *   - isLevitating      (original L2519 `isLevitating && !wasLevitating` edge)
      *
-     * 비활성 (heightOffset=0 유지, vanilla bbox):
-     *   - isDipping: 수면 닿는 상태. 원본 setHeightOffset 없음 → STANDING 1.8 유지.
+     * Inactive (heightOffset=0 maintained, vanilla bbox):
+     *   - isDipping: water surface touching state. Original has no setHeightOffset → STANDING 1.8 maintained.
      *
-     * POSE 자체는 `sm_updatePose_client` 에서 SWIMMING/SLIDING 중 적절한 것으로 가로챔.
-     * dimensions 는 POSE 와 무관하게 SM 상태만 체크하여 반환 (원본 bbox 시맨틱 1:1).
+     * POSE itself is intercepted in `sm_updatePose_client` to appropriate SWIMMING/SLIDING.
+     * dimensions returns checking only SM state regardless of POSE (original bbox semantics 1:1).
      */
     @Inject(method = "getDefaultDimensions", at = @At("HEAD"), cancellable = true, require = 0)
     private void sm_getBaseDimensions_client(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {

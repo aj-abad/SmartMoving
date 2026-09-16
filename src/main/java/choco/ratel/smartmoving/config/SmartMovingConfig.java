@@ -838,29 +838,29 @@ public class SmartMovingConfig {
     public boolean displayJumpChargeBar = true;
 
     // ── Flying close-to-ground ─────────────────────────────────
-    // 🔴 BUG-26 정정 (Flying Phase / 세션 43): default 값 1:1 정정.
-    //   원본 SmartMovingOptions L68 `Modified("move.fly.ground.close")` (defaults 미지정) →
+    // RED BUG-26 correction (Flying Phase / session 43): default value corrected 1:1.
+    //   Original SmartMovingOptions L68 `Modified("move.fly.ground.close")` (defaults unspecified) →
     //   net.smart.properties.Properties.getDefaultValue(Modified) = **false** (Properties.java
-    //   L173-L174). 이전 1.21.1 잘못 매핑: true → tryLanding 가드 `!flyCloseToGround` 가 false →
-    //   자동 착지 영원히 비활성 = 비행 중 정지해도 비행 종료 안 됨 (BUG-26 직접 원인).
-    //   정정: false 로 변경 → 원본 1:1 동작 (정지 시 자동 착지 + ground 닿으면 vanilla 자동 착지).
+    //   L173-L174). Previous 1.21.1 incorrect mapping: true → tryLanding guard `!flyCloseToGround` is false →
+    //   auto landing permanently disabled = flying doesn't stop even when idle (BUG-26 direct cause).
+    //   Correction: changed to false → original 1:1 behavior (auto land when idle + vanilla auto land on ground touch).
     public boolean flyCloseToGround = false;
-    // 🔴 BUG-26 정정 (Flying Phase / 세션 43): 원본 default = false.
-    //   _flyWhileOnGround = "ground 위에서도 비행 가능" 의 활성 옵션. true 이면 vanilla 자동 착지
-    //   (ClientPlayerEntity.tickMovement L1293-L1331) 직후 sm_flyWhileOnGround 가 abilities.flying
-    //   복원 → ground 닿아도 비행 유지. false (원본 default) 이면 vanilla 자동 착지 그대로 작동.
+    // RED BUG-26 correction (Flying Phase / session 43): original default = false.
+    //   _flyWhileOnGround = enable option for "can fly while on ground". If true, sm_flyWhileOnGround restores
+    //   abilities.flying after vanilla auto landing (ClientPlayerEntity.tickMovement L1293-L1331)
+    //   → maintain flying even when touching ground. If false (original default) vanilla auto landing works as-is.
     public boolean flyWhileOnGround = false;
 
     // ── Perspective (FOV) ──────────────────────────────────────
-    // 원본: _perspectiveFadeFactor = PositiveFactor.values(0.5F, 0.1F, 1F)
+    // Original: _perspectiveFadeFactor = PositiveFactor.values(0.5F, 0.1F, 1F)
     public float perspectiveFadeFactor = 0.5F;
-    // 원본: _perspectiveSpeedFactor = Float.defaults(1F)
+    // Original: _perspectiveSpeedFactor = Float.defaults(1F)
     public float perspectiveSpeedFactor = 1F;
-    // 원본: _perspectiveSpeedFactorMax = PositiveFactor.defaults(0F)
+    // Original: _perspectiveSpeedFactorMax = PositiveFactor.defaults(0F)
     public float perspectiveSpeedFactorMax = 0F;
-    // 원본: _perspectiveRunFactor = Float.defaults(1F)
+    // Original: _perspectiveRunFactor = Float.defaults(1F)
     public float perspectiveRunFactor = 1F;
-    // 원본: _perspectiveSprintFactor = Float.defaults(1.5F)
+    // Original: _perspectiveSprintFactor = Float.defaults(1.5F)
     public float perspectiveSprintFactor = 1.5F;
 
     // ── Exhaustion/Hunger factor 1단계 (원본 getFactor L563-L575 이동속도 배율) ──

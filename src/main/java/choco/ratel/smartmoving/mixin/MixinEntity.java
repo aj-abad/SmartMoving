@@ -91,7 +91,7 @@ public abstract class MixinEntity {
      *   abilities=null guard: PlayerEntity constructor may call setPosition before abilities initialization.
      */
     /**
-     * 🔴 fix #175 v5 (2026-05-27, user report after fix v4 "head jump/fox movement collision+animation issue"):
+     * Red circle fix #175 v5 (2026-05-27, user report after fix v4 "head jump/fox movement collision+animation issue"):
      *   v4 formula = check sm.isSliding only → blocks head jump attempt → box +1m up does not happen → box feet stuck.
      *   v5 = check all SLIDING POSE entry paths (= sm_updatePose_client/server):
      *     `isHeadJumping || isSliding → SLIDING`.

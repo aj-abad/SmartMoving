@@ -270,41 +270,41 @@ public final class SmartMovingServer {
         // 3-2: floatingTick reset condition (excludes wall jump — wall jump is instantaneous so no kick risk)
         resetTicksForFloatKick = isClimbing || isCrawlClimbing || isCeilingClimbing;
 
-        // 🔴 fix #90 (2026-05-13, 사용자 보고 "remote 벽 박은 후 slide→crawl 시 모델 1m 잠긴 후 회복"):
-        //   매칭 조건: wasSL=true && !newSL && !wasCR && newCR (= slide → crawl 자동 전환).
+        // 🔴 fix #90 (2026-05-13, user-reported "remote stuck against wall then slide→crawl model locks 1m then recovers"):
+        //   Match condition: wasSL=true && !newSL && !wasCR && newCR (= slide → crawl auto transition).
         //
-        //   원인 (dump 검증 log_temp_2.txt):
-        //     server side packet 수신 시 setCrawling + setSliding(false) → calculateDimensions
-        //     호출만. entity.y 명시적 push 없음 → vanilla 자동 push out of blocks 에 의존.
-        //     - 평지 (벽 없음): vanilla 자동 push 가 1 tick 안 +1m 완료 → server.y=71 즉시 broadcast.
-        //     - 벽 박은: vanilla 자동 push 가 *수평+수직 결합* → +0.2m 만 1 tick → 다음 tick +0.8m.
+        //   Cause (verified via dump log_temp_2.txt):
+        //     On server packet reception: setCrawling + setSliding(false) → only calculateDimensions call.
+        //     No explicit entity.y push → relies on vanilla auto push out of blocks.
+        //     - Flat ground (no wall): vanilla auto push completes +1m within 1 tick → server.y=71 broadcast immediately.
+        //     - Stuck against wall: vanilla auto push *combines horizontal+vertical* → only +0.2m per tick → next tick +0.8m.
         //       server.y trajectory: 70 → 70.2 → 71. broadcast lag.
-        //     client (remote) vanilla lerpPosAndRotation 매 tick srvY 추격 → client.y 70.733
-        //     → 70.822 → ... → 71 (~500ms lerp) → 사용자 시각 "잠긴 후 회복".
+        //     client (remote) vanilla lerpPosAndRotation chases srvY every tick → client.y 70.733
+        //     → 70.822 → ... → 71 (~500ms lerp) → user sees "locks then recovers".
         //
-        //   해결: self side fix #70 (= SmartMovingClientState L2455 setPos(y+1)) 의 server 대칭 매핑.
-        //     processStatePacket 끝에 명시적 setPos(y+1) 호출 → server.y 즉시 71 → broadcast srvY=71
-        //     → client lerp target=71 → 잠기는 시점 없음.
+        //   fix: Mirror mapping of self side fix #70 (= SmartMovingClientState L2455 setPos(y+1)) to server side.
+        //     Explicit setPos(y+1) call at end of processStatePacket → server.y immediately 71 → broadcast srvY=71
+        //     → client lerp target=71 → no lock moment.
         //
-        //   회귀 검토:
-        //     - 정상 (벽 없음) 시: setPos(71) 후 박스 발=71=평지 위 1m. vanilla 자동 push 는 *bb 박힘*
-        //       조건이라 발동 X → +1m 만 적용. 회귀 없음.
-        //     - 벽 박은 시: setPos(71) 후 박스 위치 = (71, 71.8). self 가 벽 옆 평지 위 → 박스 벽 안
-        //       침투 X (= 벽 모서리 위 만 매치). 안전.
+        //   Regression check:
+        //     - Normal (no wall): After setPos(71), box foot=71=1m above flat. Vanilla auto push not triggered (requires
+        //       *bb collision* condition) → only +1m applied. No regression.
+        //     - Stuck against wall: After setPos(71), box position = (71, 71.8). Self on flat beside wall → box doesn't
+        //       penetrate wall (= only match wall edge top). Safe.
         if (_wasSL_fix90 && !this.isSliding && !_wasCR_fix90 && this.isCrawling) {
             player.setPosRaw(player.getX(), player.getY() + 1.0, player.getZ());
         }
 
-        // 🔵 fix #99 v3 (2026-05-14): HJ → CR 직접 전환 server side mirror.
-        //   사용자 보고: 헤드점프 + 벽 충돌 + GRAB+SNEAK → 자동 엎드리기 시 REMOTE 잠긴 visual.
-        //   진짜 path: HJ:true→false + CR:false→true 동시 (= self side toSlidingOrCrawling 의
-        //     else 분기 → toCrawling). self side `toCrawling` 은 entity.y push X →
-        //     c2s position packet 도 ground-1m 잔존 → server.y 자동 push X → broadcast srvY
-        //     = ground - 1m → REMOTE 잠긴 visual.
-        //   fix: fix #90 (= SL→CR) 패턴 차용 — server side processStatePacket 끝에서 직접
-        //     setPos(y+1) push. server.y 즉시 ground → broadcast srvY=ground →
-        //     [feedback_server_side_state_push_mirror] 패턴.
-        //   client side: fix #99 v4 가 setPos(srvY + 1) 으로 broadcast 도착 후 즉시 정렬.
+        // 🔵 fix #99 v3 (2026-05-14): Direct HJ → CR transition server-side mirror.
+        //   User-reported: head jump + wall collision + GRAB+SNEAK → auto crouch REMOTE locked visual.
+        //   Actual path: HJ:true→false + CR:false→true simultaneous (= self side toSlidingOrCrawling
+        //     else branch → toCrawling). Self side `toCrawling` doesn't push entity.y →
+        //     c2s position packet also persists ground-1m → server.y no auto push → broadcast srvY
+        //     = ground - 1m → REMOTE locked visual.
+        //   fix: Adopt fix #90 (= SL→CR) pattern — direct setPos(y+1) push at end of server side processStatePacket.
+        //     server.y immediately ground → broadcast srvY=ground →
+        //     [feedback_server_side_state_push_mirror] pattern.
+        //   client side: fix #99 v4 aligns immediately with setPos(srvY + 1) after broadcast arrival.
         if (_wasHJ_fix98 && !this.isHeadJumping
                 && !_wasSL_fix90 && !this.isSliding
                 && !_wasCR_fix90 && this.isCrawling
@@ -314,8 +314,8 @@ public final class SmartMovingServer {
         }
 
         // 🔵 fix #153 v3 (2026-05-22 history flag): swim/dive → crawl mirror push.
-        //   log 실측: server side 도 multi-step state 변경 가능 (= REMOTE 측 2 packet 받은 cause).
-        //   해결: history flag — swim/dive 종료 detection 시 set, crawl 진입 시 5 tick 안 검출 + push.
+        //   log measurement: Server side also capable of multi-step state changes (= cause of 2 packets received from REMOTE).
+        //   fix: history flag — set on swim/dive end detection, detect + push within 5 ticks on crawl enter.
         boolean _smEndedFix153 = (_wasSwim_fix153 || _wasDive_fix153)
                 && !this.isSwimming && !this.isDiving;
         if (_smEndedFix153) {
@@ -333,15 +333,15 @@ public final class SmartMovingServer {
             this.smRecentSwimDiveEndTick_fix153 = -9999;
         }
 
-        // 🔵 fix #98-v2 (2026-05-14): isHeadJumping=true → false + 다른 SM phase 모두 false 매치 시
-        //   self side standUp 분기와 동일 +1m push 적용. self side L3926-L3930 의 standUp 후
-        //   "SM state 모두 false 시 POSE=STANDING 강제" 조건과 정확 일치.
-        //   가드 조건 (self side L3926 매치):
-        //     - wasHJ=true → newHJ=false (= 헤드점프 종료 edge).
-        //     - 다른 SM phase 모두 false (= 단순 종료, 자체 슬라이딩/비행 자동 전환 아님).
-        //   회귀 검토:
-        //     - 다른 phase 전환 (= 헤드점프 → 슬라이딩 자동 전환 등): 가드 매치 X → setPos skip.
-        //     - 정상 종료: setPos +1m 만 적용. vanilla 자동 push (= 박스 박힘 조건) 발동 X.
+        // 🔵 fix #98-v2 (2026-05-14): isHeadJumping=true → false + all other SM phases false match
+        //   Apply identical +1m push as self side standUp branch. Matches exactly self side L3926-L3930 standUp condition
+        //   "force POSE=STANDING when all SM states false".
+        //   Guard conditions (match self side L3926):
+        //     - wasHJ=true → newHJ=false (= head jump end edge).
+        //     - All other SM phases false (= simple end, not auto transition to self slide/fly).
+        //   Regression check:
+        //     - Other phase transitions (= head jump → auto slide transition etc): guard doesn't match → skip setPos.
+        //     - Normal end: only apply +1m. Vanilla auto push (requires *box collision* condition) doesn't trigger.
         if (_wasHJ_fix98 && !this.isHeadJumping
                 && !this.isSliding && !this.isCrawling && !this.isCrawlClimbing
                 && !this.isClimbing && !this.isCeilingClimbing

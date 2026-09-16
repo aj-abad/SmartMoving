@@ -477,18 +477,18 @@ public abstract class MixinLivingEntityClient {
     @Inject(method = "aiStep", at = @At("HEAD"))
     private void sm_jumpingFilter(CallbackInfo ci) {
         if (!((Object) this instanceof LocalPlayer player)) return;
-        // BUG-18 (세션 36): SM disabled 시 jumping 필터 안 함 → vanilla jumping 그대로 보존.
-        //   기존: sm.* 자체가 disabled 시 false 라 영향 거의 없으나 명시성 + jumpCharge/
-        //   blockJumpTillButtonRelease 잔존 가능성 차단 (resetState 가 reset 하지만 안전망).
+        // BUG-18 (Session 36): When SM disabled, don't filter jumping → preserve vanilla jumping.
+        //   Issue: When sm.* itself disabled it's false so little impact, but adds explicitness +
+        //   blocks possible jumpCharge/blockJumpTillButtonRelease persistence (resetState resets but safety net).
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         if (sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.jumpCharge > 0 || sm.blockJumpTillButtonRelease) {
             this.jumping = false;
         }
-        // 🔴 누락 정정 (Flying Phase F-6 / 세션 40): 비행 중 fallDistance reset.
-        //   원본 SmartMovingSelf L1803-L1804: `if (sp.capabilities.isFlying) sp.fallDistance = 0F;`
-        //   1.21.1 매핑 부재 → 비행 종료 직후 착지 시 누적 fallDistance 로 낙하 데미지 가능.
+        // 🔴 Missing correction (Flying Phase F-6 / Session 40): Reset fallDistance during flight.
+        //   Original SmartMovingSelf L1803-L1804: `if (sp.capabilities.isFlying) sp.fallDistance = 0F;`
+        //   1.21.1 mapping absent → accumulated fallDistance after flight ends can cause fall damage on landing.
         if (player.getAbilities().flying) {
             player.fallDistance = 0F;
         }
@@ -496,34 +496,34 @@ public abstract class MixinLivingEntityClient {
 
 
     /**
-     * 5-2 + 5-3: jump() 인터셉트.
+     * 5-2 + 5-3: jump() intercept.
      *
-     * ClientPlayerEntity에 대해서만 동작한다.
-     * SM이 vanilla jump()를 차단하고 jumpPending 플래그를 세팅한다.
-     * 실제 점프 처리는 tickEssential() → handleJumping() → tryJump()에서 수행된다.
+     * Works only for ClientPlayerEntity.
+     * SM blocks vanilla jump() and sets jumpPending flag.
+     * Actual jump handling is performed in tickEssential() → handleJumping() → tryJump().
      *
-     * vanilla jump() 차단 부작용:
-     *   - addExhaustion(0.05F * 2): SM 자체 소진 시스템으로 대체
-     *   - Stats.JUMP 통계: SM tryJump()에서 별도 기록
-     *   - 스프린트 점프 +0.2F: SM tryJump()에서 자체 계산
-     *   - jumpingCooldown=10 (5-3): jump() 미실행으로 자동 차단
+     * Side effects of blocking vanilla jump():
+     *   - addExhaustion(0.05F * 2): Replaced with SM own exhaustion system
+     *   - Stats.JUMP statistic: Recorded separately in SM tryJump()
+     *   - Sprint jump +0.2F: Self-calculated in SM tryJump()
+     *   - jumpingCooldown=10 (5-3): Automatically blocked by not executing jump()
      */
     /**
-     * 🔴 (세션 145 BUG-sprint): 크롤/슬라이드 등 SM small state 시 vanilla sprint 효과 차단.
+     * 🔴 (Session 145 BUG-sprint): Block vanilla sprint effect when SM small state like crawl/slide.
      *
-     * vanilla `LivingEntity.setSprinting(true)` 가 두 작업 수행:
-     *   1. super.Entity.setSprinting → SPRINTING flag set.
-     *   2. GENERIC_MOVEMENT_SPEED attribute 에 SPRINTING_SPEED_BOOST modifier 추가 (1.3x).
-     * Entity.setSprinting inject 만으로는 attribute modifier 추가 (#2) 차단 불가 →
-     * 스프린트 속도 효과 그대로 발동 (사용자 보고 "엎드린 채 sprint 발동").
+     * vanilla `LivingEntity.setSprinting(true)` performs two tasks:
+     *   1. super.Entity.setSprinting → set SPRINTING flag.
+     *   2. Add SPRINTING_SPEED_BOOST modifier to GENERIC_MOVEMENT_SPEED attribute (1.3x).
+     * Only Entity.setSprinting inject cannot block attribute modifier addition (#2) →
+     * Sprint speed effect activates as-is (user report "sprint activates while crouched").
      *
-     * 원본 SmartMovingSelf L2700 `setSprinting(isStandupSprintingOrRunning())` 1:1 매핑.
-     * `isStandupSprintingOrRunning() = ... && !isCrawling` 가드 (L3236) 적용 효과 = 크롤
-     * 시 setSprinting(true) 호출 자체 차단 → SPRINTING flag false + 1.3x modifier 미추가.
+     * 1:1 mapping of original SmartMovingSelf L2700 `setSprinting(isStandupSprintingOrRunning())`.
+     * Effect of applying `isStandupSprintingOrRunning() = ... && !isCrawling` guard (L3236) = block
+     * setSprinting(true) call itself during crawl → SPRINTING flag false + 1.3x modifier not added.
      *
-     * 1.21.1 vanilla 가 매 tick `setSprinting(true)` 자동 호출 (sprint 키 hold 시) →
-     * 우리 SM 의 엣지 set `setSprinting(false)` (SmartMovingClientState L1518) 무력화.
-     * 이 inject 가 vanilla 자동 호출 자체 차단해 원본 1:1 효과.
+     * 1.21.1 vanilla automatically calls `setSprinting(true)` every tick (when sprint key held) →
+     * Our SM's edge set `setSprinting(false)` (SmartMovingClientState L1518) becomes ineffective.
+     * This inject blocks vanilla automatic call itself achieving original 1:1 effect.
      */
     @Inject(method = "setSprinting", at = @At("HEAD"), cancellable = true)
     private void sm_blockVanillaSprintInSmStates(boolean sprinting, CallbackInfo ci) {

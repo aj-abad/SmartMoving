@@ -869,16 +869,16 @@ public final class SmartMovingClimber {
                             || feetClimbing == FeetClimbing.BASE_WITH_HANDS)) {
                 value = (feetClimbing == FeetClimbing.NONE) ? SLOW_UP_MOTION : FAST_UP_MOTION;
                 isUp = true;
-                handsAnim = 2; feetAnim = 1;  // 원본 L999: MiddleGrab + DownStep
+                handsAnim = 2; feetAnim = 1;  // Original L999: MiddleGrab + DownStep
                 matched = true;
             }
-            // 원본 L1001-1005: feet.IsRelevant && hands.IsRelevant + 3 예외 조합 → MediumUp.
+            // Original L1001-1005: feet.IsRelevant && hands.IsRelevant + 3 exception combinations → MediumUp.
             else if (feetClimbing.isRelevant() && handsClimbing.isRelevant()
                     && !(feetClimbing == FeetClimbing.BASE_HOLD && handsClimbing == HandsClimbing.SINK)
                     && !(handsClimbing == HandsClimbing.SINK && feetClimbing == FeetClimbing.TOP_WITH_HANDS)
                     && !(handsClimbing == HandsClimbing.TOP_HOLD && feetClimbing == FeetClimbing.TOP_WITH_HANDS)) {
                 value = MEDIUM_UP_MOTION; isUp = true;
-                // 원본 L1004: (hasGap || hasCrawlGap) && !(Sink && BaseWithHands) ? MiddleGrab : UpGrab.
+                // Original L1004: (hasGap || hasCrawlGap) && !(Sink && BaseWithHands) ? MiddleGrab : UpGrab.
                 boolean useMiddle = (sm.hasClimbGap || sm.hasClimbCrawlGap)
                         && !(handsClimbing == HandsClimbing.SINK
                                 && feetClimbing == FeetClimbing.BASE_WITH_HANDS);
@@ -886,14 +886,14 @@ public final class SmartMovingClimber {
                 feetAnim  = 1;
                 matched = true;
             }
-            // 원본 L1006-1010: handsClimbing.IsUp() → SlowUpMotion (default 1-arg = UpGrab+DownStep).
+            // Original L1006-1010: handsClimbing.IsUp() → SlowUpMotion (default 1-arg = UpGrab+DownStep).
             else if (handsClimbing.isUp()) {
                 value = SLOW_UP_MOTION; isUp = true;
                 handsAnim = 1; feetAnim = 1;
                 matched = true;
             }
-            // 원본 L1011-1021: TopHold || BaseHold || (SlowUpWithHoldWithoutHands && hands None) → Hold.
-            //   원본 L1016-1017 특수 조합 → MiddleGrab+DownStep 명시.
+            // Original L1011-1021: TopHold || BaseHold || (SlowUpWithHoldWithoutHands && hands None) → Hold.
+            //   Original L1016-1017 special combination → explicit MiddleGrab+DownStep.
             //   else (L1019) → default UpGrab+DownStep.
             else if (handsClimbing == HandsClimbing.TOP_HOLD
                     || feetClimbing == FeetClimbing.BASE_HOLD
@@ -908,7 +908,7 @@ public final class SmartMovingClimber {
                 feetAnim  = 1;
                 matched = true;
             }
-            // 원본 L1022-1026: Sink || (SlowUpWithSinkWithoutHands && hands None) → SinkDown (default).
+            // Original L1022-1026: Sink || (SlowUpWithSinkWithoutHands && hands None) → SinkDown (default).
             else if (handsClimbing == HandsClimbing.SINK
                     || (feetClimbing == FeetClimbing.SLOW_UP_WITH_SINK_WITHOUT_HANDS
                             && handsClimbing == HandsClimbing.NONE)) {
@@ -916,10 +916,10 @@ public final class SmartMovingClimber {
                 handsAnim = 1; feetAnim = 1;
                 matched = true;
             }
-            // 🔴 (세션 145 BUG fix): 어떤 sub-branch 도 매치 안 되면 setShouldClimbSpeed skip.
-            //   원본 L981-L1027 1:1 — fallback 없음. matched=false 유지 → L955 skip.
-            //   평지 크롤 (feet=BaseWithHands 강제 승격, hands=NONE) 시 위 5개 분기 모두 미매치
-            //   → matched=false → isClimbing 안 set → canCrawl=true 유지 → 크롤 지속.
+            // 🔴 (Session 145 BUG fix): skip setShouldClimbSpeed if no sub-branch matches.
+            //   Original L981-L1027 1:1 — no fallback. maintain matched=false → skip L955.
+            //   Flat ground crawl (feet=BaseWithHands forced promotion, hands=NONE): all 5 branches above don't match
+            //   → matched=false → isClimbing not set → canCrawl=true maintained → crawl continues.
         } else {
             // 원본 L1028-1053 wantClimbDown 분기 매핑.
             handsClimbing = handsClimbing.toDown();

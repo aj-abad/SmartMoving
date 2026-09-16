@@ -584,26 +584,26 @@ public abstract class MixinPlayerEntityModelClient {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 상태별 애니메이션 헬퍼 메서드
+    // Animation helper methods by state
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * isRopeSliding: 로프를 잡고 슬라이딩.
-     * 원본: SmartMovingModel.setRotationAngles() 1번 분기 (isRopeSliding).
-     * bipedOuter.rotateAngleY(이동 방향 정렬)는 MixinPlayerEntityRenderer bodyYaw에서 처리.
-     * bipedPelvic.rotateAngleX: bipedPelvic 없음 → 생략.
-     * pivotY 보정 (B-8 / §16-11): vanilla setAngles 가 매 프레임 sneak 분기로 head/arm pivotY 를
-     *   명시적 할당하므로 TAIL inject 에서 덮어쓰기 안전 (다음 프레임 자동 reset).
-     *   원본 SR 어깨 노드(pivotY=2) 부재로 1.21.1 arm pivotY 기본=2 → -2 차감 = 0 (어깨 절대 위치 0 등가).
+     * isRopeSliding: grab rope and slide.
+     * Original: SmartMovingModel.setRotationAngles() branch 1 (isRopeSliding).
+     * bipedOuter.rotateAngleY (movement direction alignment) handled in MixinPlayerEntityRenderer bodyYaw.
+     * bipedPelvic.rotateAngleX: no bipedPelvic → skip.
+     * pivotY correction (B-8 / §16-11): vanilla setAngles explicitly assigns head/arm pivotY per frame in sneak branch
+     *   so safe to overwrite in TAIL inject (automatically reset next frame).
+     *   Original SR shoulder node (pivotY=2) absent so in 1.21.1 arm pivotY default=2 → -2 deduction = 0 (equals shoulder absolute position 0).
      */
     private void sm_animateRopeSliding(float animationProgress, net.minecraft.client.player.AbstractClientPlayer player) {
         float time = animationProgress * 0.15f;
 
-        // 머리 X/Z
+        // head X/Z
         head.xRot = EIGHTH;
         Vec3 vel = player.getDeltaMovement();
         if (vel.x * vel.x + vel.z * vel.z >= 1e-4) {
-            // 카메라-이동 방향 차이를 [-Sixteenth, Sixteenth] 범위로 클램프
+            // clamp camera-movement direction difference to [-Sixteenth, Sixteenth] range
             float diff = Mth.wrapDegrees(
                     player.getYRot() - (float) Math.toDegrees(Math.atan2(-vel.x, vel.z))
             ) * DEG_TO_RAD;
@@ -612,33 +612,33 @@ public abstract class MixinPlayerEntityModelClient {
             head.zRot = 0f;
         }
 
-        // 몸통 X (주기적 미세 흔들림)
+        // torso X (periodic subtle sway)
         float torsoX = SIXTEENTH + SIXTYFOURTH * Mth.cos(time);
         body.xRot = torsoX;
 
-        // 팔 X = Half - torsoX (매달린 자세), Z (좌우 고정)
+        // arm X = Half - torsoX (hanging pose), Z (left/right fixed)
         rightArm.xRot = HALF - torsoX;
         leftArm.xRot  = HALF - torsoX;
         rightArm.zRot  =  SIXTEENTH + THIRTYTWOTH;
         leftArm.zRot   = -(SIXTEENTH + THIRTYTWOTH);
 
-        // 다리 Z (고정), X (흔들림)
+        // leg Z (fixed), X (sway)
         rightLeg.zRot  =  THIRTYTWOTH;
         leftLeg.zRot   = -THIRTYTWOTH;
         rightLeg.xRot =  SIXTYFOURTH * Mth.cos(time - QUARTER);
         leftLeg.xRot  =  SIXTYFOURTH * Mth.cos(time + QUARTER);
 
-        // 매달린 자세 pivotY 보정 (원본 SmartMovingModel L106/L117)
-        head.y     =  2f;   // 원본 bipedHead.rotationPointY = 2F
-        rightArm.y =  0f;   // 원본 bipedRightArm.rotationPointY = -2F (어깨 노드 부재로 vanilla 기본 2F - 2 = 0)
-        leftArm.y  =  0f;   // 원본 bipedLeftArm.rotationPointY = -2F
+        // hanging pose pivotY correction (original SmartMovingModel L106/L117)
+        head.y     =  2f;   // original bipedHead.rotationPointY = 2F
+        rightArm.y =  0f;   // original bipedRightArm.rotationPointY = -2F (no shoulder node so vanilla default 2F - 2 = 0)
+        leftArm.y  =  0f;   // original bipedLeftArm.rotationPointY = -2F
     }
 
     /**
-     * isClimbing / isCrawlClimbing: 사다리/넝쿨 클라이밍.
-     * 원본: SmartMovingModel.setRotationAngles() 2번 분기.
-     * handsClimbType/feetClimbType ordinal로 손/발 포즈 분기 (R-10/R-10b).
-     * isCrawlClimbing 시 legAngleZ(roll) 보정 (R-10c).
+     * isClimbing / isCrawlClimbing: ladder/vine climbing.
+     * Original: SmartMovingModel.setRotationAngles() branch 2.
+     * Hands/feet pose branch by handsClimbType/feetClimbType ordinal (R-10/R-10b).
+     * legAngleZ (roll) correction during isCrawlClimbing (R-10c).
      */
     private void sm_animateClimbing(SmartMovingClientState sm, net.minecraft.client.player.AbstractClientPlayer player, float limbSwing, float limbSwingAmount, float headPitch, float animationProgress) {
         // B-4 / §16-10 + 부드러움 1:1 (사용자 보고 후, 그랩 클라이밍 진자운동 부드러움 정정):
