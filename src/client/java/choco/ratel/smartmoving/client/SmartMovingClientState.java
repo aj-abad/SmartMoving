@@ -787,35 +787,35 @@ public final class SmartMovingClientState {
     public float smHeadJumpTiltX_prev = 0f;       // previous frame head jump X rotation lerp result
     public float smHeadJumpFade_prevTime = -999f; // previous frame totalTime (-999 = uninitialized)
 
-    // 🔵 (2026-05-20, BUG-Swim-Anim-1/2 fix #115) swim/dive 전용 fade prev.
-    //   원본 SmartMovingModel L331 (isSwim) + L373 (isDive): `bipedOuter.fadeRotateAngleX = true`.
-    //   원본 ModelRotationRenderer.fadeIntermediate L315-L345: 매 frame `current = prev +
-    //     (target - prev) * deltaTime * 0.2F`. 진입/전환 시 점진 lerp.
-    //   비행/헤드점프 fade prev 와 분리 — 비행/헤드점프 ↔ swim/dive 전환 시 prev 값 leak 차단.
-    //   사용자 보고: "수면 도달 시 갑자기 1자" (= dive tilt 즉시 0 변환) + "wasd 시 팔다리 이상"
-    //     (= currentVerticalAngle 동적 변화 즉시 적용) 모두 fade 부재 cause.
-    public float smSwimDiveTiltX_prev = 0f;       // 이전 프레임 swim/dive X 회전 lerp 결과
-    public float smSwimDiveFade_prevTime = -999f; // 이전 프레임 totalTime (-999 = 미초기화)
+    // 🔵 (2026-05-20, BUG-Swim-Anim-1/2 fix #115) swim/dive dedicated fade prev.
+    //   Original SmartMovingModel L331 (isSwim) + L373 (isDive): `bipedOuter.fadeRotateAngleX = true`.
+    //   Original ModelRotationRenderer.fadeIntermediate L315-L345: each frame `current = prev +
+    //     (target - prev) * deltaTime * 0.2F`. gradual lerp on entry/transition.
+    //   Separate from flight/head jump fade prev — block prev value leak on flight/head jump ↔ swim/dive transition.
+    //   User report: "suddenly straight line when reaching surface" (= dive tilt instantly to 0) + "limbs abnormal on wasd"
+    //     (= currentVerticalAngle dynamic change applied instantly) both caused by absent fade.
+    public float smSwimDiveTiltX_prev = 0f;       // previous frame swim/dive X rotation lerp result
+    public float smSwimDiveFade_prevTime = -999f; // previous frame totalTime (-999 = uninitialized)
 
-    // 🔵 (2026-05-21, fix #118) swim/dive Y 회전 fade — 마우스 회전 lag 매핑.
-    //   원본 SmartMovingModel L333/L375 `bipedOuter.rotateAngleY = horizontalAngle` 가 fadeRotateAngleY=true
-    //   로 매 frame lerp (= 0.2 * deltaT). 우리 매핑 = sm_setupTransforms TAIL 의 swim/dive 분기 Y 회전
-    //   추가 + lerpFadeAngle. isFlying 분기 (smFlyingExtraYaw/smOuterExtraYaw_prev) 동일 패턴.
-    public float smSwimDiveExtraYaw_target = 0f;  // 현재 프레임 Y 회전 target (= horizontalAngle, rad)
-    public float smSwimDiveExtraYaw_prev = 0f;    // 이전 프레임 보간 결과
+    // 🔵 (2026-05-21, fix #118) swim/dive Y rotation fade — mouse rotation lag mapping.
+    //   Original SmartMovingModel L333/L375 `bipedOuter.rotateAngleY = horizontalAngle` with fadeRotateAngleY=true
+    //   lerps each frame (= 0.2 * deltaT). Our mapping = swim/dive branch Y rotation in sm_setupTransforms TAIL
+    //   added + lerpFadeAngle. Same pattern as isFlying branch (smFlyingExtraYaw/smOuterExtraYaw_prev).
+    public float smSwimDiveExtraYaw_target = 0f;  // current frame Y rotation target (= horizontalAngle, rad)
+    public float smSwimDiveExtraYaw_prev = 0f;    // previous frame interpolation result
 
-    // 🔴 fix #123 (2026-05-21, 사용자 보고 "수영 애니메이션 끊김 — 비행 처럼 fade"):
-    //   원본 1.7.10 SmartMovingModel L319-361 (isSwim) / L363-391 (isDive) 의 arm/leg/head/body
-    //   회전식은 fadeRotateAngle false (= instant) 매핑. 우리 매핑이 1.21.1 frame rate (60 FPS)
-    //   에서 그대로 적용 시 사용자 보고 "끊김". 비행 fade pattern (= [[project_flying_complete]])
-    //   1:1 차용 — 각 input angle 별 prev field + lerpFadeAngle 매 frame 보간.
+    // 🔴 fix #123 (2026-05-21, user report "swimming animation chops — fades like flying"):
+    //   Original 1.7.10 SmartMovingModel L319-361 (isSwim) / L363-391 (isDive) arm/leg/head/body
+    //   rotation formulas mapped with fadeRotateAngle false (= instant). When our mapping is applied as-is
+    //   at 1.21.1 frame rate (60 FPS) user reports "chops". Adopt flight fade pattern (= [[project_flying_complete]])
+    //   1:1 — each input angle prev field + lerpFadeAngle interpolation each frame.
     //
-    //   swim prev field (= sm_animateSwimming 의 모든 dynamic input):
+    //   swim prev field (= all dynamic inputs from sm_animateSwimming):
     public float smSwimRightArmPitch_prev = 0f;
     public float smSwimRightArmRoll_prev  = 0f;
     public float smSwimLeftArmPitch_prev  = 0f;
     public float smSwimLeftArmRoll_prev   = 0f;
-    public float smSwimBodySway_prev      = 0f;  // body.yaw + arm.yaw (Phase 1, breast 자식 등가) + head.yaw 공유
+    public float smSwimBodySway_prev      = 0f;  // body.yaw + arm.yaw (Phase 1, breast child equivalent) + head.yaw shared
     public float smSwimHeadPitch_prev     = 0f;
     public float smSwimRightLegPitch_prev = 0f;
     public float smSwimRightLegRoll_prev  = 0f;
@@ -823,7 +823,7 @@ public final class SmartMovingClientState {
     public float smSwimLeftLegRoll_prev   = 0f;
     public float smSwimAnimFade_prevTime  = -999f;
 
-    //   dive prev field (= sm_animateDiving 의 dynamic input — arm.roll/leg.roll 만 변동):
+    //   dive prev field (= dynamic input from sm_animateDiving — only arm.roll/leg.roll change):
     public float smDiveRightArmRoll_prev = 0f;
     public float smDiveLeftArmRoll_prev  = 0f;
     public float smDiveRightLegRoll_prev = 0f;
@@ -831,28 +831,28 @@ public final class SmartMovingClientState {
     public float smDiveAnimFade_prevTime = -999f;
 
 
-    // 🔴 fix #91 (2026-05-13, 사용자 보고 "헤드점프 + 벽 박을 때 몸 회전 중간 이어짐 없음"):
-    //   원본 SmartRenderModel L208-209: bipedOuter.fadeRotateAngleY = true (= EntityPig 외).
-    //   isHeadJump 분기 (SmartMovingModel L509): bipedOuter.rotateAngleY = currentHorizontalAngle.
-    //   fadeIntermediate 가 자연 fade lerp (0.2 factor) 적용 → 벽 박은 후 vx 반전 시
-    //   currentHorizontalAngle 매 frame 변화 → 모델 자연 회전 추적.
-    //   우리 1.21.1 매핑 누락: isHeadJumping 분기 (MixinPlayerEntityRenderer L342-347) 가
-    //   smBodyYawOverride = currentHorizontalAngle 직접 set → instant 회전.
-    //   해결: isCeilingClimbing fade 패턴 차용 — smHeadJumpYaw_prev field + lerpFadeAngle.
-    public float smHeadJumpYaw_prev = 0f;            // 이전 프레임 헤드점프 Y 회전 (라디안) lerp 결과
-    public float smHeadJumpYawFade_prevTime = -999f; // 이전 프레임 totalTime (-999 = 미초기화)
+    // 🔴 fix #91 (2026-05-13, user report "head jump + hitting wall body rotation no intermediate connection"):
+    //   Original SmartRenderModel L208-209: bipedOuter.fadeRotateAngleY = true (= EntityPig excluded).
+    //   isHeadJump branch (SmartMovingModel L509): bipedOuter.rotateAngleY = currentHorizontalAngle.
+    //   fadeIntermediate applies natural fade lerp (0.2 factor) → when vx inverts after hitting wall
+    //   currentHorizontalAngle changes each frame → model naturally tracks rotation.
+    //   Our 1.21.1 mapping missing: isHeadJumping branch (MixinPlayerEntityRenderer L342-347)
+    //   directly sets smBodyYawOverride = currentHorizontalAngle → instant rotation.
+    //   Solution: adopt isCeilingClimbing fade pattern — smHeadJumpYaw_prev field + lerpFadeAngle.
+    public float smHeadJumpYaw_prev = 0f;            // previous frame head jump Y rotation (radians) lerp result
+    public float smHeadJumpYawFade_prevTime = -999f; // previous frame totalTime (-999 = uninitialized)
 
-    // 🔴 fix #95 (2026-05-13): 여우무빙 발사 frame Y 회전 snap done flag.
-    //   fix #94 의 wasSelfSlideFire 가드가 매 frame prev=target 강제 → 진행 중 fade 사라짐.
-    //   해결: 발사 frame 만 prev=target snap + flag=true. 그 후 자연 fade 진행 (= 벽 박을 때
-    //   currentHorizontalAngle 변화 시 fix #91 패턴 자연 lerp).
-    //   reset: 외 분기 진입 시 (= !isHeadJumping && !isRopeSliding) false 로.
+    // 🔴 fix #95 (2026-05-13): fox movement fire frame Y rotation snap done flag.
+    //   fix #94's wasSelfSlideFire guard forces prev=target each frame → fade disappears during progress.
+    //   Solution: only fire frame prev=target snap + flag=true. then natural fade proceeds (= when hitting wall,
+    //   fix #91 pattern natural lerp when currentHorizontalAngle changes).
+    //   reset: enter other branch (= !isHeadJumping && !isRopeSliding) set to false.
     public boolean smHeadJumpYawSnapDone = false;
 
-    // 🔴 fix #81 (2026-05-12): 자체 슬라이딩 발사 → 자동 cycle 진입 시 시각 수평 강제 플래그.
-    //   자체 슬라이딩 발사 분기 (L2055+) 에서 true set. 헤드점프 종료 시 (isHeadJumping false 전환) reset.
-    //   setupTransforms 헤드점프 분기에서 검사 → thetaTarget=π/2 (= Quarter) 고정 강제.
-    //   원본 isSlide 분기 (= rotateAngleX = Quarter 즉시 적용) 시각 1:1.
+    // 🔴 fix #81 (2026-05-12): self sliding fire → enter auto-cycle visual horizontal force flag.
+    //   Set true in self sliding fire branch (L2055+). Reset when head jump ends (isHeadJumping false transition).
+    //   Check in setupTransforms head jump branch → force thetaTarget=π/2 (= Quarter) fixed.
+    //   Original isSlide branch (= rotateAngleX = Quarter applied instantly) visual 1:1.
     public boolean wasSelfSlideFire = false;
 
     // 🔵 (2026-05-14, fix #98 위치 기반) REMOTE 측 헤드점프 종료 자세 visual hold flag (위치 기반).
