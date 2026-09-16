@@ -10,10 +10,10 @@
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingFlyer.java
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingHud.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingJumper.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingLivingEntityAccess.java
+- [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingLivingEntityAccess.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingMover.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingRenderContext.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingSlider.java
+- [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingRenderContext.java
+- [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingSlider.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingSwimmer.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmModelPartOverride.java
 
