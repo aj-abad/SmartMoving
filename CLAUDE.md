@@ -1,57 +1,52 @@
-# SmartMoving 프로젝트 작업 규칙
+# SmartMoving Project Workflow Rules
 
-## 언어
-- 모든 대화는 **한국어**로 진행한다.
-
-## 작업 흐름
-새로운 기능 구현 또는 복잡한 작업을 시작할 때 아래 순서를 반드시 따른다.
+## Workflow
+When starting the implementation of a new feature or a complex task, you must follow the sequence below.
 
 ```
-1. 리서치
-   └─ 구현에 필요한 API, 레퍼런스, 기존 코드 등을 조사한다.
+1. Research
+└─ Investigate necessary APIs, references, existing code, etc.
 
-2. 리서치 파일 작성 (docs/research_<주제>.md)
-   └─ 조사한 내용을 docs 폴더에 마크다운 파일로 정리한다.
+2. Create Research File (docs/research_<topic>.md)
+└─ Organize the findings into a Markdown file in the `docs` folder.
 
-3. 작업 체크리스트 작성 (docs/checklist_<주제>.md)
-   └─ 리서치 파일을 기반으로 구체적인 작업 단계를 체크리스트로 작성한다.
+3. Create Task Checklist (docs/checklist_<topic>.md)
+└─ Create a checklist of specific task steps based on the research file.
 
-4. 작업 진행
-   └─ 리서치 파일과 체크리스트를 참고하며 항목을 하나씩 완료해 나간다.
-      완료된 항목은 체크리스트에서 체크 처리한다.
+4. Execute Tasks
+└─ Complete items one by one while referring to the research file and checklist. 
+Mark completed items as checked in the checklist.
 ```
 
-## docs 폴더 규칙
-- 루트 경로: `docs/`
-- 리서치 파일 네이밍: `research_<주제>.md`
-- 체크리스트 파일 네이밍: `checklist_<주제>.md`
-- 작업이 완료된 파일도 삭제하지 않고 보관한다.
+## `docs` Folder Rules
+- Root path: `docs/`
+- Research file naming: `research_<topic>.md`
+- Checklist file naming: `checklist_<topic>.md`
+- Retain files even after tasks are completed; do not delete them.
 
-## Git 커밋 규칙
-- **대화가 끝날 때마다** 변경 사항을 커밋한다.
-- 커밋 메시지는 아래 컨벤션을 따른다.
+## Git Commit Rules
+- Commit changes **after every interaction/step**.
+- Follow the commit message conventions below.
 
-### 커밋 타입
-| 타입 | 설명 |
+### Commit Types
+| Type | Description |
 |------|------|
-| `feat` | 새로운 기능 추가 |
-| `fix` | 버그 수정 |
-| `docs` | 문서 추가/수정 |
-| `refactor` | 코드 리팩토링 (기능 변경 없음) |
-| `chore` | 빌드 설정, 의존성 등 기타 변경 |
-| `style` | 코드 포맷, 오타 수정 등 |
-| `test` | 테스트 추가/수정 |
-
-### 커밋 메시지 형식
+| `feat` | Adding a new feature |
+| `fix` | Bug fix |
+| `docs` | Adding/modifying documentation |
+| `refactor` | Code refactoring (no functional changes) |
+| `chore` | Build settings, dependencies, or other miscellaneous changes |
+| `style` | Code formatting, typo corrections, etc. |
+| `test` | Adding/modifying tests | ### Commit Message Format
 ```
-<타입>: <제목 (명령형, 50자 이내)>
+<type>: <subject (imperative mood, under 50 characters)>
 
-[본문 - 필요한 경우만, 변경 이유 설명]
+[body - optional, explain the reason for the change]
 ```
 
-### 예시
+### Examples
 ```
-feat: 플레이어 이동 속도 조정 기능 추가
-chore: Gradle wrapper 9.4.0으로 업그레이드
-docs: SmartMoving 작업 규칙 문서 추가
+feat: add player movement speed adjustment feature
+chore: upgrade Gradle wrapper to 9.4.0
+docs: add SmartMoving workflow documentation
 ```
