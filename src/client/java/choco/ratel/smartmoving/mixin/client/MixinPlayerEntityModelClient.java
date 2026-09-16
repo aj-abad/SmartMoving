@@ -169,32 +169,32 @@ public abstract class MixinPlayerEntityModelClient {
         //   Other players never enter firstPersonArmRender context → unaffected (guard as-is).
         if (SmartMovingRenderContext.firstPersonArmRender) return;
 
-        // 🔴 (Phase 2 multi BUG-9 회귀 차단) sm_cachePivotDefaultsIfNeeded + sm_restorePivotDefaults 비활성.
-        //   원인: 첫 setAngles 시점에 cache 한 default 가 sneak 자세 등 vanilla 변경값일 가능성 →
-        //         이후 매 frame 잘못된 default 로 복원 → 슬라이딩 등 self 자세도 회귀.
-        //   대안: 가드 제거된 reset chunk 패턴 (L301 / cleanup 분기) — BUG-8 재처리 항목.
+        // 🔴 (Phase 2 multi BUG-9 regression prevention) sm_cachePivotDefaultsIfNeeded + sm_restorePivotDefaults disabled.
+        //   Root cause: default cached at first setAngles may be vanilla-modified values like sneak pose →
+        //              each frame thereafter restores with wrong default → sliding etc. self pose also regresses.
+        //   Alternative: guard-removed reset chunk pattern (L301 / cleanup branch) — BUG-8 reprocessing item.
 
-        // 항상 원본 저장 (cfgEnabled=false 분기에서도 TAIL 원복 안전 보장)
+        // Always save original (ensure TAIL restore safety even in cfgEnabled=false branch)
         smOriginalSneakingForFalling = renderState.isCrouching;
 
-        // 🔴 (2026-05-05) self → Config.enabled / remote → 항상 true.
+        // 🔴 (2026-05-05) self → Config.enabled / remote → always true.
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
 
         SmartMovingClientState sm = SmartMovingClientState.get(player);
-        // 🔴 (Phase 2 multi BUG-1) fallDistance 직접 검사 → sm.doFallingAnimation 으로.
-        //   vanilla 1.21.1 server 가 다른 player 의 fallDistance 를 sync 안 함 → remote 측 항상 0
-        //   → sm_animateFalling 분기 미진입 → 사용자 보고 "낙하 애니메이션 안 보임".
-        //   sm.doFallingAnimation 은 SmartMovingState bit 16 으로 server-relay sync (자기 client 매 tick
-        //   계산 결과 송신). 정의 자체가 isFallingForReset 식 등가로 확장됨 (sendStatePacket 참조).
+        // 🔴 (Phase 2 multi BUG-1) Direct fallDistance check → sm.doFallingAnimation.
+        //   vanilla 1.21.1 server doesn't sync other players' fallDistance → remote always 0
+        //   → sm_animateFalling branch never entered → user report "falling animation not visible".
+        //   sm.doFallingAnimation synced by SmartMovingState bit 16 server-relay (sends calculation result per tick).
+        //   Its definition itself expands equivalent to isFallingForReset formula (see sendStatePacket).
         boolean isFallingForReset = sm.doFallingAnimation;
 
-        // 🔴 weeping/twisting vines 등반 + sneak 시 사다리 자세와 동일 매핑 (사용자 보고 마무리):
-        //   사다리 등반 + sneak: sm_resetSneakInClimb (MixinClientPlayerEntity L90) 가 input.sneaking
-        //     /isSneaking/pose 강제 false → vanilla setAngles sneak 분기 skip → sneak 자세 X.
-        //   weeping/twisting vines: sm_resetSneakInClimb 미트리거 (sm.isClimbing=false) →
-        //     vanilla sneak 자세 + 사다리 자세 결합 시각.
-        //   해결: 자세만 분리 — vanilla setAngles 의 sneak 분기만 skip 위해 sneaking=false 임시 set.
-        //     motion 은 vanilla 그대로 (사용자 의도 — 기능 안 건드림).
+        // 🔴 weeping/twisting vines climbing + sneak mapped same as ladder pose (user report resolved):
+        //   ladder climbing + sneak: sm_resetSneakInClimb (MixinClientPlayerEntity L90) forces input.sneaking
+        //     /isSneaking/pose false → vanilla setAngles sneak branch skips → no sneak pose.
+        //   weeping/twisting vines: sm_resetSneakInClimb doesn't trigger (sm.isClimbing=false) →
+        //     vanilla sneak pose + ladder pose combined visual.
+        //   Solution: separate poses only — temporarily set sneaking=false to skip only vanilla setAngles sneak branch.
+        //     motion stays vanilla (user intent — feature unmodified).
         Block blockAtPos = player.level().getBlockState(player.blockPosition()).getBlock();
         boolean isWeepingTwistingVines = (blockAtPos == Blocks.WEEPING_VINES
                 || blockAtPos == Blocks.WEEPING_VINES_PLANT
@@ -215,49 +215,49 @@ public abstract class MixinPlayerEntityModelClient {
         }
     }
 
-    // ── animateArms Override (좌클릭 hand swing) — fix #187 (2026-05-28) ─────────
+    // ── animateArms Override (left-click hand swing) — fix #187 (2026-05-28) ─────────
     //
-    // 사용자 보고: "전반적으로 swing 휘두르는게 빠른 느낌. 여우무빙/HJ 두드러짐".
+    // User report: "overall swing motion feels fast. Fox/HJ movement pronounced".
     //
-    // ROOT CAUSE (= dump 분석 + vanilla 1.21.1 disassembly + 원본 1.7.10/1.12.2 verbatim 비교):
+    // ROOT CAUSE (= dump analysis + vanilla 1.21.1 disassembly + original 1.7.10/1.12.2 verbatim comparison):
     //   - vanilla 1.21.1 `BipedEntityModel.animateArms` = quartic ease (`f *= f; f *= f`).
-    //     → swing≈0.16 (= 1 tick = 0.05초) 만에 amplitude PEAK 도달 후 빠르게 감쇠 = 1-tick spike.
-    //   - vanilla 추가 효과: arm.pivot ±5 단위 sway (어깨 좌우/앞뒤 swing) +
-    //     두 arm.yaw 일괄 += body.yaw → 시각적 "큰 motion".
-    //   - 원본 1.7.10 SR.animateWorkingBody+Arms / 1.12.2 SRModel.animateWorking* = cubic ease.
-    //     swing=1 (= 6 tick = 0.3초) 시점 PEAK 도달. 어깨 sway 없음. 자연스러운 휘두름.
+    //     → swing≈0.16 (= 1 tick = 0.05 sec) reaches amplitude PEAK then quickly decays = 1-tick spike.
+    //   - vanilla additional effects: arm.pivot ±5 unit sway (shoulder left/right/front/back swing) +
+    //     both arm.yaw += body.yaw → visually "large motion".
+    //   - Original 1.7.10 SR.animateWorkingBody+Arms / 1.12.2 SRModel.animateWorking* = cubic ease.
+    //     swing=1 (= 6 tick = 0.3 sec) reaches PEAK. No shoulder sway. Natural swing motion.
     //
-    // FIX (사용자 결정 — 옵션 1: animateArms 자체 override + 원본 식 1:1 복원):
-    //   vanilla animateArms @Inject HEAD @Cancellable 로 차단 + 원본 식 1:1 적용.
-    //   STAND/SM phase 모두 일관 효과 (사용자 "전반적으로" = STAND 포함).
+    // FIX (user decision — option 1: override animateArms itself + restore original formula 1:1):
+    //   Block vanilla animateArms via @Inject HEAD @Cancellable + apply original formula 1:1.
+    //   Consistent effect for both STAND/SM phases (user "overall" = includes STAND).
     //
-    // 가드:
-    //   - swing <= 0 시 vanilla early-return path 등가 (= cancel X, 그냥 return).
-    //   - AbstractClientPlayerEntity 가드 (self + remote).
-    //   - SmartMovingRenderContext.firstPersonArmRender 시 vanilla 유지 (1인칭 hand leak 차단 패턴).
-    //   - SmartMovingClient.isSmRenderEnabled false 시 vanilla 유지 (SM 비활성 토글).
+    // Guards:
+    //   - swing <= 0 equivalent to vanilla early-return path (= no cancel, just return).
+    //   - AbstractClientPlayerEntity guard (self + remote).
+    //   - vanilla maintained in SmartMovingRenderContext.firstPersonArmRender (block first-person hand leak pattern).
+    //   - vanilla maintained when SmartMovingClient.isSmRenderEnabled false (SM disabled toggle).
     @Inject(method = "setupAttackAnimation",
             at = @At("HEAD"),
             cancellable = true)
     private void sm_animateArmsOverride(HumanoidRenderState renderState, CallbackInfo ci) {
-        // vanilla early return path 등가
+        // vanilla early return path equivalent
         float swing = renderState.attackTime;
         if (swing <= 0F) return;
 
-        // self + remote 가드
+        // self + remote guard
         if (!(renderState instanceof AvatarRenderState avatarState)
                 || !((Object) avatarState instanceof SmartMovingAvatarRenderState smartState)) return;
         AbstractClientPlayer player = smartState.sm_getPlayer();
         if (player == null) return;
 
-        // 1인칭 hand 가드 — vanilla 유지 (BUG A 패턴: firstPersonArmRender 영역 SM 후킹 skip)
+        // first-person hand guard — maintain vanilla (BUG A pattern: skip SM hooks in firstPersonArmRender area)
         if (SmartMovingRenderContext.firstPersonArmRender) return;
 
-        // SM 비활성 시 vanilla 유지
+        // maintain vanilla when SM disabled
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
 
-        // 원본 1.7.10/1.12.2 SR.animateWorkingBody + animateWorkingArms 1:1 복원.
-        // Arm 결정: 원본 1.7.10 은 mainArm 기준 (preferredHand 개념 없음).
+        // restore original 1.7.10/1.12.2 SR.animateWorkingBody + animateWorkingArms 1:1.
+        // Arm determination: original 1.7.10 based on mainArm (no preferredHand concept).
         HumanoidArm mainArm = player.getMainArm();
         ModelPart arm = (mainArm == HumanoidArm.LEFT) ? this.leftArm : this.rightArm;
 

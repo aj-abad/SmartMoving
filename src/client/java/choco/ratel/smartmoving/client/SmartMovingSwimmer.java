@@ -89,32 +89,32 @@ public final class SmartMovingSwimmer {
     }
 
     public static void updateSwimState(LocalPlayer player, SmartMovingClientState sm) {
-        // 🔵 (2026-05-20, BUG 1 fix #103) calculateDimensions 호출 트리거.
-        //   원본 1.7.10 `setHeightOffset(-1F)` 는 boundingBox.minY 직접 변경 → 즉시 박스 갱신.
-        //   1.21.1 매핑은 dim provider 패턴 → `Entity.calculateDimensions()` 호출 시점에만
-        //   캐시 갱신 + boundingBox recompute. updateSwimState 가 isSwimming_sm/isDiving 만 set
-        //   하고 호출 누락 → POSE/dim 갱신 1+ tick lag → 사용자 보고 "물 진입 시 콜리전 즉시 X,
-        //   jump 키 후 작아짐" (= 다음 tick vanilla updatePose 가 마침내 SWIMMING set).
-        //   해결: 진입 시 prev 저장 → return 직전 변화 검사 → calculateDimensions 호출.
-        //   메모리 [[feedback_processStatePacket_calculateDimensions]] 패턴 1:1 적용.
+        // 🔵 (2026-05-20, BUG 1 fix #103) calculateDimensions call trigger.
+        //   Original 1.7.10 `setHeightOffset(-1F)` directly changes boundingBox.minY → immediate box update.
+        //   1.21.1 mapping uses dim provider pattern → cache updates + boundingBox recompute only when
+        //   `Entity.calculateDimensions()` is called. updateSwimState only sets isSwimming_sm/isDiving
+        //   and misses the call → POSE/dim update 1+ tick lag → user report "collision not immediate on water entry,
+        //   shrinks after jump key" (= vanilla updatePose finally sets SWIMMING next tick).
+        //   Solution: save prev on entry → check change before return → call calculateDimensions.
+        //   Memory [[feedback_processStatePacket_calculateDimensions]] pattern applied 1:1.
         boolean prevSwim103 = sm.isSwimming_sm;
         boolean prevDive103 = sm.isDiving;
 
-        // B-10b-pre (세션 110): 원본 L105 `boolean wasJumpingOutOfWater = isJumpingOutOfWater`
-        // 지역 snapshot. 1.21.1 은 updateSwimState + handleSwimming 분리 → 필드로 승격.
-        // §7 B-10b-pre 근사. B-10b-post 공식 `isJumpingOutOfWater = ... || wasJumpingOutOfWater`
-        // 이식 시 이 이전 틱 값 참조.
+        // B-10b-pre (session 110): Original L105 `boolean wasJumpingOutOfWater = isJumpingOutOfWater`
+        // Local snapshot. 1.21.1 splits updateSwimState + handleSwimming → promoted to field.
+        // §7 B-10b-pre approximation. B-10b-post formula `isJumpingOutOfWater = ... || wasJumpingOutOfWater`
+        // On porting, reference this previous tick value.
         sm.wasJumpingOutOfWater = sm.isJumpingOutOfWater;
 
-        // **B-7c 해소 (세션 127)**: 원본 L232 진입 조건 정밀 복원.
+        // **B-7c Resolution (session 127)**: Precise restoration of original L232 entry condition.
         //   boolean handleSwimming = !isFlying && !isLiquidClimbing
         //                         && (isInWater() || (wasSwimming && isInLiquid())
         //                             || (lavaLikeWater && handleLavaMovement()));
-        // - isFlying (SM 비행) / isLiquidClimbing (B-7a 세션 127) 게이트 추가
-        // - wasSwimming 은 updateSwimState 진입 시점에 아직 갱신되지 않은 sm.isSwimming_sm
-        //   (MixinLivingEntityClient L77 `boolean wasSwimming = sm.isSwimming_sm;` 스냅샷과 등가)
-        // - isInLiquid (B-7d 세션 127) — AABB 액체 판정 (vanilla isTouchingWater 보다 정밀)
-        // - player.isInLava() → 원본 handleLavaMovement() 대응 (vanilla 액체 교차 판정)
+        // - isFlying (SM flight) / isLiquidClimbing (B-7a session 127) gate added
+        // - wasSwimming is sm.isSwimming_sm not yet updated at updateSwimState entry point
+        //   (equivalent to snapshot at MixinLivingEntityClient L77 `boolean wasSwimming = sm.isSwimming_sm;`)
+        // - isInLiquid (B-7d session 127) — AABB liquid detection (more precise than vanilla isTouchingWater)
+        // - player.isInLava() → corresponds to original handleLavaMovement() (vanilla liquid cross detection)
         SmartMovingConfig cfg7c = SmartMovingConfig.Config;
         // 🔴 (2026-05-22) isLavaLikeWaterEnabled(player) overload 사용 — Creative 모드 자동 true.
         // 🔴 (2026-05-22) 사용자 보고 fix v4 — 1칸 공간 + dipping 시점 정확 매핑.

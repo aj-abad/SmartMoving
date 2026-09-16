@@ -751,41 +751,41 @@ public final class SmartMovingClientState {
     public double distanceSwom;
 
     /**
-     * 수영 애니메이션 standSneakFactor 캐시.
-     * sm_animateSwimming()에서 매 프레임 계산하여 저장하고,
-     * sm_setupTransforms()의 bipedOuter X 기울기 계산에서 1프레임 지연으로 소비된다.
-     * 원본: SmartMovingModel.setRotationAngles() isSwim 분기의 standSneakFactor.
-     * 정지/스니킹=1, 보행=0.
+     * Swimming animation standSneakFactor cache.
+     * Calculated and stored each frame in sm_animateSwimming(),
+     * consumed with 1-frame delay in sm_setupTransforms() bipedOuter X tilt calculation.
+     * Original: standSneakFactor from isSwim branch in SmartMovingModel.setRotationAngles().
+     * Standing/sneaking=1, walking=0.
      */
     public float swimStandSneakFactor = 0f;
 
     /**
-     * 원본 SmartRender bipedOuter.rotateAngleX (라디안) 등가 — sm_setupTransforms 의 X tilt
-     * (isSwim/isDive/isSlide/isFlying/isHeadJumping 5 분기 마지막 활성 값).
-     * 사용처: B-17 — MixinCapeFeatureRenderer 의 망토 X 회전 클램프
-     *   `localAngleMax = max(70.523° - smOuterTiltX_deg, 6°)` 적용 (원본
+     * Equivalent to original SmartRender bipedOuter.rotateAngleX (radians) — X tilt from sm_setupTransforms
+     * (last active value from 5 branches: isSwim/isDive/isSlide/isFlying/isHeadJumping).
+     * Used in: B-17 — MixinCapeFeatureRenderer cape X rotation clamp
+     *   `localAngleMax = max(70.523° - smOuterTiltX_deg, 6°)` applied (original
      *   ModelCapeRenderer.java L72-L73).
-     * 갱신: sm_setupTransforms 진입 시 0 reset → 5 분기에서 = 으로 할당.
-     * 한 분기만 활성 (SM 11-state if-else 우선순위).
+     * Updated: reset to 0 on sm_setupTransforms entry → assigned = in 5 branches.
+     * Only one branch active (SM 11-state if-else priority).
      */
     public float smOuterTiltX = 0f;
 
-    // ── 🔴 fade 보간 캐시 (Flying Phase / 세션 49): 원본 ModelRotationRenderer 의
-    //   fadeStore/fadeIntermediate 시스템 매핑. 매 render 프레임 prev → target 사이 점진적
-    //   보간 (factor = (currentTime - prevTime) * 0.2F). 비행 시 bipedOuter.X / Y 회전 보간.
-    //   원본 SmartMovingModel L484: bipedOuter.fadeRotateAngleX = true (X 회전 fade 활성).
-    //   원본 SmartRenderModel L209: bipedOuter.fadeRotateAngleY = true (기본, Pig 안 타면).
-    public float smOuterTiltX_prev = 0f;       // 이전 프레임 보간 결과 (X 회전)
-    public float smOuterExtraYaw = 0f;         // 현재 프레임 Y 회전 target (smFlyingExtraYaw)
-    public float smOuterExtraYaw_prev = 0f;    // 이전 프레임 보간 결과 (Y 회전)
-    public float smOuterFade_prevTime = -999f; // 이전 프레임 totalTime (-999 = 미초기화)
+    // ── 🔴 fade interpolation cache (Flying Phase / session 49): original ModelRotationRenderer's
+    //   fadeStore/fadeIntermediate system mapping. Gradual interpolation between prev → target each render frame
+    //   (factor = (currentTime - prevTime) * 0.2F). Interpolate bipedOuter.X / Y rotation during flight.
+    //   Original SmartMovingModel L484: bipedOuter.fadeRotateAngleX = true (enable X rotation fade).
+    //   Original SmartRenderModel L209: bipedOuter.fadeRotateAngleY = true (default, when not riding Pig).
+    public float smOuterTiltX_prev = 0f;       // previous frame interpolation result (X rotation)
+    public float smOuterExtraYaw = 0f;         // current frame Y rotation target (smFlyingExtraYaw)
+    public float smOuterExtraYaw_prev = 0f;    // previous frame interpolation result (Y rotation)
+    public float smOuterFade_prevTime = -999f; // previous frame totalTime (-999 = uninitialized)
 
-    // 🔴 헤드점프 전용 fade prev (2026-05-11, 사용자 보고 "하강 시 몸 너무 수직"):
-    //   원본 SmartMovingModel L507 bipedOuter.fadeRotateAngleX = true (X 회전 5-tick lerp).
-    //   비행 fade prev 와 분리 — 비행 ↔ 헤드점프 직접 전환 시 prev 값 leak 차단.
-    //   feedback_headjump_overground_air_is_solid.md 와 같은 시리즈 fix.
-    public float smHeadJumpTiltX_prev = 0f;       // 이전 프레임 헤드점프 X 회전 lerp 결과
-    public float smHeadJumpFade_prevTime = -999f; // 이전 프레임 totalTime (-999 = 미초기화)
+    // 🔴 head jump dedicated fade prev (2026-05-11, user report "body too vertical during descent"):
+    //   Original SmartMovingModel L507 bipedOuter.fadeRotateAngleX = true (X rotation 5-tick lerp).
+    //   Separate from flight fade prev — block prev value leak on direct flight ↔ head jump transition.
+    //   Same series fix as feedback_headjump_overground_air_is_solid.md.
+    public float smHeadJumpTiltX_prev = 0f;       // previous frame head jump X rotation lerp result
+    public float smHeadJumpFade_prevTime = -999f; // previous frame totalTime (-999 = uninitialized)
 
     // 🔵 (2026-05-20, BUG-Swim-Anim-1/2 fix #115) swim/dive 전용 fade prev.
     //   원본 SmartMovingModel L331 (isSwim) + L373 (isDive): `bipedOuter.fadeRotateAngleX = true`.

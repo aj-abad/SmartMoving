@@ -28,17 +28,17 @@ public final class SmartMovingMover {
     // ── [11-1] Speed Factor 4-Stage ─────────────────────────────────────────
 
     /**
-     * 원본 `_speedUser = Creative("move.speed.user")` 팩토리 의미 재현.
-     * `Creative` 팩토리는 Creative 게임 모드에서만 true 반환 → 1.21.1 에서는 런타임 gameMode
-     * 감지로 대응. B-6 (세션 26) 신설.
+     * Reproduces the original `_speedUser = Creative("move.speed.user")` factory meaning.
+     * The `Creative` factory returns true only in Creative game mode → In 1.21.1, this is handled
+     * via runtime gameMode detection. B-6 (session 26) new addition.
      *
-     * 원본 `isUserSpeedEnabled() = enabled && _speedUser.value` 에서 `_speedUser.value` 가
-     * Creative 때만 true 이므로 이 조합이 Creative 체크 게이트가 됨.
+     * In the original `isUserSpeedEnabled() = enabled && _speedUser.value`, `_speedUser.value` is
+     * true only in Creative mode, so this combination becomes a Creative check gate.
      *
-     * 1.21.1 대응:
+     * 1.21.1 adaptation:
      *   isUserSpeedEnabled = cfg.enabled && cfg.speedUser && (gameMode == CREATIVE)
-     *   cfg.speedUser 는 사용자가 config 파일에서 허용 여부 설정 (기본 false, Easy 1:1).
-     *   gameMode 체크는 매 호출 시 런타임 판정.
+     *   cfg.speedUser is user-configured in config file (default false, Easy 1:1).
+     *   gameMode check is determined at runtime on each call.
      */
     private static boolean isCreative(LocalPlayer player) {
         if (player == null) return false;
@@ -47,30 +47,30 @@ public final class SmartMovingMover {
     }
 
     /**
-     * Config 기반 속도 배율.
-     * 원본 `SmartMovingSelf.getConfigSpeedFactor()` (L154-157):
+     * Config-based speed multiplier.
+     * Original `SmartMovingSelf.getConfigSpeedFactor()` (L154-157):
      *   `Config.enabled ? Config._speedFactor.value * Config.getUserSpeedFactor() : 1F`
      *
-     * B-1 (세션 25): `cfg.enabled` 가드 추가.
-     * B-6 (세션 26): Creative 전용 게이트 추가. `cfg.speedUser` 는 원본 `_speedUser.value`
-     *   대응 — Creative 팩토리 의미 복원을 위해 런타임 gameMode 체크 병행.
-     *   getUserSpeedFactor() 자체는 `!speedUser` 시 1F 반환하므로 Creative 아닐 때는
-     *   사용자가 아무리 키 눌러도 factor=1F. 하지만 명시적 게이트가 원본 구조에 더 가까움.
+     * B-1 (session 25): Added `cfg.enabled` guard.
+     * B-6 (session 26): Added Creative-exclusive gate. `cfg.speedUser` corresponds to original
+     *   `_speedUser.value` — runtime gameMode check also performed to restore Creative factory meaning.
+     *   getUserSpeedFactor() itself returns 1F when `!speedUser`, so in non-Creative mode,
+     *   no matter how much the user presses keys, factor=1F. However, explicit gating is closer to original structure.
      *
-     * 공식 (B-6 이후):
+     * Formula (after B-6):
      *   cfg.enabled && (gameMode == CREATIVE) ? speedFactor × (1+speedUserFactor)^exp : 1F
      *
-     * Creative 외 게임 모드에서는 cfg.speedFactor (기본 1F) 반영도 안 됨 — 원본과 동일
-     *   (`_speedFactor` 자체는 Creative 의존 아니지만, `getConfigSpeedFactor` 는 `Config.enabled`
-     *    게이트만 있고, speedFactor × userSpeedFactor 이고 userSpeedFactor 가 Creative 때만
-     *    1F 외값). speedFactor 는 전역 배율로 Creative 외에서도 적용되어야 하나 — 재검토.
+     * In non-Creative game modes, cfg.speedFactor (default 1F) is not applied — same as original.
+     *   (`_speedFactor` itself is not Creative-dependent, but `getConfigSpeedFactor` has only
+     *    `Config.enabled` gate, and speedFactor × userSpeedFactor where userSpeedFactor is
+     *    non-1F only in Creative mode). speedFactor is a global multiplier that should apply outside Creative too — needs review.
      *
-     * ⚠️ 엄밀 1:1: 원본 `getConfigSpeedFactor` 는 `Config.enabled` 만 체크하고
-     *    `_speedFactor.value * getUserSpeedFactor()` 반환. `getUserSpeedFactor()` 가
-     *    `!_speedUser.value` 시 1F 반환. 즉 Creative 외에서는 `_speedFactor.value` 만 반영됨.
-     *    (`_speedFactor` 는 Creative 무관 전역 배율.)
-     *    → 본 메서드에서 Creative 게이트는 userSpeedFactor 부분만 차단하는 게 정확.
-     *    아래 구현은 speedFactor 는 전역 반영 + userSpeedFactor 는 Creative 게이트.
+     * Warning: Strict 1:1: Original `getConfigSpeedFactor` checks only `Config.enabled` and
+     *    returns `_speedFactor.value * getUserSpeedFactor()`. `getUserSpeedFactor()` returns
+     *    1F when `!_speedUser.value`. i.e., outside Creative only `_speedFactor.value` applies.
+     *    (`_speedFactor` is a global multiplier independent of Creative.)
+     *    → In this method, the Creative gate should only block the userSpeedFactor part.
+     *    Below implementation: speedFactor applies globally + userSpeedFactor gates on Creative.
      */
     public static float getConfigSpeedFactor(LocalPlayer player, SmartMovingConfig cfg) {
         if (!cfg.enabled) return 1F;
@@ -79,23 +79,23 @@ public final class SmartMovingMover {
     }
 
     /**
-     * 포션 효과 포함 이동속도 역산 배율.
-     * 원본 `SmartMovingSelf.getPotionSpeedFactor()` (L160-162) 1:1:
+     * Potion effect-inclusive movement speed inverse multiplier.
+     * Original `SmartMovingSelf.getPotionSpeedFactor()` (L160-162) 1:1:
      *   `Config.enabled ? getLandMovementFactor() * 10F / (sp.isSprinting() ? 1.3F : 1F) : 1F`
-     * B-1 (세션 25): `cfg.enabled` 가드 추가.
+     * B-1 (session 25): Added `cfg.enabled` guard.
      *
-     * GENERIC_MOVEMENT_SPEED 속성에 포션 효과가 이미 반영됨 → 이중 적용 주의.
-     * 스프린트 modifier(+0.3)도 포함된 상태이므로 스프린팅 시 1.3F로 나눠 제거.
+     * Potion effects are already reflected in the GENERIC_MOVEMENT_SPEED attribute → beware of double application.
+     * Sprint modifier (+0.3) is also included, so divide by 1.3F during sprinting to remove it.
      */
     public static float getPotionSpeedFactor(LocalPlayer player) {
         if (!SmartMovingConfig.Config.enabled) return 1F;
-        // 🔴 fix #44 (2026-05-09, 사용자 보고 "여우무빙 거리 부족 + Jump Boost 시 극명"):
-        //   vanilla 1.21.1 의 ADD_MULTIPLIED_TOTAL operation 은 모든 modifier value 를 합산 후
-        //   1번만 곱. vanilla 1.7.10 의 MULTIPLY_TOTAL (op2) 은 각 modifier 별로 누적 곱.
-        //   → Sprint + Speed LV5 시 1.7.10 = 0.1×1.3×2.0=0.26, 1.21.1 attribute = 0.1×(1+0.3+1.0)=0.23.
-        //   → 11.5% 적음 → maxHorizontalMotion 작아짐 → 거리 짧음 (= 사용자 인지 "극명").
-        //   해결: vanilla attribute 식 우회 + 1.7.10 식 직접 계산 (= base × sprint × speed × slow).
-        //   docs/research_fox_movement_distance.md §12 정독.
+        // 🔴 fix #44 (2026-05-09, user report "Fox movement distance insufficient + Jump Boost pronounced"):
+        //   vanilla 1.21.1's ADD_MULTIPLIED_TOTAL operation sums all modifier values then
+        //   multiplies once. vanilla 1.7.10's MULTIPLY_TOTAL (op2) multiplies cumulatively per modifier.
+        //   → Sprint + Speed LV5: 1.7.10 = 0.1×1.3×2.0=0.26, 1.21.1 attribute = 0.1×(1+0.3+1.0)=0.23.
+        //   → 11.5% less → maxHorizontalMotion smaller → shorter distance (= user perceives "pronounced").
+        //   Solution: bypass vanilla attribute formula + direct calculation using 1.7.10 formula (= base × sprint × speed × slow).
+        //   Read docs/research_fox_movement_distance.md §12 carefully.
         float base = 0.1F;
         float sprintMul = player.isSprinting() ? 1.3F : 1F;
         net.minecraft.world.effect.MobEffectInstance speed =
@@ -109,27 +109,27 @@ public final class SmartMovingMover {
     }
 
     /**
-     * 원본 `SmartMovingSelf.getCombinedSpeedFactor()` (L149-152) 1:1:
+     * Original `SmartMovingSelf.getCombinedSpeedFactor()` (L149-152) 1:1:
      *   `return getConfigSpeedFactor() * getPotionSpeedFactor();`
-     * B-1 (세션 25) 신설 — Climber/Jumper 등 6곳에서 인라인 곱셈 대체.
-     * B-6 (세션 26): getConfigSpeedFactor 시그니처 변경에 따른 player 전달.
+     * B-1 (session 25) new addition — replaces inline multiplication in 6 places like Climber/Jumper.
+     * B-6 (session 26): player parameter passed due to getConfigSpeedFactor signature change.
      */
     public static float getCombinedSpeedFactor(LocalPlayer player, SmartMovingConfig cfg) {
         return getConfigSpeedFactor(player, cfg) * getPotionSpeedFactor(player);
     }
 
     /**
-     * 비감속 입력 배율 (얼음/스프린트/달리기).
-     * 팩터 적용 우선순위: 얼음 > 스프린트 > 달리기 (중첩 불가).
+     * Non-slow input multiplier (ice/sprint/running).
+     * Factor application priority: ice > sprint > running (no nesting).
      *
-     * isRunning = isSprinting() && !isFast (A-21 확인값).
-     * iceSpeedFactor: 원본 config에 없음 — 1.5F 고정 (A-25 확인).
+     * isRunning = isSprinting() && !isFast (verified value A-21).
+     * iceSpeedFactor: not in original config — fixed at 1.5F (verified A-25).
      */
     public static float getNonSlowInputSpeedFactor(LocalPlayer player, SmartMovingClientState sm,
                                                     SmartMovingConfig cfg) {
-        // 🔴 (2026-04-28) 원본 SmartMovingSelf L197-227 1:1 정밀 매핑.
-        //   원본: isFast 시 sprintFactor (1.5). !isFast 시 1.0.
-        //   landMotion L712 에서 별도: isRunning && !isFast 시 runFactor (1.3) 곱.
+        // 🔴 (2026-04-28) Original SmartMovingSelf L197-227 precise 1:1 mapping.
+        //   Original: isFast returns sprintFactor (1.5). !isFast returns 1.0.
+        //   Separate in landMotion L712: isRunning && !isFast multiplies runFactor (1.3).
         float speedFactor = 1.0F;
         if (sm.isFast) {
             // 원본: !isLevitating ? sprintFactor : sprintFactorLevitate. Levitate 는 SmartMovingFlyer 에서 별도 처리.

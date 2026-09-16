@@ -280,8 +280,8 @@ public final class SmartMovingClimber {
                               || centerState.getValue(VineBlock.WEST);
                 }
                 if (hasAnyFace) {
-                    // 원본 vine 자기 위치 검사: solid 뒤 블록 검증 없음 (L289-292 fasedOnlyTo == null
-                    // 분기는 단순 result++. faceOnly 일 때만 hasVineOrientation && isRemoteSolid).
+                    // Original vine check at own position: no solid block verification (L289-292 facedOnlyTo == null
+                    // branch just result++. Only when faceOnly does hasVineOrientation && isRemoteSolid).
                     ClimbGap gap = new ClimbGap();
                     gap.state = centerState;
                     if (isHandsLevel) {
@@ -295,59 +295,58 @@ public final class SmartMovingClimber {
             }
         }
 
-        // 🔴 사다리/덩굴 자동 진입 BUG 2: 4방향 인접 검사 비활성.
-        //   사용자 보고: "사다리 1칸 떨어진 위치 (앞앞 블록) 에서 클라이밍 활성하면 안됨".
-        //   원본 SmartMovingBase L271-279 (인접 검사) 는 SM 1.7.10 동작 — 사다리 주변
-        //   1칸 인접 시 등반 가능. vanilla 1.21.1 동작 = 사용자 boundingBox 가 사다리
-        //   충돌 박스 닿을 때 (= floor(player.x)/floor(player.z) 가 사다리 위치 동등)
-        //   만 isClimbing=true.
-        //   사용자 의도 = vanilla 동작. → 인접 검사 비활성. 사용자 위치 자체 검사만 활성.
-        //   (vanilla 사다리 충돌 박스 thin → 사용자가 사다리 면 닿기 직전 floor 좌표 ==
-        //    사다리 위치 일 때만 자동 진입 활성).
+        // 🔴 Ladder/vine automatic entry BUG 2: 4-direction adjacent check disabled.
+        //   User report: "should not activate climbing from 1 block away from ladder (2 blocks forward)".
+        //   Original SmartMovingBase L271-279 (adjacent check) is SM 1.7.10 behavior — climbable when
+        //   1 block adjacent to ladder. Vanilla 1.21.1 behavior = isClimbing=true only when player's
+        //   boundingBox touches ladder collision box (= floor(player.x)/floor(player.z) equals ladder position).
+        //   User intent = vanilla behavior. → Disable adjacent check. Enable only player position check.
+        //   (Vanilla ladder collision box is thin → automatic entry only when player's floor coordinate ==
+        //    ladder position just before touching ladder face).
     }
 
-    // ── 7-2: setShouldClimbSpeed / setOnlyShouldClimbSpeed ──────────────
+    // ── 7-2: setShouldClimbSpeed / setOnlyShouldClimbSpeed ───────────────
 
     /**
-     * 원본: SmartMovingSelf.setShouldClimbSpeed(value, isUp, factor)
+     * Original: SmartMovingSelf.setShouldClimbSpeed(value, isUp, factor)
      *
-     * 클라이밍 Y 속도를 팩터 보간하여 설정한다.
+     * Sets climbing Y velocity with factor interpolation.
      *
-     * relevant 조건: value < 0 || value > motionY
-     * (더 느리거나 하강 방향일 때만 적용. 이미 충분히 빠른 경우 방치.)
+     * Condition for relevance: value < 0 || value > motionY
+     * (Apply only when slower or descending. Leave unchanged if already fast enough.)
      *
-     * 상방 보간: motionY = (value - HOLD_MOTION) * upFactor * combinedFactor + HOLD_MOTION
-     * 하방 보간: motionY = HOLD_MOTION - (HOLD_MOTION - value) * downFactor * combinedFactor
+     * Upward interpolation: motionY = (value - HOLD_MOTION) * upFactor * combinedFactor + HOLD_MOTION
+     * Downward interpolation: motionY = HOLD_MOTION - (HOLD_MOTION - value) * downFactor * combinedFactor
      *
-     * _freeClimbingUpSpeedFactor / _freeClimbingDownSpeedFactor 원본 기본값 = 1F (PositiveFactor).
-     * Standard/Simple/Smart 모드별 factored 읽기는 C-29에서 구현.
+     * _freeClimbingUpSpeedFactor / _freeClimbingDownSpeedFactor original defaults = 1F (PositiveFactor).
+     * Factored reading per Standard/Simple/Smart mode implemented in C-29.
      *
-     * @return true if relevant (속도를 변경함)
+     * @return true if relevant (velocity changed)
      */
     /**
-     * 🔴 (2026-04-27) 원본 SmartMovingSelf L1500-1551 1:1 재구성:
-     *   원본 호출 흐름: setShouldClimbSpeed → setOnlyShouldClimbSpeed → `isClimbing=true` 무조건.
-     *   이전 매핑은 `isClimbing=true` 를 relevant 시만 set → motionY 가 이미 충분 시
-     *   isClimbing 안 set → travel inject 가 vanilla 진행 → 사다리 댐핑 X → 떨어짐 →
-     *   다음 tick 다시 발동 → on/off 진동 = 끊김 (사용자 보고 BUG-1).
+     * 🔴 (2026-04-27) Original SmartMovingSelf L1500-1551 1:1 reconstruction:
+     *   Original call flow: setShouldClimbSpeed → setOnlyShouldClimbSpeed → `isClimbing=true` always.
+     *   Previous mapping set `isClimbing=true` only when relevant → when motionY already sufficient,
+     *   isClimbing not set → travel inject proceeds vanilla → no ladder damping → fall →
+     *   next tick fires again → on/off oscillation = stuttering (user report BUG-1).
      */
     public static boolean setShouldClimbSpeed(LocalPlayer player, SmartMovingClientState sm,
                                                double value, boolean isUp, double combinedFactor) {
-        // 원본 L1502: setShouldClimbSpeed(value) → setShouldClimbSpeed(value, UpGrab, DownStep).
-        // 우리는 hands/feet type 별도 처리 안 함 (R-01 패킷 인코딩만 영향) — setOnly 직접 호출.
+        // Original L1502: setShouldClimbSpeed(value) → setShouldClimbSpeed(value, UpGrab, DownStep).
+        // We don't separately handle hands/feet type (only affects R-01 packet encoding) — call setOnly directly.
         return setOnlyShouldClimbSpeed(player, sm, value, isUp, combinedFactor);
     }
 
     /**
-     * 원본: SmartMovingSelf.setOnlyShouldClimbSpeed L1513-1551.
-     *   `isClimbing = true` 진입 시 무조건. relevant 일 때만 motionY 적용.
+     * Original: SmartMovingSelf.setOnlyShouldClimbSpeed L1513-1551.
+     *   `isClimbing = true` always upon entry. Apply motionY only when relevant.
      */
     public static boolean setOnlyShouldClimbSpeed(LocalPlayer player, SmartMovingClientState sm,
                                                    double value, boolean isUp, double combinedFactor) {
-        // 원본 L1515: isClimbing=true 무조건 (climbing 발동 의도가 있는 어떤 호출이든).
+        // Original L1515: isClimbing=true always (any call with climbing activation intent).
         sm.isClimbing = true;
 
-        // 원본 L1517-1518: climbIntoCount>0 이면 HoldMotion 으로 강제.
+        // Original L1517-1518: If climbIntoCount>0, force to HoldMotion.
         if (sm.climbIntoCount > 0) {
             value = HOLD_MOTION;
             isUp = true;
@@ -355,19 +354,19 @@ public final class SmartMovingClimber {
 
         double motionY = player.getDeltaMovement().y;
 
-        // 원본 L1520-1543: value != HoldMotion 시 factor 보간. HoldMotion 인 경우는 isClimbingStill.
+        // Original L1520-1543: Factor interpolation if value != HoldMotion. If HoldMotion, set isClimbingStill.
         if (value != HOLD_MOTION) {
-            // 원본 L1541-1542: hasClimbCrawlGap && isClimbCrawling 시 catchCrawlGap 상한.
+            // Original L1541-1542: Cap to catchCrawlGap if hasClimbCrawlGap && isClimbCrawling.
             if (sm.hasClimbCrawlGap && sm.isClimbCrawling && value > HOLD_MOTION) {
                 value = Math.min(CATCH_CRAWL_GAP_MOTION, value);
             }
             SmartMovingConfig cfg2 = SmartMovingConfig.Config;
 
-            // 🔴 사다리/덩굴 1-2: 원본 SmartMovingSelf L1525-1534 ladder 보정 분기 1:1.
-            //   isFreeBaseClimb && value == MediumUpMotion (0.14) 시 사다리 개수에 따라:
-            //     1개 → factor *= freeOneLadderClimbUpSpeedFactor (1.0153)
-            //     2개 → factor *= freeBothLadderClimbUpSpeedFactor (1.43)
-            //   사용자 의도 "사다리/덩굴 동일 적용" 이라 vine 도 카운트 (getOnLadderOrVineCount).
+            // 🔴 Ladder/vine 1-2: Original SmartMovingSelf L1525-1534 ladder correction branch 1:1.
+            //   If isFreeBaseClimb && value == MediumUpMotion (0.14), apply based on ladder count:
+            //     1 ladder → factor *= freeOneLadderClimbUpSpeedFactor (1.0153)
+            //     2+ ladders → factor *= freeBothLadderClimbUpSpeedFactor (1.43)
+            //   User intent: "apply ladder behavior equally to vines" → also count vines (getOnLadderOrVineCount).
             float ladderFactor = 1.0F;
             if (cfg2.isFreeBaseClimb() && value == MEDIUM_UP_MOTION) {
                 int ladderCount = getOnLadderOrVineCount(player, Integer.MAX_VALUE, false, sm.isClimbCrawling);
@@ -387,7 +386,7 @@ public final class SmartMovingClimber {
             sm.isClimbingStill = true;
         }
 
-        // 원본 L1547-1550: relevant = value<0 || value>motionY. relevant 시만 motionY 적용.
+        // Original L1547-1550: relevant = value<0 || value>motionY. Apply motionY only if relevant.
         boolean relevant = value < 0 || value > motionY;
         if (relevant) {
             player.setDeltaMovement(player.getDeltaMovement().x, value, player.getDeltaMovement().z);

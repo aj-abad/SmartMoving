@@ -407,32 +407,32 @@ public class SmartMovingConfig {
     }
 
 
-    // ── 서버 배포 제어 플래그 (config_system.md 2-1, 5-3) ───────────
-    /** true → 접속한 모든 클라이언트에게 이 설정을 강제 적용. */
+    // ── Server deployment control flags (config_system.md 2-1, 5-3) ───────────
+    /** true → Force this config on all connected clients. */
     public boolean globalConfig = false;
-    /** true → 플레이어별 개인 설정 관리 활성화 (현재 미구현 — globalConfig 우선). */
+    /** true → Enable per-player personal config management (currently unimplemented — globalConfig takes priority). */
     public boolean serverConfig = false;
 
     // ── Global Speed ────────────────────────────────────────────
     public float speedFactor = 1F;
     /**
-     * 원본 `_speedUser` L96 = `Creative("move.speed.user").defaults(true, _pre_sm_3_2)`.
-     * `Creative(key)` 팩토리 = `Modified(key).defaults(Value(false).c(true))`.
-     *   → 난이도별: default=false, Easy=false, Medium=false, Hard=false, Creative=true.
-     *   → SM 3.2 이후: Creative 에서만 true, 나머지(Easy 포함) 전부 false.
-     * 버전 폴백 `_pre_sm_3_2`: SM 3.1 이하에서는 전 난이도 true 고정.
-     * Easy 1:1 → **false** (세션 17 정정, 기존 `true` 는 오역).
-     * 소비처: `getUserSpeedFactor()` L580 — `!speedUser || speedUserFactor==1F || exponent==0`
-     *   조기 반환 1F. Easy=false 면 사용자 속도 조정 기능 전체 OFF.
+     * Original `_speedUser` L96 = `Creative("move.speed.user").defaults(true, _pre_sm_3_2)`.
+     * `Creative(key)` factory = `Modified(key).defaults(Value(false).c(true))`.
+     *   → by difficulty: default=false, Easy=false, Medium=false, Hard=false, Creative=true.
+     *   → After SM 3.2: true only in Creative, all others (including Easy) false.
+     * Version fallback `_pre_sm_3_2`: In SM 3.1 and earlier, all difficulties fixed to true.
+     * Easy 1:1 → **false** (session 17 correction, existing `true` was mistranslation).
+     * Consumer: `getUserSpeedFactor()` L580 — `!speedUser || speedUserFactor==1F || exponent==0`
+     *   early return 1F. If Easy=false then entire user speed adjustment function OFF.
      */
     public boolean speedUser = false;
     public float speedUserFactor = 0.2F;
     public int speedUserExponent = 0;
     /**
-     * 원본: Property<Map<String,Integer>> _speedUsersExponents = IntegerMap("move.speed.users.exponents").singular();
-     * 플레이어별 속도 지수 맵. username → exponent.
-     * 파일 저장 형식: 원본 Value.tryParseIntegerMap() 대응 — CSV `"user1,5,user2,-2,..."`.
-     * toArray(username) 시 move.speed.user.exponent 값을 해당 플레이어 개인 값으로 치환.
+     * Original: Property<Map<String,Integer>> _speedUsersExponents = IntegerMap("move.speed.users.exponents").singular();
+     * Per-player speed exponent map. username → exponent.
+     * File save format: corresponding to original Value.tryParseIntegerMap() — CSV `"user1,5,user2,-2,..."`.
+     * When toArray(username) is called, move.speed.user.exponent value is replaced with that player's personal value.
      */
     public Map<String, Integer> playerSpeedExponents = new HashMap<>();
 
@@ -467,36 +467,36 @@ public class SmartMovingConfig {
     /** 원본: _baseClimb = "smart" — 인접 블록 substitute 판정으로 자동 클라이밍 */
     public boolean smartClimb = false;
     /**
-     * 원본 SmartMovingConfig L119 `_freeClimbingAutoLaddder` Unmodified — 기본값 `true`.
-     * "사다리를 향할 때 grab 키 없이도 자동 클라이밍 진입". `wouldWantClimb` 4-OR 의 3번째 분기
-     * `(isFreeClimbAutoLadderEnabled && isFacedToLadder)` 활성화 게이트. B-16b (세션 69).
+     * Original SmartMovingConfig L119 `_freeClimbingAutoLaddder` Unmodified — default `true`.
+     * "Auto climbing entry without grab key when facing ladder". 3rd branch activation gate in `wouldWantClimb` 4-OR
+     * `(isFreeClimbAutoLadderEnabled && isFacedToLadder)`. B-16b (session 69).
      */
     public boolean freeClimbAutoLadder = true;
     /**
-     * 원본 SmartMovingConfig L120 `_freeClimbingAutoVine` Unmodified — 기본값 `true`.
-     * "solid vine 을 향할 때 grab 키 없이도 자동 클라이밍 진입". `wouldWantClimb` 4-OR 의 4번째
-     * 분기 `(isFreeClimbAutoVineEnabled && isFacedToSolidVine)` 활성화 게이트. B-16b (세션 69).
+     * Original SmartMovingConfig L120 `_freeClimbingAutoVine` Unmodified — default `true`.
+     * "Auto climbing entry without grab key when facing solid vine". 4th branch activation gate in `wouldWantClimb` 4-OR
+     * `(isFreeClimbAutoVineEnabled && isFacedToSolidVine)`. B-16b (session 69).
      */
     public boolean freeClimbAutoVine = true;
-    public float freeClimbingUpSpeedFactor   = 1.0F;  // PositiveFactor 기본값 1F (A-18 확인)
-    public float freeClimbingDownSpeedFactor = 1.0F;  // PositiveFactor 기본값 1F (A-18 확인)
+    public float freeClimbingUpSpeedFactor   = 1.0F;  // PositiveFactor default 1F (A-18 confirmed)
+    public float freeClimbingDownSpeedFactor = 1.0F;  // PositiveFactor default 1F (A-18 confirmed)
     /**
-     * 원본 SmartMovingConfig L115 `_freeClimbingHorizontalSpeedFactor = PositiveFactor("move.climb.free.horizontal.speed.factor")` — 기본값 `1F`.
+     * Original SmartMovingConfig L115 `_freeClimbingHorizontalSpeedFactor = PositiveFactor("move.climb.free.horizontal.speed.factor")` — default `1F`.
      * (Properties.java L185-186: PositiveFactor type → default 1F)
-     * SmartMovingSelf.java L205 `if(isClimbing) speedFactor *= _freeClimbingHorizontalSpeedFactor.value` 에서
-     * 클라이밍 중 횡 이동 (moveStrafing/moveForward) 입력에 곱해지는 인자.
+     * Factor multiplied to lateral movement (moveStrafing/moveForward) input during climbing in
+     * SmartMovingSelf.java L205 `if(isClimbing) speedFactor *= _freeClimbingHorizontalSpeedFactor.value`.
      */
     public float freeClimbingHorizontalSpeedFactor = 1.0F;
     /**
-     * 원본 SmartMovingConfig L121 `_freeOneLadderClimbUpSpeedFactor = PositiveFactor("move.climb.free.ladder.one.up.speed.factor").defaults(1.0153F)`.
-     * setOnlyShouldClimbSpeed 의 MediumUpMotion 분기에서 ladder 1개 시 factor 곱.
-     * 사다리 1줄 등반 시 약간의 추가 속도. 사다리/덩굴 통합 작업 1-2.
+     * Original SmartMovingConfig L121 `_freeOneLadderClimbUpSpeedFactor = PositiveFactor("move.climb.free.ladder.one.up.speed.factor").defaults(1.0153F)`.
+     * Factor multiplied for single ladder in MediumUpMotion branch of setOnlyShouldClimbSpeed.
+     * Slight additional speed when climbing one ladder rung. Ladder/vine integration task 1-2.
      */
     public float freeOneLadderClimbUpSpeedFactor = 1.0153F;
     /**
-     * 원본 SmartMovingConfig L122 `_freeBothLadderClimbUpSpeedFactor = IncreasingFactor("move.climb.free.ladder.two.up.speed.factor").defaults(1.43F)`.
-     * setOnlyShouldClimbSpeed 의 MediumUpMotion 분기에서 ladder 2개 시 factor 곱.
-     * 사다리 2줄 (양쪽) 등반 시 큰 추가 속도. 사다리/덩굴 통합 작업 1-2.
+     * Original SmartMovingConfig L122 `_freeBothLadderClimbUpSpeedFactor = IncreasingFactor("move.climb.free.ladder.two.up.speed.factor").defaults(1.43F)`.
+     * Factor multiplied for dual ladders in MediumUpMotion branch of setOnlyShouldClimbSpeed.
+     * Large additional speed when climbing two rungs (both sides). Ladder/vine integration task 1-2.
      */
     public float freeBothLadderClimbUpSpeedFactor = 1.43F;
     /**

@@ -57,24 +57,24 @@ public abstract class MixinLivingEntityClient {
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
-        // 비호환 상태 차단 (원본: Compat.isBlockedByIncompatibility — isSpectator + isElytraFlying)
-        // 1.7.10 Compat 스펙테이터: Et Futurum Requiem 전용 → 1.21.1은 vanilla isSpectator()
-        // 1.7.10 Compat 엘리트라: Et Futurum Requiem IElytraPlayer → 1.21.1은 vanilla isFallFlying()
+        // Block incompatible states (original: Compat.isBlockedByIncompatibility — isSpectator + isElytraFlying)
+        // 1.7.10 Compat spectator: Et Futurum Requiem only → 1.21.1 uses vanilla isSpectator()
+        // 1.7.10 Compat elytra: Et Futurum Requiem IElytraPlayer → 1.21.1 uses vanilla isFallFlying()
         if (player.isSpectator() || player.isFallFlying()) return;
 
-        // BUG-11 (세션 36): SM disabled 시 travel 전체 작동 안 함 → vanilla 정상.
-        //   기존: cfg.enabled 가드 없이 L67 vanilla flying motionY 0.6 감쇠 작동 → SM disabled
-        //   상태에서도 creative 비행 약화 (50%). 또한 handleSwimming/handleLava/handleSliding/
-        //   handleFlying/climbing 등 모든 SM 분기 진입 가능 (sm.* 필드는 false 이지만 무용 계산).
-        //   해결: cfg.enabled false 면 즉시 return — vanilla travel 정상 작동.
+        // BUG-11 (Session 36): When SM disabled, travel doesn't work properly → vanilla correct.
+        //   Issue: Without cfg.enabled guard, L67 vanilla flying motionY 0.6 attenuation activates → SM disabled
+        //   state still weakens creative flight (50%). Also all SM branches like handleSwimming/handleLava/handleSliding/
+        //   handleFlying/climbing can be entered (sm.* fields are false but calculations run uselessly).
+        //   Fix: If cfg.enabled false, return immediately — vanilla travel works correctly.
         if (!cfg.enabled) return;
 
-        // 🔴 사용자 의도: 늘어진 덩굴 (weeping_vines) / 휘어진 덩굴 (twisting_vines) 은 vanilla
-        //   동작 그대로 (나중에 grab 애니메이션만 추가 예정). SM 처리 통째로 skip → vanilla
-        //   travel 본체 진행 (motion clamp ±0.15 + sneak motionY=0 등 vanilla 사다리 등반 동작).
-        // 🔴 사용자 보고 fix (2026-05-04 — "비행 중 vine 콜리전 겹치면 아래로 쭉 내려감"):
-        //   비행 시 SM 처리 skip → vanilla travel 만 작동 → vy 음수 발생 (= 떨어짐).
-        //   fix: !flying 가드 추가 → 비행 시 SM 처리 진행 → handleFlying 정상 비행 motion.
+        // 🔴 User intent: Weeping vines / twisting vines should work as vanilla
+        //   (only grab animation to be added later). Skip SM processing entirely → vanilla
+        //   travel proceeds (motion clamp ±0.15 + sneak motionY=0 etc vanilla ladder climbing).
+        // 🔴 User report fix (2026-05-04 — "flying through vine collision descends continuously"):
+        //   During flight, skip SM processing → only vanilla travel runs → negative vy occurs (= falling).
+        //   fix: Add !flying guard → during flight, proceed with SM processing → handleFlying normal flight motion.
         net.minecraft.world.level.block.state.BlockState _stateAtPos = player.level()
                 .getBlockState(player.blockPosition());
         net.minecraft.world.level.block.Block _blockAtPos = _stateAtPos.getBlock();
