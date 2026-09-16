@@ -26,10 +26,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 9-6: getPositionOffset() — 크롤링/헤드점프 렌더 Y 오프셋.
- * 12-3: setupTransforms() — SM 이동 상태별 body X 기울기 + bodyYaw stub.
- * 12-6: getPositionOffset() — heightOffset 렌더 적용.
- * renderName(): 타인 플레이어 이름 태그 — 크롤 숨김 + heightOffset Y 보정.
+ * 9-6: getPositionOffset() — crawling/head jump render Y offset.
+ * 12-3: setupTransforms() — SM movement state body X tilt + bodyYaw stub.
+ * 12-6: getPositionOffset() — apply heightOffset rendering.
+ * renderName(): other players' name tag — hide crawl + heightOffset Y correction.
  */
 @Mixin(AvatarRenderer.class)
 @Environment(EnvType.CLIENT)
@@ -37,23 +37,23 @@ public class MixinPlayerEntityRenderer {
 
     @Unique private AvatarRenderState sm_currentRenderState;
 
-    // 🔴 (Phase 2 fix-3-1) mixin static 3 개 → SmartMovingClientState instance field 로 이동.
-    //   기존 smBodyYawActive, smBodyYawOverride, smFlyingExtraYaw 가 mixin 의 single instance 라
-    //   multiplayer 시 두 player 동시 render 시 마지막 값으로 mixed → bodyYaw force 잘못 (BUG-C).
-    //   사용처: sm_captureBodyYaw 가 sm 인스턴스 통해 set, sm_modifyBodyYaw / sm_setupTransforms_TAIL
-    //   (ModifyArg / TAIL) 가 SmartMovingClientState.currentRenderTargetSm() 통해 read.
+    // 🔴 (Phase 2 fix-3-1) Move 3 mixin statics → SmartMovingClientState instance field.
+    //   Previous smBodyYawActive, smBodyYawOverride, smFlyingExtraYaw are mixin single instance
+    //   so mix to last value during multiplayer two-player simultaneous render → bodyYaw force wrong (BUG-C).
+    //   Uses: sm_captureBodyYaw sets via sm instance, sm_modifyBodyYaw / sm_setupTransforms_TAIL
+    //   (ModifyArg / TAIL) read via SmartMovingClientState.currentRenderTargetSm().
 
     /**
-     * [9-6][12-6] getPositionOffset() 오버라이드.
+     * [9-6][12-6] getPositionOffset() override.
      *
-     * SM 크롤링 (자기 자신): SWIMMING 포즈 오프셋(setupTransforms translate(0,-1,0.3) 제거됨)
-     *             대신 vanilla 웅크리기 오프셋(-scale × 0.125) 반환.
-     * SM 헤드점프 (자기 자신): heightOffset(-1F) 렌더 적용.
-     * SM 타인 플레이어 sneak+crawl (B-14 / §16-22): 렌더 Y 위치 +0.125 보정 (지면 뚫림 방지).
+     * SM crawling (self): SWIMMING pose offset (setupTransforms translate(0,-1,0.3) removed)
+     *                     return vanilla sneak offset instead (-scale × 0.125).
+     * SM head jump (self): apply heightOffset(-1F) rendering.
+     * SM other players sneak+crawl (B-14 / §16-22): correct render Y position +0.125 (prevent ground clipping).
      *
-     * 원본: SmartMovingRender.renderPlayerAt() → d1 += heightOffset
-     *       SmartMovingPlayerBase.getYOffset() → -0.125F
-     *       SmartMovingRender L124-L125: 타인 플레이어 sneak+crawl → d1 += 0.125
+     * Original: SmartMovingRender.renderPlayerAt() → d1 += heightOffset
+     *           SmartMovingPlayerBase.getYOffset() → -0.125F
+     *           SmartMovingRender L124-L125: other players sneak+crawl → d1 += 0.125
      */
     @Inject(method = "getRenderOffset(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;)Lnet/minecraft/world/phys/Vec3;",
             at = @At("HEAD"), cancellable = true)

@@ -448,39 +448,39 @@ public final class SmartMovingJumper {
             }
         }
 
-        // 6. 헤드 점프 (원본 L1880-L1899) ★ B-3 1:1 정정 — jumpKey 트리거
-        // 원본 식:
+        // 6. Head jump (original L1880-L1899) ★ B-3 1:1 correction — jumpKey trigger
+        // Original formula:
         //   isHeadJumpCharging = grabButton.Pressed && (isGroundSprinting || isSprintJump
         //                       || (isRunning() && sp.onGround)) && !isCrawling
         //   if (isHeadJumpCharging)
-        //     if (esp.movementInput.jump)         ★ jump 키 hold
+        //     if (esp.movementInput.jump)         ★ jump key hold
         //         headJumpCharge++
         //     else  if (headJumpCharge > 0 && sp.onGround) tryJump(HeadUp); headJumpCharge = 0;
         //   else  if (headJumpCharge > 0) blockJumpTillButtonRelease = true; headJumpCharge = 0;
         //
-        // B-2 / B-3 (Phase B 1:1 정정): isGroundSprinting/isRunning 로컬 재정의 제거.
-        //   기존: 로컬 변수로 잘못된 식 재정의 (isGroundSprinting 은 원본
-        //         isStandupSprintingOrRunning 식 + isRunning 은 vanilla() 대신 isFlying 잘못 사용).
-        //   원본은 isGroundSprinting **필드** (L2679 set: canHorizontallySprint
+        // B-2 / B-3 (Phase B 1:1 correction): Remove local redefine of isGroundSprinting/isRunning.
+        //   Previous: Redefined in local variable with wrong formula (isGroundSprinting is original
+        //         isStandupSprintingOrRunning formula + isRunning incorrectly uses isFlying instead vanilla()).
+        //   Original is isGroundSprinting **field** (L2679 set: canHorizontallySprint
         //   && (onGround||isLevitating) && !swimming && !diving && !climbing) +
-        //   isRunning() **메서드** (L3239: isSprinting && !isFast && (onGround||vanilla())).
-        //   1.21.1 측 sm.isGroundSprinting / sm.isRunning(player) 매핑 이미 존재 — 직접 사용.
+        //   isRunning() **method** (L3239: isSprinting && !isFast && (onGround||vanilla())).
+        //   1.21.1 side already has sm.isGroundSprinting / sm.isRunning(player) mapping — use directly.
         //
-        // B-Slide-HeadJump-fix (2026-05-04): `!sm.isSliding` 가드 유지 — 사용자 보고 BUG fix.
-        //   원본은 `!isCrawling` 만 명시 가드. 1.21.1 vanilla sprint 자동 종료 동작 차이로
-        //   슬라이딩 후 forward hold 시 isRunning 잔존 → 헤드점프 차징 활성 BUG 발생.
-        //   본 가드는 의도적 원본 1:1 위반.
+        // B-Slide-HeadJump-fix (2026-05-04): Keep `!sm.isSliding` guard — user reported BUG fix.
+        //   Original only explicitly guards `!isCrawling`. 1.21.1 vanilla sprint auto-stop behavior difference
+        //   causes isRunning to persist after sliding with forward held → head jump charge activation BUG.
+        //   This guard intentionally violates original 1:1.
         boolean isHeadJumpCharging = false;
         if (cfg.headJump) {
-            // 🔴 fix #37 revert (2026-05-08, 사용자 의도 — 두 점프 누적 방향 유지):
-            //   사용자 인정: fix #33 시점 (= 가드 제거 + 두 점프 누적) 이 원본과 가장 비슷.
-            //   잔존 증상 (튕김/박힘/낮은 점프) 만 별도 fix 방향. 가드 다시 제거.
-            // 🔴 fix #82 (2026-05-12, 사용자 보고 "슬라이딩 중 점프차징되고 모델 거꾸로 + 앞 이동"):
-            //   원본 1.7.10 L1883 + 1.12.2 L1771 = `!isCrawling` 만 가드. `!isSliding` 없음.
-            //   우리 매핑도 원본 1:1 이지만 사용자 인지로는 슬라이딩 중 점프 차징 시각 망가짐
-            //   (= isHeadJumping=true 진입 + 일반 헤드점프 회전 시각 → 머리 땅/발 하늘 거꾸로).
-            //   fix #33 history (= 두 점프 누적 의도) 와 충돌하지만 사용자 명시 요청.
-            //   회귀 우려: 두 점프 누적 시각 차단. 사용자가 *원하지 않는 동작이면* fix revert 필요.
+            // 🔴 fix #37 revert (2026-05-08, user intent — maintain combined jump direction):
+            //   User confirms: fix #33 point (= remove guard + combined jumps) most similar to original.
+            //   Only remaining symptoms (bounce/push/low jump) need separate fix direction. Remove guard again.
+            // 🔴 fix #82 (2026-05-12, user report "jump charges while sliding and model upside down + forward move"):
+            //   Original 1.7.10 L1883 + 1.12.2 L1771 = only guards `!isCrawling`. No `!isSliding`.
+            //   Our mapping is also original 1:1 but user perceives visual corruption of jump charging while sliding
+            //   (= enter with isHeadJumping=true + normal head jump rotation visual → head ground/feet sky upside down).
+            //   Conflicts with fix #33 history (= combined jump intent) but user explicitly requests.
+            //   Regression concern: Block combined jump visual. If user *doesn't want behavior* fix revert needed.
             isHeadJumpCharging = grabKeyPressed
                     && (sm.isGroundSprinting || sm.isSprintJump
                         || (sm.isRunning(player) && player.onGround()))
@@ -488,8 +488,8 @@ public final class SmartMovingJumper {
                     && !sm.isSliding;
             if (isHeadJumpCharging) {
                 if (jumpKeyPressed) {
-                    // B-3 (Phase B 1:1 정정): 원본 L1886 `headJumpCharge++` — clamp 없음.
-                    //   getHeadJumpFactor 안에서만 clamp. set 단계 Math.min 제거.
+                    // B-3 (Phase B 1:1 correction): Original L1886 `headJumpCharge++` — no clamp.
+                    //   Clamp only inside getHeadJumpFactor. Remove Math.min at set stage.
                     sm.headJumpCharge++;
                 } else {
                     if (sm.headJumpCharge > 0 && player.onGround()) {
@@ -505,8 +505,8 @@ public final class SmartMovingJumper {
             }
         }
 
-        // 7. 수면 점프 (원본 L1901-L1913) ★ B-3 1:1 정정 — jumpKey hold 트리거
-        // 원본 식:
+        // 7. Water jump (original L1901-L1913) ★ B-3 1:1 correction — jumpKey hold trigger
+        // Original formula:
         //   if (esp.movementInput.jump && sp.isInWater() && isDipping)
         //     if (posY - floor(posY) > (isSlow ? 0.37 : 0.6))
         //       sp.motionY -= 0.04F
@@ -520,18 +520,18 @@ public final class SmartMovingJumper {
                 player.setDeltaMovement(vel.x, vel.y - 0.04D, vel.z);
                 if (!sm.isStillSwimmingJump && player.onGround() && sm.jumpCharge == 0) {
                     tryJump(player, sm, UP, Boolean.TRUE, null, null);
-                    // 원본 L1910 splash sound 는 1.21.1 미이식 (효과음만, 게임플레이 무관)
+                    // Original L1910 splash sound not ported to 1.21.1 (sound effect only, doesn't affect gameplay)
                 }
             }
         }
 
-        // 8. 일반 점프 (원본 L1915-L1916) ★ B-3 1:1 정정 — !isVineAnyClimbing 추가
+        // 8. Normal jump (original L1915-L1916) ★ B-3 1:1 correction — add !isVineAnyClimbing
         if (jump && !sm.blockJumpTillButtonRelease && !isJumpCharging && !isHeadJumpCharging
                 && !sm.isVineAnyClimbing) {
             tryJump(player, sm, UP, Boolean.FALSE, null, null);
         }
 
-        // 9. 전용 dodge 키 + 기존 더블클릭 방향 점프 (원본 L1918-L1943 확장)
+        // 9. Dedicated dodge key + existing double-click directional jump (extends original L1918-L1943)
         boolean dodgeTriggered = false;
         if (sm.dodgeJustPressed) {
             Minecraft mc = Minecraft.getInstance();
@@ -616,7 +616,7 @@ public final class SmartMovingJumper {
         return true;
     }
 
-    // ── [10-5] 벽 점프 상태 갱신 ─────────────────────────────────────────────
+    // ── [10-5] Wall jump state update ─────────────────────────────────────────────
 
     /**
      * 매 틱 벽 점프 상태(canWallJumping / wallJumpCount / triggerWallJumping /

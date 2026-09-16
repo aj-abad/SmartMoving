@@ -641,50 +641,50 @@ public abstract class MixinPlayerEntityModelClient {
      * legAngleZ (roll) correction during isCrawlClimbing (R-10c).
      */
     private void sm_animateClimbing(SmartMovingClientState sm, net.minecraft.client.player.AbstractClientPlayer player, float limbSwing, float limbSwingAmount, float headPitch, float animationProgress) {
-        // B-4 / §16-10 + 부드러움 1:1 (사용자 보고 후, 그랩 클라이밍 진자운동 부드러움 정정):
-        //   원본 SmartRenderModel 은 매 frame `getCurrentSpeed(partialTicks)` lerp getter 로
-        //   prev/current EMA 사이를 partial tick 비율로 보간 = 60Hz 부드러움.
-        //   이전 매핑 `sm.stats.currentVerticalSpeed` 직접 참조 = 매 tick 갱신값 = 20Hz 띡띡.
-        //   비행 (sm_animateFlying) 와 동일 패턴 적용 — getCurrentVerticalSpeed/getTotalVerticalDistance
-        //   lerp getter 로 통일.
+        // B-4 / §16-10 + smoothness 1:1 (after user report, grab climbing pendulum swing smoothness correction):
+        //   Original SmartRenderModel uses per-frame `getCurrentSpeed(partialTicks)` lerp getter
+        //   interpolates between prev/current EMA at partial tick ratio = 60Hz smoothness.
+        //   Previous mapping direct reference `sm.stats.currentVerticalSpeed` = per-tick updated value = 20Hz jittery.
+        //   Apply same pattern as flying (sm_animateFlying) — unify to lerp getters
+        //   getCurrentVerticalSpeed/getTotalVerticalDistance.
         float partialTicks = SmartMovingClientState.globalCachedTickDelta;
         float verticalSpeed   = Math.min(0.5f, sm.stats.getCurrentVerticalSpeed(partialTicks));
         float horizontalSpeed = Math.min(0.5f, sm.stats.getCurrentHorizontalSpeed(partialTicks));
         float totalVerticalDistance   = sm.stats.getTotalVerticalDistance(partialTicks);
         float totalHorizontalDistance = sm.stats.getTotalHorizontalDistance(partialTicks);
 
-        // leg.pivotZ reset — D-4 분기 빠진 frame 에서 -6 누적 차단.
-        //   (head/body/arm pivotZ 는 sm_setAngles TAIL 의 reset 인프라가 0 으로 reset.)
+        // leg.pivotZ reset — block -6 accumulation in frames without D-4 branch.
+        //   (head/body/arm pivotZ reset to 0 by reset infrastructure in sm_setAngles TAIL.)
         rightLeg.z = 0f;
         leftLeg.z  = 0f;
 
-        // 🔴 사용자 보고 fix (2026-05-04 — "사다리/덩굴 sneak+s 후 다시 붙으면 가끔 팔 짧아짐"):
-        //   isHandsVineClimbing/isFeetVineClimbing 분기 (L591/L631) 의 setArmScales/setLegScales 가
-        //   abs(cos) 식 적용. 분기 미진입 frame (= ladder grab + vine 미접촉 등) 시 호출 X →
-        //   이전 frame 변경값 잔존 → 시각적 팔/다리 짧음.
-        //   fix: 매 frame default 1.0 reset → 분기 진입 시 cos 식이 덮어쓰기. 미진입 시 1.0 유지.
+        // 🔴 User report fix (2026-05-04 — "ladder/vine sneak+s then reattach sometimes arm shortens"):
+        //   setArmScales/setLegScales in isHandsVineClimbing/isFeetVineClimbing branches (L591/L631) apply
+        //   abs(cos) formula. When branch not entered (= ladder grab + not touching vine, etc.) not called →
+        //   previous frame modified value lingers → visually arm/leg shortened.
+        //   fix: reset to default 1.0 every frame → when branch entered cos formula overwrites. When not entered maintain 1.0.
         setArmScales(rightArm, leftArm, 1f, 1f);
         setLegScales(rightLeg, leftLeg, 1f, 1f);
 
-        // 🔴 다리 pivotX 1:1 매핑 (사용자 보고 9회차 — 다리 디테일 차이 정밀 분석):
-        //   원본 SmartRenderModel.java L80-L87:
-        //     bipedRightLeg.setRotationPoint(-2F, 0.0F, 0.0F);  // 부모 bipedPelvic (0,12,0)
+        // 🔴 leg pivotX 1:1 mapping (user report 9th time — precise analysis of leg detail differences):
+        //   Original SmartRenderModel.java L80-L87:
+        //     bipedRightLeg.setRotationPoint(-2F, 0.0F, 0.0F);  // parent bipedPelvic (0,12,0)
         //     bipedLeftLeg.setRotationPoint(2.0F, 0.0F, 0.0F);
-        //     → 절대 leg pivot = (±2.0, 12, 0)
+        //     → absolute leg pivot = (±2.0, 12, 0)
         //   1.21.1 vanilla PlayerEntityModel layer definition:
         //     right_leg.pivot(-1.9F, 12.0F, 0.0F)
         //     left_leg.pivot(1.9F, 12.0F, 0.0F)
-        //     → 절대 leg pivot = (±1.9, 12, 0)
-        //   차이 0.1 픽셀 — 사용자 시각 미세 영향 가능. 원본 1:1 매핑 위해 ±2.0 명시 set.
-        //   (sm_setAngles TAIL 의 종료 엣지 cleanup 에서 vanilla default ±1.9 로 reset.)
+        //     → absolute leg pivot = (±1.9, 12, 0)
+        //   Difference 0.1 pixels — may have subtle visual effect. Explicitly set ±2.0 for 1:1 mapping.
+        //   (Reset to vanilla default ±1.9 in exit edge cleanup in sm_setAngles TAIL.)
         rightLeg.x = -2f;
         leftLeg.x  =  2f;
 
-        // 🔴 (사용자 보고 8회차 — 기본 블록 그랩 클라이밍 완전 1:1 매핑):
-        //   원본 SmartMovingModel.setRotationAngles L127-L237 의 isClimb 분기를 라인별 1:1 풀어씀.
-        //   변수명 / 식 / 분기 모두 원본 그대로 (수학적 단순화 제거).
+        // 🔴 (User report 8th time — complete 1:1 mapping of basic block grab climbing):
+        //   Unroll line-by-line 1:1 from isClimb branch original SmartMovingModel.setRotationAngles L127-L237.
+        //   Variable names / formulas / branches all original (no mathematical simplification).
 
-        // 원본 L131-L132: 머리 yaw=0, pitch=mouse.
+        // Original L131-L132: head yaw=0, pitch=mouse.
         head.yRot   = 0f;
         head.xRot = headPitch * DEG_TO_RAD;
 

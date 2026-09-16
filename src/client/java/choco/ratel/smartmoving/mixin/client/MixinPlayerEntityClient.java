@@ -55,56 +55,56 @@ public abstract class MixinPlayerEntityClient {
      */
     @Inject(method = "getDefaultDimensions", at = @At("HEAD"), cancellable = true, require = 0)
     private void sm_getBaseDimensions_client(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
-        // 🔴 (Phase 2 multi BUG-12/14) ClientPlayerEntity 가드 → AbstractClientPlayerEntity.
-        //   기존: self only → remote 측 dim 매핑이 vanilla pose 만 의존 → packet timing 차이로
-        //         sm.isCrawling=true + pose=STANDING 잔존 frame 발생 → STANDING dim 매핑 → 우리
-        //         sm_setupTransforms R_x 회전 적용 → 1.8 height 모델이 회전 → 이상한 자세 (BUG-12).
-        //   변경: 모든 player. dim 결정이 sm.* 비트 의존 → packet A (sm relay) 도착 즉시 dim 갱신.
+        // 🔴 (Phase 2 multi BUG-12/14) ClientPlayerEntity guard → AbstractClientPlayerEntity.
+        //   Previous: self only → remote dim mapping depends only on vanilla pose → packet timing diff
+        //             sm.isCrawling=true + pose=STANDING residual frame → STANDING dim mapping → our
+        //             sm_setupTransforms R_x rotation applied → 1.8 height model rotates → odd pose (BUG-12).
+        //   Change: all player dim determination depends on sm.* bits → dim updates immediately upon packet A (sm relay) arrival.
         if (!((Object) this instanceof net.minecraft.client.player.AbstractClientPlayer player)) return;
-        // BUG-20 (세션 36): SM disabled 시 vanilla dimensions 그대로 사용.
-        // 🔴 (Phase 2 fix-3-2) cfg.enabled → isSmRenderEnabled (BUG-CONFIG-2 일관성).
-        //   self → Config.enabled / remote → 항상 true. self disabled 시 자기 dim vanilla,
-        //   remote 의 dim 은 그 player 의 SM state 따라 결정.
+        // BUG-20 (session 36): use vanilla dimensions as-is when SM disabled.
+        // 🔴 (Phase 2 fix-3-2) cfg.enabled → isSmRenderEnabled (BUG-CONFIG-2 consistency).
+        //   self → Config.enabled / remote → always true. when self disabled, own dim vanilla,
+        //   remote's dim determined by that player's SM state.
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
-        // 🔴 BUG-29 진짜 원인 정정 (Flying Phase / 세션 45): 비행/Levitate 분기 제거.
-        //   원본 SmartMovingSelf.setHeightOffset (L1694-L1704) = `boundingBox.minY -= heightOffset
-        //   + height += heightOffset` — **충돌 박스만 변경, eyeHeight 변경 없음**. 1.7.10 vanilla
-        //   에 EntityPose 시스템 자체가 없어 비행 시 STANDING 모델 + eyeHeight 1.62 그대로 유지.
-        //   1.21.1 잘못된 매핑: isFlying/isLevitating 시 0.6 × 0.8 + eyeHeight 0.62F 강제 →
-        //   vanilla 가 카메라 위치를 0.62로 적용 → 카메라가 발끝으로 내려옴 + 모델 작게 그려짐.
-        //   사용자 보고 BUG-29 "비행 시 몸 중심점이 발끝으로 바뀜" 직접 원인.
-        //   정정: isFlying/isLevitating 조건 제거 → vanilla 1.21.1 STANDING POSE + 1.8 height +
-        //   1.62 eyeHeight 그대로 → 원본 1.7.10 동작 1:1 매칭 (충돌 박스도 vanilla 처리).
+        // 🔴 BUG-29 real root corrected (Flying Phase / session 45): remove flying/Levitate branch.
+        //   Original SmartMovingSelf.setHeightOffset (L1694-L1704) = `boundingBox.minY -= heightOffset
+        //   + height += heightOffset` — **only changes collision box, does not change eyeHeight**. 1.7.10 vanilla
+        //   has no EntityPose system itself so during flight STANDING model + eyeHeight 1.62 maintained as-is.
+        //   1.21.1 incorrect mapping: isFlying/isLevitating forces 0.6 × 0.8 + eyeHeight 0.62F →
+        //   vanilla applies camera position to 0.62 → camera drops to feet + model drawn small.
+        //   User report BUG-29 "body center shifts to feet during flight" direct cause.
+        //   Correction: remove isFlying/isLevitating condition → vanilla 1.21.1 STANDING POSE + 1.8 height +
+        //   1.62 eyeHeight as-is → original 1.7.10 behavior 1:1 matching (collision box also vanilla handled).
         //
-        // 원본 setHeightOffset(-1F) 상태 전수 — Crawling/Sliding/Swimming 등 모두 0.6 × 0.8 +
-        // eyeHeight 0.62F. isDipping/isFlying/isLevitating 은 vanilla 통과.
-        // 🔴 isClimbCrawling 분리: 원본 1.7.10 사다리 매달림 자세 STANDING 유지 (POSE 시스템
-        //   없음). setHeightOffset(-1F) 는 박스만 변경, eyeHeight 변경 없음 (BUG-29 동일 패턴).
-        //   1.21.1 잘못된 매핑: 0.6×0.8 + eyeHeight 0.62F 강제 → 카메라 발끝으로 1m 떨어짐 →
-        //   사용자가 "엎드리기" 로 인식.
-        //   정정: isClimbCrawling 시 박스만 0.6×0.8, eyeHeight 1.62F (vanilla STANDING 유지).
-        // 🔴 isCrawling && isClimbing 케이스 추가: isClimbCrawling 해제 엣지의 toCrawling()
-        //   호출 → 1 틱 isCrawling=true → 등반 중인데 eyeHeight 0.62F 강제 → 카메라
-        //   1.62↔0.62 토글 = 사용자 보고 "몸 애니메이션 주기적 요동". 등반 중이면 STANDING
-        //   eyeHeight 유지.
-        // 🔴 ICC 분리: 원본 1.7.10 사다리 매달림 자세 STANDING 유지 (POSE 시스템
-        //   없음). setHeightOffset(-1F) 는 박스만 변경, eyeHeight 변경 없음 (BUG-29 동일 패턴).
-        //   1.21.1 잘못된 매핑: 0.6×0.8 + eyeHeight 0.62F 강제 → 카메라 발끝으로 1m 떨어짐 →
-        //   사용자가 "엎드리기" 로 인식.
-        //   정정: isClimbCrawling 시 박스만 0.6×0.8, eyeHeight 1.62F (vanilla STANDING 유지).
-        // 🔴 isCrawling && isClimbing 케이스 추가: isClimbCrawling 해제 엣지의 toCrawling()
-        //   호출 → 1 틱 isCrawling=true → 등반 중인데 eyeHeight 0.62F 강제 → 카메라
-        //   1.62↔0.62 토글 = 사용자 보고 "몸 애니메이션 주기적 요동". 등반 중이면 STANDING
-        //   eyeHeight 유지.
-        // 🔴 (isCrawling && isClimbing) 분기 가드 추가 (사용자 보고 fix — 끊김, 2026-05-03):
-        //   본래 의도 (메모리 코멘트): ICC 해제 엣지 1 tick 한정 (= toCrawling() 후 isCrawling=true
-        //   잔존하면서 등반 자세 유지). 그러나 가드 없어 isCrawlClimbing 자가유지 중에도 매치 →
-        //   박스 +1m offset → grip 영역 위로 → wantClimbHolding 매치 → 의도치 않은 ICC 진입 → ICC
-        //   EXIT 시 entity.y +1m 변경 → 사용자 시점 점프 (= 끊김).
-        //   해결: `&& wasClimbCrawling` 가드 추가 → ICC 활성 중 + 해제 엣지 1 tick 만 매치.
-        //   isCrawlClimbing 자가유지 중 wasClimbCrawling=false → smSmall 분기로 떨어져 박스 안정.
+        // Original setHeightOffset(-1F) state transmitted — Crawling/Sliding/Swimming all 0.6 × 0.8 +
+        // eyeHeight 0.62F. isDipping/isFlying/isLevitating pass vanilla.
+        // 🔴 isClimbCrawling separation: original 1.7.10 ladder hanging pose maintains STANDING (no POSE system).
+        //   setHeightOffset(-1F) only changes box, does not change eyeHeight (BUG-29 same pattern).
+        //   1.21.1 incorrect mapping: forces 0.6×0.8 + eyeHeight 0.62F → camera 1m away from feet →
+        //   user perceives as "crouch".
+        //   Correction: isClimbCrawling only changes box to 0.6×0.8, eyeHeight 1.62F (vanilla STANDING maintained).
+        // 🔴 isCrawling && isClimbing case added: toCrawling() call at isClimbCrawling release edge
+        //   → 1 tick isCrawling=true → during climbing eyeHeight forced to 0.62F → camera
+        //   1.62↔0.62 toggle = user report "body animation periodic wobble". during climbing keep STANDING
+        //   eyeHeight.
+        // 🔴 ICC separation: original 1.7.10 ladder hanging pose maintains STANDING (no POSE system).
+        //   setHeightOffset(-1F) only changes box, does not change eyeHeight (BUG-29 same pattern).
+        //   1.21.1 incorrect mapping: forces 0.6×0.8 + eyeHeight 0.62F → camera 1m away from feet →
+        //   user perceives as "crouch".
+        //   Correction: isClimbCrawling only changes box to 0.6×0.8, eyeHeight 1.62F (vanilla STANDING maintained).
+        // 🔴 isCrawling && isClimbing case added: toCrawling() call at isClimbCrawling release edge
+        //   → 1 tick isCrawling=true → during climbing eyeHeight forced to 0.62F → camera
+        //   1.62↔0.62 toggle = user report "body animation periodic wobble". during climbing keep STANDING
+        //   eyeHeight.
+        // 🔴 (isCrawling && isClimbing) branch guard added (user report fix — cutoff, 2026-05-03):
+        //   original intent (memory comment): ICC release edge limited to 1 tick (= isCrawling=true residual
+        //   after toCrawling() while maintaining climbing pose). however without guard matches even during
+        //   isCrawlClimbing self-maintenance → box +1m offset → grip area above → wantClimbHolding match →
+        //   unintended ICC entry → entity.y +1m change on ICC EXIT → user perceives jump (= cutoff).
+        //   Solution: add `&& wasClimbCrawling` guard → matches only during ICC active + release edge 1 tick.
+        //   during isCrawlClimbing self-maintenance wasClimbCrawling=false → falls to smSmall branch → box stable.
         if (sm.isClimbCrawling || (sm.isCrawling && sm.isClimbing && sm.wasClimbCrawling)) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;

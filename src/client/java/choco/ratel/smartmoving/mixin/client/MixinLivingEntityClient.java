@@ -540,19 +540,19 @@ public abstract class MixinLivingEntityClient {
     @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
     private void sm_jump(CallbackInfo ci) {
         if (!((Object) this instanceof LocalPlayer player)) return;
-        // 🔴 BUG-17 (세션 36): SM disabled 시 vanilla jump() 차단 안 함 → vanilla 점프 정상 작동.
-        //   기존: cfg.enabled 가드 부재 → SM disabled 시에도 ci.cancel() 으로 vanilla 점프
-        //   완전 차단 + jumpAvoided/jumpPending 세팅 → 점프 자체 작동 안 함 (사용자 보고 직접 원인).
-        //   해결: cfg.enabled false 시 즉시 return → vanilla 점프 ci.cancel 안 됨 → 정상 작동.
+        // 🔴 BUG-17 (Session 36): When SM disabled, don't block vanilla jump() → vanilla jump works normally.
+        //   Issue: Missing cfg.enabled guard → even when SM disabled, ci.cancel() completely blocks vanilla jump
+        //   + sets jumpAvoided/jumpPending → jump itself doesn't work (direct user report cause).
+        //   Fix: When cfg.enabled false, return immediately → vanilla jump not canceled → works normally.
         if (!SmartMovingConfig.Config.enabled) return;
-        // 🔴 BUG-28 정정 (Flying Phase / 세션 42): vanilla 1.21.1 ClientPlayerEntity.tickMovement
-        //   디컴파일 L791-L800 — double-tap fly 진입 시 isOnGround=true 면 this.jump() 직접
-        //   호출 (1.21.1 특화 코드). 원본 1.7.10 EntityPlayerSP 에는 없음.
-        //   기존: 가드 부재 → 첫 비행 진입 (지면에서 더블탭) 시 sm_jump 발화 → jumpAvoided=true →
-        //   handleJumping 의 tryJump(UP) → motionY=0.42 + 매 틱 vanilla 비행 boost +0.15 +
-        //   SM handleFlying = 첫 비행 무한 상승 (사용자 BUG-28 직접 원인).
-        //   원본 1.7.10 의 vanilla jump() 호출 없음 = handleJumping 에 비행 가드 불필요.
-        //   해결: 1.21.1 차이 보정 — vanilla 비행 중 sm_jump 처리 skip → 원본 1:1 동작.
+        // 🔴 BUG-28 correction (Flying Phase / Session 42): vanilla 1.21.1 ClientPlayerEntity.tickMovement
+        //   Decompiled L791-L800 — when entering double-tap fly with isOnGround=true, directly calls this.jump()
+        //   (1.21.1 specific code). Not present in original 1.7.10 EntityPlayerSP.
+        //   Issue: Missing guard → on first flight entry (double-tap from ground), sm_jump fires → jumpAvoided=true →
+        //   handleJumping tryJump(UP) → motionY=0.42 + every tick vanilla flight boost +0.15 +
+        //   SM handleFlying = infinite ascent on first flight (direct cause of user BUG-28).
+        //   Original 1.7.10 has no vanilla jump() call = flying guard not needed in handleJumping.
+        //   Fix: Compensate 1.21.1 difference — skip sm_jump processing during vanilla flight → 1:1 original behavior.
         if (player.getAbilities().flying) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         sm.jumpAvoided = true;
@@ -561,28 +561,28 @@ public abstract class MixinLivingEntityClient {
     }
 
     /**
-     * 5-5 (클라이언트): SM 커스텀 클라이밍 중 isClimbing() = false 강제.
+     * 5-5 (Client): Force isClimbing() = false during SM custom climbing.
      *
-     * 목적 1: applyClimbingSpeed() x/z ±0.15F 클램프 차단
-     * 목적 2: applyMovementInput()에서 isClimbing() 시 y=0.2 강제 적용 차단
+     * Purpose 1: Block applyClimbingSpeed() x/z ±0.15F clamp
+     * Purpose 2: Block forcing y=0.2 in applyMovementInput() when isClimbing()
      *
-     * ClientPlayerEntity 인스턴스 확인 → SmartMovingClientState 상태 기반 판정.
-     * 서버 측 동등 로직 → MixinLivingEntity.sm_isClimbing_server()
+     * Check ClientPlayerEntity instance → judge based on SmartMovingClientState status.
+     * Equivalent server-side logic → MixinLivingEntity.sm_isClimbing_server()
      */
     @Inject(method = "onClimbable", at = @At("HEAD"), cancellable = true)
     private void sm_isClimbing_client(CallbackInfoReturnable<Boolean> cir) {
         if (!((Object) this instanceof LocalPlayer player)) return;
-        // BUG-23 (세션 36): SM disabled 시 vanilla isClimbing 그대로 — sm.* 잔존 timing 차단.
+        // BUG-23 (Session 36): When SM disabled, vanilla isClimbing as-is — block sm.* persistence timing.
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         if (sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing) {
             cir.setReturnValue(false);
             return;
         }
-        // 🔴 사용자 보고 fix (2026-05-04 — "비행 시 휘어진/늘어진 덩굴 안 타지도록"):
-        //   비행 중 vine block 위 = vanilla isClimbing()=true → travel 안 climbing clamp ±0.15
-        //   적용 → 비행 속도 제한. 사용자 의도 = 비행 자유.
-        //   fix: isFlying + vine block 시 isClimbing()=false 강제 → clamp skip → 비행 정상.
+        // 🔴 User report fix (2026-05-04 — "don't climb weeping/twisting vines while flying"):
+        //   Above vine block while flying = vanilla isClimbing()=true → apply climbing clamp ±0.15 in travel
+        //   → limit flight speed. User intent = flight freedom.
+        //   fix: Force isClimbing()=false when isFlying + vine block → skip clamp → flight normal.
         if (player.getAbilities().flying) {
             net.minecraft.world.level.block.Block blockAtPos = player.level()
                     .getBlockState(player.blockPosition()).getBlock();
@@ -597,25 +597,25 @@ public abstract class MixinLivingEntityClient {
 
 
     /**
-     * 5-6: applyClimbingSpeed() 이중 차단 — SM 클라이밍 시 Vec3d 그대로 반환.
-     * Yarn: applyClimbingSpeed (intermediary: method_18801 확인 완료)
+     * 5-6: Double block applyClimbingSpeed() — return Vec3 as-is during SM climbing.
+     * Yarn: applyClimbingSpeed (intermediary: method_18801 verification complete)
      *
-     * 5-5(isClimbing=false)로 이미 applyClimbingSpeed 내부 클램프가 차단되지만,
-     * applyClimbingSpeed가 isClimbing()을 우회해 직접 호출되는 경로 대비 이중 방어.
+     * 5-5 (isClimbing=false) already blocks clamp inside applyClimbingSpeed, but
+     * double defense against path where applyClimbingSpeed directly calls bypassing isClimbing().
      */
     @Inject(method = "handleOnClimbable", at = @At("HEAD"), cancellable = true)
     private void sm_applyClimbingSpeed(Vec3 velocity, CallbackInfoReturnable<Vec3> cir) {
         if (!((Object) this instanceof LocalPlayer player)) return;
-        // BUG-23 (세션 36): SM disabled 시 vanilla applyClimbingSpeed 그대로 — sm.* 잔존 차단.
+        // BUG-23 (Session 36): When SM disabled, vanilla applyClimbingSpeed as-is — block sm.* persistence.
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         if (sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing) {
             cir.setReturnValue(velocity);
             return;
         }
-        // 🔴 사용자 보고 fix (2026-05-04 — "비행 시 vine 자동 등반 + clamp"):
-        //   isFlying + vine block 시 vanilla clamp ±0.15 차단 (= isClimbing mixin 의 우회 경로 대비
-        //   이중 방어). velocity 그대로 반환 → 비행 속도 유지.
+        // 🔴 User report fix (2026-05-04 — "automatic vine climbing + clamp while flying"):
+        //   Block vanilla clamp ±0.15 when isFlying + vine block (= double defense against isClimbing mixin bypass path).
+        //   Return velocity as-is → maintain flight speed.
         if (player.getAbilities().flying) {
             net.minecraft.world.level.block.Block blockAtPos = player.level()
                     .getBlockState(player.blockPosition()).getBlock();
@@ -629,14 +629,14 @@ public abstract class MixinLivingEntityClient {
     }
 
     /**
-     * 9-3: 크롤링/슬라이딩 중 LimbAnimator 갱신 억제.
-     * vanilla updateLimbs()는 보행 진행 속도로 LimbAnimator를 갱신하는데,
-     * 크롤링/슬라이딩 포즈에서 이를 그대로 실행하면 다리 애니메이션이 비정상 재생된다.
+     * 9-3: Suppress LimbAnimator update during crawling/sliding.
+     * vanilla updateLimbs() updates LimbAnimator by walk progress speed,
+     * but executing as-is during crawling/sliding pose causes abnormal leg animation playback.
      */
     @Inject(method = "calculateEntityAnimation(Z)V", at = @At("HEAD"), cancellable = true)
     private void sm_updateLimbs_client(boolean serverSide, CallbackInfo ci) {
         if (!((Object) this instanceof LocalPlayer player)) return;
-        // BUG-23 (세션 36): SM disabled 시 vanilla updateLimbs 그대로 — sm.* 잔존 차단.
+        // BUG-23 (Session 36): When SM disabled, vanilla updateLimbs as-is — block sm.* persistence.
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         if (sm.isCrawling || sm.isSliding) {

@@ -705,20 +705,20 @@ public final class SmartMovingClimber {
             return;
         }
 
-        // B-1 (세션 25): Mover.getCombinedSpeedFactor 단일 헬퍼로 교체.
+        // B-1 (Session 25): Replace with a single Mover.getCombinedSpeedFactor helper.
         double combinedFactor = SmartMovingMover.getCombinedSpeedFactor(player, cfg);
 
-        // **B-20b 해소 (세션 132)**: Simple Base Climb 원본 L825-L844 전면 정밀 재작성.
-        //   원본: if (isSimpleBaseClimb && isCollidedHorizontally && isOnLadderOrVine) {
+        // **B-20b Resolution (Session 132)**: Complete precise rewrite of original Simple Base Climb L825-L844.
+        //   Original: if (isSimpleBaseClimb && isCollidedHorizontally && isOnLadderOrVine) {
         //     feet = isClimbable(i, j, k); hands = isClimbable(i, j+1, k);
         //     feet&&hands → Fast / feet → Fast / hands → Slow / else → 0
         //     motionY *= combinedFactor
         //   }
-        //   isOnLadderOrVine 은 상위 `onClimbable` 에 내포 (B-42-B20 확인). 남은 조건
-        //   `isCollidedHorizontally` 복원 + feet/hands isClimbable 정밀 판정.
+        //   isOnLadderOrVine is included in upper `onClimbable` (check B-42-B20). Remaining condition
+        //   restore `isCollidedHorizontally` + feet/hands isClimbable precise judgment.
         if (cfg.simpleClimb) {
-            // 🔴 사다리/덩굴 1-4: 원본 SmartMovingSelf L825-844 Simple Base Climb 정밀 1:1.
-            //   원본은 motionY 직접 set (relevant 가드 없음, sm.isClimbing 갱신 없음).
+            // 🔴 Ladder/vine 1-4: Precise 1:1 copy of original SmartMovingSelf L825-844 Simple Base Climb.
+            //   Original directly sets motionY (no relevant guard, sm.isClimbing not updated).
             if (player.horizontalCollision) {
                 int i = (int) Math.floor(player.getX());
                 int j = (int) Math.floor(player.getBoundingBox().minY);
@@ -738,8 +738,8 @@ public final class SmartMovingClimber {
             return;
         }
 
-        // **B-20c 해소 (세션 132)**: Smart Base Climb 원본 L856-L894 전면 정밀 재작성.
-        //   원본: if (isSmartBaseClimb && isOnLadderOrVine && isCollidedHorizontally) {
+        // **B-20c Resolution (Session 132)**: Complete precise rewrite of original Smart Base Climb L856-L894.
+        //   Original: if (isSmartBaseClimb && isOnLadderOrVine && isCollidedHorizontally) {
         //     feet = isClimbable(i, j, k); hands = isClimbable(i, j+1, k);
         //     feet&&hands → Fast
         //     feet only → handsSubstitute (PZ/NZ/ZP/ZN at j+1) ? Fast : Slow
@@ -747,11 +747,11 @@ public final class SmartMovingClimber {
         //     else → 0
         //     motionY *= combinedFactor
         //   }
-        //   handsSubstitute 는 원본 L866-L869: PZ/NZ/ZP/ZN 4방향 (ZZ 없음).
-        //   feetSubstitute 는 원본 L879-L883: ZZ/PZ/NZ/ZP/ZN 5방향.
+        //   handsSubstitute is from original L866-L869: PZ/NZ/ZP/ZN 4 directions (no ZZ).
+        //   feetSubstitute is from original L879-L883: ZZ/PZ/NZ/ZP/ZN 5 directions.
         if (cfg.smartClimb) {
-            // 🔴 사다리/덩굴 1-4: 원본 SmartMovingSelf L856-L894 Smart Base Climb 정밀 1:1.
-            //   원본은 motionY 직접 set (relevant 가드 없음, sm.isClimbing 갱신 없음).
+            // 🔴 Ladder/vine 1-4: Precise 1:1 copy of original SmartMovingSelf L856-L894 Smart Base Climb.
+            //   Original directly sets motionY (no relevant guard, sm.isClimbing not updated).
             if (player.horizontalCollision) {
                 int i = (int) Math.floor(player.getX());
                 int j = (int) Math.floor(player.getBoundingBox().minY);
@@ -762,7 +762,7 @@ public final class SmartMovingClimber {
                 if (feet && hands) {
                     motionY = FAST_UP_MOTION;
                 } else if (feet) {
-                    // 원본 L866-L869: 4방향 (PZ/NZ/ZP/ZN) at j+1
+                    // Original L866-L869: 4 directions (PZ/NZ/ZP/ZN) at j+1
                     boolean handsSubstitute =
                             Orientation.PZ.isHandsLadderSubstitute(world, i, j + 1, k)
                          || Orientation.NZ.isHandsLadderSubstitute(world, i, j + 1, k)
@@ -770,7 +770,7 @@ public final class SmartMovingClimber {
                          || Orientation.ZN.isHandsLadderSubstitute(world, i, j + 1, k);
                     motionY = handsSubstitute ? FAST_UP_MOTION : SLOW_UP_MOTION;
                 } else if (hands) {
-                    // 원본 L879-L883: 5방향 (ZZ/PZ/NZ/ZP/ZN) at j
+                    // Original L879-L883: 5 directions (ZZ/PZ/NZ/ZP/ZN) at j
                     boolean feetSubstitute =
                             Orientation.ZZ.isFeetLadderSubstitute(world, i, j, k)
                          || Orientation.PZ.isFeetLadderSubstitute(world, i, j, k)
@@ -804,7 +804,7 @@ public final class SmartMovingClimber {
         boolean wantClimbUp   = sm.wantClimbUp;
         boolean wantClimbDown = sm.wantClimbDown;
 
-        // 진입 게이트: 둘 다 false 시 등반 분기 진입 안 함 (원본 동등).
+        // Entry gate: if both are false, do not enter the climbing branch (equivalent to original).
         if (!wantClimbUp && !wantClimbDown) {
             return;
         }
@@ -921,30 +921,30 @@ public final class SmartMovingClimber {
             //   Flat ground crawl (feet=BaseWithHands forced promotion, hands=NONE): all 5 branches above don't match
             //   → matched=false → isClimbing not set → canCrawl=true maintained → crawl continues.
         } else {
-            // 원본 L1028-1053 wantClimbDown 분기 매핑.
+            // Original L1028-1053 wantClimbDown branch mapping.
             handsClimbing = handsClimbing.toDown();
 
             if (handsClimbing == HandsClimbing.BOTTOM_HOLD && !feetClimbing.isIndependentlyRelevant()) {
-                // 원본 L1035: setShouldClimbSpeed(HoldMotion) default = UpGrab+DownStep.
+                // Original L1035: setShouldClimbSpeed(HoldMotion) default = UpGrab+DownStep.
                 value = HOLD_MOTION; isUp = false;
                 handsAnim = 1; feetAnim = 1;
                 matched = true;
             } else if (handsClimbing.isRelevant()) {
                 if (feetClimbing == FeetClimbing.FAST_UP) {
-                    // 원본 L1041: ClimbDown + NoGrab + DownStep
+                    // Original L1041: ClimbDown + NoGrab + DownStep
                     value = CLIMB_DOWN_MOTION; isUp = false;
                     handsAnim = 0; feetAnim = 1;
                 } else if (feetClimbing == FeetClimbing.SLOW_UP_WITH_HOLD_WITHOUT_HANDS) {
-                    // 원본 L1043: default
+                    // Original L1043: default
                     value = CLIMB_DOWN_MOTION; isUp = false;
                     handsAnim = 1; feetAnim = 1;
                 } else if (feetClimbing == FeetClimbing.TOP_WITH_HANDS) {
-                    // 원본 L1045: default
+                    // Original L1045: default
                     value = CLIMB_DOWN_MOTION; isUp = false;
                     handsAnim = 1; feetAnim = 1;
                 } else if (feetClimbing == FeetClimbing.BASE_WITH_HANDS
                         || feetClimbing == FeetClimbing.BASE_HOLD) {
-                    // 원본 L1046-1050: 양 분기 모두 default
+                    // Original L1046-1050: both branches default
                     if ((handsClimbing != HandsClimbing.NONE && handsClimbing != HandsClimbing.UP)
                             || (handsClimbing == HandsClimbing.UP && feetClimbing == FeetClimbing.BASE_HOLD)) {
                         value = CLIMB_DOWN_MOTION; isUp = false;
@@ -953,15 +953,15 @@ public final class SmartMovingClimber {
                     }
                     handsAnim = 1; feetAnim = 1;
                 } else {
-                    // 원본 L1052: SinkDown + (handsFastUp ? MiddleGrab : UpGrab) + NoStep
+                    // Original L1052: SinkDown + (handsFastUp ? MiddleGrab : UpGrab) + NoStep
                     value = SINK_DOWN_MOTION; isUp = false;
                     handsAnim = (handsClimbing == HandsClimbing.FAST_UP) ? 2 : 1;
                     feetAnim  = 0;
                 }
                 matched = true;
             }
-            // 🔴 (세션 145 BUG fix): hands.isRelevant() = false 시 setShouldClimbSpeed skip
-            //   (원본 L1037 `else if (handsClimbing.IsRelevant())` 블록만 분기 있음 → matched 유지 false).
+            // 🔴 (Session 145 BUG fix): skip setShouldClimbSpeed when hands.isRelevant() = false
+            //   (original L1037 only `else if (handsClimbing.IsRelevant())` block has branch → maintain matched false).
 
             // 🔴 원본 L1055-1058 isClimbHolding HoldMotion 분기 매핑 (sneak 키 가드).
             //   원본 isClimbHolding = wantClimb && (sneak || crawlToggled) && isClimbing.
@@ -987,14 +987,14 @@ public final class SmartMovingClimber {
                 matched = true;
             }
 
-            // 🔴 사용자 요구 추가 (handsEdgeBlock/feetEdgeBlock = fence/iron_bars):
-            //   handsClimbing 매핑이 SINK 가 아닌 다른 enum (TopHold/Up/None 등) 이어도
-            //   잡은 블록이 fence/iron_bars 면 grab만으로 hold. 사용자 명시 의도 — 일반
-            //   블록 grab hold 와 동일 동작.
-            //   handsEdgeBlock/feetEdgeBlock 은 ClimbGap.state → 클라이밍 진입 시 잡은
-            //   실제 블록 (BlockState). null 가드 필수.
-            // 🔴 grab 키 가드 추가 (위 SINK 분기와 동일 이유): 사용자가 grab 안 누른 케이스에
-            //   사다리 끝 우발적 fence/iron_bars 매핑되어도 자동 hold 차단.
+            // 🔴 User request addition (handsEdgeBlock/feetEdgeBlock = fence/iron_bars):
+            //   Even if handsClimbing mapping is not SINK but other enum (TopHold/Up/None etc),
+            //   if grabbed block is fence/iron_bars, hold with grab only. User explicit intent — same
+            //   behavior as general block grab hold.
+            //   handsEdgeBlock/feetEdgeBlock is ClimbGap.state → actual block grabbed on climb entry
+            //   (BlockState). null guard required.
+            // 🔴 Add grab key guard (same reason as above SINK branch): prevent auto hold when user
+            //   doesn't press grab, even if ladder top accidentally maps to fence/iron_bars.
             boolean grabbedFenceOrBars = grabPressed_holdGuard && (
                     (sm.handsEdgeBlock != null
                             && (sm.handsEdgeBlock.getBlock() == net.minecraft.world.level.block.Blocks.IRON_BARS

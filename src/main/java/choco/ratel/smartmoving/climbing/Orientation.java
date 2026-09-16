@@ -455,33 +455,33 @@ public class Orientation {
     protected static int grabMeta = DefaultMeta;
 
     /**
-     * `jh_offset` — 원본 `initializeOffset(double offset, ...)` 에서 설정하는 세로 오프셋
-     * (플레이어 boundingBox 상대). `handsClimbing` 의 gap threshold 판정 (`_handClimbingHoldGap`)
-     * 에 사용. B-19a2b 이식 완료.
+     * `jh_offset` — Vertical offset set in original `initializeOffset(double offset, ...)`
+     * (relative to player boundingBox). Used in `handsClimbing` gap threshold judgment (`_handClimbingHoldGap`).
+     * B-19a2b port complete.
      */
     protected static double jh_offset;
 
-    /** 원본 L2730 `base_jhd` — `initialize` 에서 설정. `initializeOffset` 가 소비 (B-19a2b). */
+    /** Original L2730 `base_jhd` — Set in `initialize`. Consumed by `initializeOffset` (B-19a2b). */
     protected static double base_jhd;
 
-    /** 원본 `local_halfOffset` — `initializeLocal` 내부 중간값 (B-19a2b). */
+    /** Original `local_halfOffset` — Intermediate value inside `initializeLocal` (B-19a2b). */
     protected static int local_halfOffset;
 
     /**
-     * 원본 L2722-L2724 `_handClimbingHoldGap` — Config 값 기반 static final threshold.
-     * `handsClimbing`/`feetClimbing` 에서 `jh_offset` 비교 기준 (B-19a3).
+     * Original L2722-L2724 `_handClimbingHoldGap` — Config value-based static final threshold.
+     * Used in `handsClimbing`/`feetClimbing` as `jh_offset` comparison basis (B-19a3).
      *
      *   Math.min(0.25F, 0.06F * Math.max(upSpeedFactor, downSpeedFactor))
      *
-     * Config 기본값 1.0F/1.0F 에서 = 0.06F.
+     * With Config default 1.0F/1.0F = 0.06F.
      */
     /**
-     * 🔴 (2026-04-28) static final → 메서드로 변경.
-     *   원본은 modload 후 Config init → Orientation 첫 사용 (static final 평가) → 0.06 정상.
-     *   Fabric 환경에선 클래스 로드 시점에 SmartMovingConfig.Config 가 미초기화 →
+     * 🔴 (2026-04-28) Changed static final → method.
+     *   Original: modload → Config init → Orientation first use (static final evaluation) → 0.06 normal.
+     *   In Fabric environment, SmartMovingConfig.Config uninitialized at class load time →
      *   freeClimbingUpSpeedFactor=0F (Java default) → _handClimbingHoldGap=0 → BottomHold
-     *   분기 (jh_offset<holdGap) 절대 발동 안 함 → 사용자 보고 "grab 만 시 정지 안 됨" 직접 원인.
-     *   해결: 매번 평가 (Config 초기화 후 정상 0.06 반환).
+     *   branch (jh_offset<holdGap) never triggered → user report "grab only doesn't stop" direct cause.
+     *   Solution: Evaluate every time (returns normal 0.06 after Config init).
      */
     private static float _handClimbingHoldGap() {
         return Math.min(0.25F,
@@ -491,50 +491,50 @@ public class Orientation {
     }
 
     /**
-     * 원본 L2726-L2727 `_climbGapTemp` / `_climbGapOuterTemp` — static ClimbGap 인스턴스.
-     * `handsClimbing`/`feetClimbing` (B-19a3) + `seekClimbGap` (B-19a4) 에서 재사용.
+     * Original L2726-L2727 `_climbGapTemp` / `_climbGapOuterTemp` — static ClimbGap instances.
+     * Reused in `handsClimbing`/`feetClimbing` (B-19a3) + `seekClimbGap` (B-19a4).
      */
     private static final ClimbGap _climbGapTemp = new ClimbGap();
     private static final ClimbGap _climbGapOuterTemp = new ClimbGap();
 
-    // ── 블록 식별 헬퍼 (원본 L1188-L1214) ──────────────────────────────────
+    // ── Block Identification Helpers (original L1188-L1214) ─────────────────
 
     /**
-     * 원본 L1188-L1191 — `block == Block.getBlockFromName("ladder")`.
-     * 1.21.1 매핑: `instanceof LadderBlock`. vanilla ladder 블록 식별.
+     * Original L1188-L1191 — `block == Block.getBlockFromName("ladder")`.
+     * 1.21.1 mapping: `instanceof LadderBlock`. Identifies vanilla ladder blocks.
      */
     public static boolean isLadder(BlockState state) {
         return state != null && state.getBlock() instanceof LadderBlock;
     }
 
     /**
-     * 원본 L1193-L1196 — vanilla vine 블록 식별.
+     * Original L1193-L1196 — Identifies vanilla vine blocks.
      */
     public static boolean isVine(BlockState state) {
         return state != null && state.getBlock() instanceof VineBlock;
     }
 
     /**
-     * 원본 L1198-L1202 `isLadderOrVine` — ladder/vine/LadderKit 조합.
+     * Original L1198-L1202 `isLadderOrVine` — Ladder/vine/LadderKit combination.
      *
-     * **§7 근사 이식 (B-19a1a-approx-1)**: 원본 `isBlockIdOfType(block, _ladderKitLadderTypes)`
-     * (LadderKit 모드 호환) 미이식 — 해당 모드 1.21.1 에 없음. 순수 vanilla ladder/vine 만 감지.
+     * **§7 approximate port (B-19a1a-approx-1)**: Original `isBlockIdOfType(block, _ladderKitLadderTypes)`
+     * (LadderKit mod compatibility) not ported — mod not available in 1.21.1. Only detects pure vanilla ladder/vine.
      */
     public static boolean isLadderOrVine(BlockState state) {
-        // 근사 이식 — 원본과 차이: _ladderKitLadderTypes (LadderKit 모드) 제외
+        // Approximate port — difference from original: _ladderKitLadderTypes (LadderKit mod) excluded
         return isLadder(state) || isVine(state);
     }
 
     /**
-     * 원본 L2241-L2244 `isTrapDoor(Block block)` — vanilla trap door 식별.
-     * 1.21.1 `instanceof TrapdoorBlock` (oak/iron/copper/bamboo 등 모든 trapdoor 포괄).
+     * Original L2241-L2244 `isTrapDoor(Block block)` — Identifies vanilla trap doors.
+     * 1.21.1 `instanceof TrapdoorBlock` (covers all trapdoors: oak/iron/copper/bamboo etc.).
      */
     public static boolean isTrapDoor(BlockState state) {
         return state != null && state.getBlock() instanceof TrapDoorBlock;
     }
 
     /**
-     * 원본 `isClosedTrapDoor(int metadata)` — metadata 의 3번째 비트 (0x4) 가 OPEN 상태.
+     * Original `isClosedTrapDoor(int metadata)` — 3rd bit (0x4) of metadata is OPEN state.
      * 1.21.1 `TrapdoorBlock.OPEN` property.
      */
     public static boolean isClosedTrapDoor(BlockState state) {
@@ -542,14 +542,14 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1210-L1215 — `block.isLadder(world, i, j, k, player)` Forge hook.
+     * Original L1210-L1215 — `block.isLadder(world, i, j, k, player)` Forge hook.
      *
-     * **§7 근사 이식 (B-19a1a-approx-2)**: 1.21.1 Fabric 에 동등 훅 없음.
-     * `BlockTags.CLIMBABLE` 태그 기반 근사 — vanilla ladder/vine + 모드가 태그에 추가한
-     * 블록 감지. 원본 의도 (플레이어 기준 등반 가능 여부) 와 거의 등가.
+     * **§7 approximate port (B-19a1a-approx-2)**: No equivalent hook in 1.21.1 Fabric.
+     * Approximate using `BlockTags.CLIMBABLE` tag — detects vanilla ladder/vine + blocks mods add to tag.
+     * Nearly equivalent to original intent (whether block is climbable by player).
      */
     public static boolean isClimbable(Level world, int i, int j, int k) {
-        // 근사 이식 — 원본과 차이: Forge Block.isLadder(world,x,y,z,player) hook → BlockTags.CLIMBABLE
+        // Approximate port — difference from original: Forge Block.isLadder(world,x,y,z,player) hook → BlockTags.CLIMBABLE
         BlockState state = world.getBlockState(new BlockPos(i, j, k));
         return state.is(BlockTags.CLIMBABLE);
     }

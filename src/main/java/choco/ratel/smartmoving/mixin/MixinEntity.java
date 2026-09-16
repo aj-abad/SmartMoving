@@ -158,17 +158,17 @@ public abstract class MixinEntity {
         Pose pose = ((Entity) (Object) this).getPose();
         if (dim.eyeHeight() <= 1.0F && pose != Pose.SLIDING) return;
 
-        // 🔴 fix #175 v5 (2026-05-27, v4 후 헤드점프/여우무빙 회귀 fix):
-        //   SLIDING POSE 진입 path = 4 SM phase (isHeadJumping || isSliding || isFlying || isLevitating).
-        //   v4 = sm.isSliding 만 검사 → 다른 phase 시 차단 → 박스 박힘.
-        //   v5 = 4 phase 어느 하나라도 true 시 통과. 모두 false 시만 잔존 → 차단.
+        // Red circle fix #175 v5 (2026-05-27, v4 after head jump/fox movement regression fix):
+        //   SLIDING POSE entry path = 4 SM phase (isHeadJumping || isSliding || isFlying || isLevitating).
+        //   v4 = checks only sm.isSliding → blocks other phases → box gets stuck.
+        //   v5 = passes if any of 4 phases is true. blocks only when all false → remaining.
         if (pose == Pose.SLIDING) {
             if (!sm_isValidSlidingPoseState(player)) return;
         }
 
         AABB original = cir.getReturnValue();
         cir.setReturnValue(original.move(0.0, 1.0, 0.0));
-        // 🔴 v26.6 — remote side timer override is additionally applied in client-side mixin (reason for separation:
+        // Red circle v26.6 — remote side timer override is additionally applied in client-side mixin (reason for separation:
         //   main mixin set cannot reference client class during server build).
         //   client-side `MixinEntityClient.sm_iccTimerOffsetBb` injects RETURN on the same method.
     }

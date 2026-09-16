@@ -350,23 +350,23 @@ public final class SmartMovingServer {
         }
     }
 
-    // ── 3-1-A: 크롤링 상태 전환 + cooldown 설정 ──────────────────────
+    // ── 3-1-A: Crawling State Transition + Cooldown Setting ──────────────────────
 
     /**
-     * 크롤링 상태를 갱신하고, 종료 시 crawlingCooldown을 10으로 설정한다.
-     * 원본: SmartMovingServer.setCrawling(boolean)
-     * cooldown 중에는 isInsideWall()이 false를 반환하여 크롤링 출구 벽 충돌 오판 방지.
+     * Updates crawling state and sets crawlingCooldown to 10 on end.
+     * Original: SmartMovingServer.setCrawling(boolean)
+     * During cooldown, isInsideWall() returns false to prevent false wall collision at crawl exit.
      */
     public void setCrawling(boolean crawling) {
         if (!crawling && isCrawling) crawlingCooldown = 10;
         isCrawling = crawling;
     }
 
-    // ── 3-9: 낙하 거리 리셋 ──────────────────────────────────────
+    // ── 3-9: Fall Distance Reset ──────────────────────────────────────
 
     /**
-     * 클라이밍/크롤클라이밍/천장클라이밍/벽점프 중 낙하 거리 리셋.
-     * 원본: fallDistance=0, motionY=0.08 (중력 상쇄 최소 상향 초기 속도).
+     * Resets fall distance during climbing/crawl climbing/ceiling climbing/wall jump.
+     * Original: fallDistance=0, motionY=0.08 (minimum upward initial velocity to counteract gravity).
      */
     public void applyFallDistanceReset(ServerPlayer player) {
         player.fallDistance = 0;
@@ -375,77 +375,77 @@ public final class SmartMovingServer {
         player.setDeltaMovement(vx, player.getAttributeValue(Attributes.GRAVITY), vz);
     }
 
-    // ── 3-3: 소진 배치 시스템 ────────────────────────────────────
+    // ── 3-3: Exhaustion Batch System ────────────────────────────────────
 
     /**
-     * 이동 허기 배치 시작 직전 호출 — 소진 추가를 막는다.
-     * 원본 SmartMovingServerPlayerBase.afterUpdatePotionEffects() → moving.beforeAddMovingHungerBatch()
-     * (before/after가 의도적으로 역전되어 있음 — 포션 업데이트 사이클 타이밍 맞춤)
+     * Called just before movement hunger batch start — prevents exhaustion addition.
+     * Original SmartMovingServerPlayerBase.afterUpdatePotionEffects() → moving.beforeAddMovingHungerBatch()
+     * (before/after intentionally reversed — aligns with potion update cycle timing)
      */
     public void beforeAddMovingHungerBatch() {
         disableAddExhaustionDepth++;
-        // 원본: if(hunger != -1) disableAddExhaustion = true;
-        // hunger = -1F (초기/미수신) → vanilla 소진 허용, hunger >= 0 → SM이 override
+        // Original: if(hunger != -1) disableAddExhaustion = true;
+        // hunger = -1F (initial/not received) → vanilla exhaustion allowed, hunger >= 0 → SM overrides
         if (hunger >= 0F) disableAddExhaustion = true;
     }
 
     /**
-     * 이동 허기 배치 완료 후 호출 — 소진 추가 차단을 해제한다.
-     * 원본 SmartMovingServerPlayerBase.beforeUpdatePotionEffects() → moving.afterAddMovingHungerBatch()
+     * Called after movement hunger batch completion — releases exhaustion addition block.
+     * Original SmartMovingServerPlayerBase.beforeUpdatePotionEffects() → moving.afterAddMovingHungerBatch()
      */
     public void afterAddMovingHungerBatch() {
         disableAddExhaustionDepth--;
         disableAddExhaustion = disableAddExhaustionDepth > 0;
     }
 
-    // ── 3-6: 서버 히트박스 동적 변경 ─────────────────────────────
+    // ── 3-6: Server Hitbox Dynamic Change ─────────────────────────────
 
     /**
-     * 서버 측 isSmall 히트박스 갱신.
-     * calculateDimensions()가 getBaseDimensions()(MixinPlayerEntity)를 호출하여
-     * 서버 bounding box 갱신 + 클라이언트 동기화가 자동으로 이루어진다.
+     * Updates server-side isSmall hitbox.
+     * calculateDimensions() calls getBaseDimensions() (MixinPlayerEntity) to
+     * update server bounding box + client sync automatically.
      */
     public void setSmall(ServerPlayer player, boolean small) {
         this.isSmall = small;
         player.refreshDimensions();
     }
 
-    // ── 3-7: 플레이어 접속 초기화 ────────────────────────────────
+    // ── 3-7: Player Connection Initialization ────────────────────────────────
 
     /**
-     * 플레이어 접속 시 서버→클라이언트 초기화 패킷 전송.
-     * 원본: SmartMovingServer.initialize(player) (config_system.md 2-1 기반)
+     * Sends server-to-client initialization packet on player connection.
+     * Original: SmartMovingServer.initialize(player) (based on config_system.md 2-1)
      *
-     * globalConfig=true: 서버 설정 전체를 전송 → 클라이언트 Config = ServerConfig로 전환됨.
-     * 그 외: new String[0] → 클라이언트에 위임 (Config = Options 유지).
-     * username=null: 설정 편집 권한 없음.
+     * globalConfig=true: sends entire server config → client Config = ServerConfig switched.
+     * Otherwise: new String[0] → delegates to client (Config = Options maintained).
+     * username=null: no config edit permission.
      *
-     * serverConfig(개인별 설정) 지원은 미구현 — globalConfig 우선.
+     * serverConfig (per-player config) not yet supported — globalConfig takes priority.
      */
     public static void initialize(ServerPlayer player, MinecraftServer server) {
         SmartMovingServer sm = SmartMovingServer.get(player);
         if (sm.initialized) return;
         sm.initialized = true;
-        // 🔴 (2026-05-05 사용자 요청 — "config 는 자기 자체 toggle. 다른 player 무영향"):
-        //   server INSTANCE.globalConfig=true (default) 라 모든 client 에 config broadcast →
-        //   client Config = SERVER_CONFIG 강제 → 모든 client SM enabled/disabled 통제 BUG.
-        //   해결: broadcast 자체 stop. 각 client 가 자기 INSTANCE 사용.
-        //   server-side block-code 등 일부 옵션 사용자 명시 시 별도 작업.
+        // 🔴 (2026-05-05 user request — "config is own toggle. Other players unaffected"):
+        //   server INSTANCE.globalConfig=true (default) broadcasts config to all clients →
+        //   client Config = SERVER_CONFIG forced → all clients SM enabled/disabled controlled BUG.
+        //   fix: stop broadcast itself. Each client uses own INSTANCE.
+        //   separate work for user-explicit partial options like server-side block-code.
         logConfigState(SmartMovingConfig.INSTANCE, null, false);
     }
 
-    // ── 3-12: 관리자 자발적 config/speed 변경 + 전체 재전송 ───────────────────
+    // ── 3-12: Admin Voluntary Config/Speed Change + Full Retransmit ───────────────────
 
     /**
-     * 현재 접속 중인 모든 initialized 플레이어에게 ConfigContent 를 재전송한다.
-     * 원본: SmartMovingServerComm 이 config 변경 후 각 플레이어 session 을 순회하며 writeToProperties 전송.
-     * 1.21.1: initialize 와 동일 경로를 재사용하되, sm.initialized 체크 대신 강제 전송.
+     * Retransmits ConfigContent to all initialized players currently connected.
+     * Original: SmartMovingServerComm iterates each player session after config change and sends writeToProperties.
+     * 1.21.1: reuses same path as initialize, but forces send instead of sm.initialized check.
      */
     public static void broadcastConfig(MinecraftServer server) {
-        // 🔴 (2026-05-05 사용자 요청 — "config 자기 자체 toggle. 다른 player 무영향"):
-        //   adminToggleConfig (= server console / admin 권한) 가 호출하면 모든 client 의
-        //   Config 변경 → 모든 player SM disabled BUG. broadcast 자체 stop.
-        //   server-side INSTANCE 변경은 server-only 옵션 (= block-code) 용으로 유지.
+        // 🔴 (2026-05-05 user request — "config own toggle. Other players unaffected"):
+        //   When adminToggleConfig (= server console / admin permission) called, all clients'
+        //   Config changed → all players SM disabled BUG. Stop broadcast itself.
+        //   server-side INSTANCE change maintained for server-only options (= block-code).
     }
 
     /**

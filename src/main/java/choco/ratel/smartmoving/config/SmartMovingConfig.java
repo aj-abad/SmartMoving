@@ -863,93 +863,93 @@ public class SmartMovingConfig {
     // Original: _perspectiveSprintFactor = Float.defaults(1.5F)
     public float perspectiveSprintFactor = 1.5F;
 
-    // ── Exhaustion/Hunger factor 1단계 (원본 getFactor L563-L575 이동속도 배율) ──
-    // 원본 SmartMovingConfig.java 의 Property<Float> factor 필드들을 1.21.1 에 단순 필드로 이식.
-    // Easy 1:1 원칙: 난이도 체인 `.e(x).h(y)` 이 있는 base 2개는 Easy 값을 default 로. 나머지는
-    // 원본 최상위 defaults(Value(x)) 값. 원본 `Value(default).e(...).h(...)` 전체 key 별 값은
-    // javadoc 에 기록. ⚠️ 1단계는 `Exhaution` 오타 — 원본 필드명/키 그대로 유지 (1:1 호환).
-    // up() 동적 하한 종속성은 Property 시스템 부재로 단순 default 근사 — config 편집 시 원본의
-    // 하한 체크는 작동 안 함.
+    // ── Exhaustion/Hunger factor stage 1 (original getFactor L563-L575 movement speed multiplier) ──
+    // Property<Float> factor fields from original SmartMovingConfig.java ported to 1.21.1 as simple fields.
+    // Easy 1:1 principle: base 2 with difficulty chain `.e(x).h(y)` use Easy value as default. Rest use
+    // original top-level defaults(Value(x)) value. All original `Value(default).e(...).h(...)` values per key
+    // recorded in javadoc. WARNING: stage 1 has `Exhaution` typo — kept as-is from original field name/key (1:1 compatibility).
+    // up() dynamic lower bound dependency absent in Property system, so simple default approximation — original
+    // lower bound checks do not function when editing config.
 
     /**
-     * 원본 `_baseExhautionLossFactor` L399 = `PositiveFactor("move.exhaustion.loss.factor")
+     * Original `_baseExhautionLossFactor` L399 = `PositiveFactor("move.exhaustion.loss.factor")
      *   .defaults(Value(1F).e(1.2F).h(0.8F)).defaults(1F, _pre_sm_1_5)`.
-     * 난이도별: default=1F, Easy=**1.2F**, Hard=0.8F. 버전 폴백 `_pre_sm_1_5` → 1F 고정.
-     * Easy 1:1 → 1.2F 채택.
+     * By difficulty: default=1F, Easy=**1.2F**, Hard=0.8F. Version fallback `_pre_sm_1_5` → fixed 1F.
+     * Easy 1:1 → adopt 1.2F.
      */
     public float baseExhautionLossFactor = 1.2F;
 
     /**
-     * 원본 `_baseHungerGainFactor` L423 = `PositiveFactor("move.hunger.gain.factor")
+     * Original `_baseHungerGainFactor` L423 = `PositiveFactor("move.hunger.gain.factor")
      *   .defaults(Value(1F).e(0.8F).h(1.2F)).defaults(1F, _pre_sm_1_5)`.
-     * 난이도별: default=1F, Easy=**0.8F**, Hard=1.2F. 버전 폴백 _pre_sm_1_5 → 1F.
-     * Easy 1:1 → 0.8F 채택.
+     * By difficulty: default=1F, Easy=**0.8F**, Hard=1.2F. Version fallback _pre_sm_1_5 → 1F.
+     * Easy 1:1 → adopt 0.8F.
      */
     public float baseHungerGainFactor = 0.8F;
 
     /**
-     * 원본 `_fallExhautionLossFactor` L406 = `PositiveFactor("move.exhaustion.fall.loss.factor")
+     * Original `_fallExhautionLossFactor` L406 = `PositiveFactor("move.exhaustion.fall.loss.factor")
      *   .up(2.5F, _standingExhautionLossFactor)`.
-     * default=2.5F. 난이도 체인 없음. up() 하한 = `_standingExhautionLossFactor` 값 이상 — 근사.
-     * ⚠️ airBorne + hunger 대응 필드 **없음** — `getFactor` L565 에서 `0F` 하드코딩.
+     * default=2.5F. No difficulty chain. up() lower bound = >= `_standingExhautionLossFactor` value — approximation.
+     * WARNING: No corresponding field for airBorne + hunger — hardcoded to `0F` in `getFactor` L565.
      */
     public float fallExhautionLossFactor = 2.5F;
 
     /**
-     * 원본 `_sprintingHungerGainFactor` L425 = `PositiveFactor("move.hunger.sprint.gain.factor")
+     * Original `_sprintingHungerGainFactor` L425 = `PositiveFactor("move.hunger.sprint.gain.factor")
      *   .key("move.hunger.gain.sprint.factor", _pre_sm_1_3)`.
-     * default=PF 기본(1F). 난이도 체인 없음. _pre_sm_1_3 키이명(과거 세이브 호환).
+     * default=PF default (1F). No difficulty chain. _pre_sm_1_3 key rename (past save compatibility).
      */
     public float sprintingHungerGainFactor = 1F;
 
     /**
-     * 원본 `_sprintingExhautionLossFactor` L401 = `PositiveFactor("move.exhaustion.sprint.loss.factor")
+     * Original `_sprintingExhautionLossFactor` L401 = `PositiveFactor("move.exhaustion.sprint.loss.factor")
      *   .defaults(0F)`.
-     * default=0F. 난이도 체인 없음.
+     * default=0F. No difficulty chain.
      */
     public float sprintingExhautionLossFactor = 0F;
 
     /**
-     * 원본 `_runningHungerGainFactor` L426 = `PositiveFactor("move.hunger.run.gain.factor")
+     * Original `_runningHungerGainFactor` L426 = `PositiveFactor("move.hunger.run.gain.factor")
      *   .key("move.hunger.gain.run.factor", _pre_sm_1_3).defaults(10F)`.
-     * default=10F. 난이도 체인 없음. ⚠️ 필드명 `running`, 키는 `run`.
+     * default=10F. No difficulty chain. WARNING: field name `running`, key is `run`.
      */
     public float runningHungerGainFactor = 10F;
 
     /**
-     * 원본 `_runningExhautionLossFactor` L402 = `PositiveFactor("move.exhaustion.run.loss.factor")
+     * Original `_runningExhautionLossFactor` L402 = `PositiveFactor("move.exhaustion.run.loss.factor")
      *   .up(0.5F, _sprintingExhautionLossFactor)`.
-     * default=0.5F. 난이도 체인 없음. up() 하한 = `_sprintingExhautionLossFactor` 값 이상 — 근사.
+     * default=0.5F. No difficulty chain. up() lower bound = >= `_sprintingExhautionLossFactor` value — approximation.
      */
     public float runningExhautionLossFactor = 0.5F;
 
     /**
-     * 원본 `_sneakingHungerGainFactor` L428 = `PositiveFactor("move.hunger.sneak.gain.factor")
+     * Original `_sneakingHungerGainFactor` L428 = `PositiveFactor("move.hunger.sneak.gain.factor")
      *   .key("move.hunger.gain.sneak.factor", _pre_sm_1_3)`.
-     * default=PF 기본(1F). 난이도 체인 없음.
+     * default=PF default (1F). No difficulty chain.
      */
     public float sneakingHungerGainFactor = 1F;
 
     /**
-     * 원본 `_sneakingExhautionLossFactor` L404 = `PositiveFactor("move.exhaustion.sneak.loss.factor")
+     * Original `_sneakingExhautionLossFactor` L404 = `PositiveFactor("move.exhaustion.sneak.loss.factor")
      *   .up(1.5F, _walkingExhautionLossFactor).defaults(1F, _sm_1_1)`.
-     * default=1.5F. 난이도 체인 없음. up() 하한 = `_walkingExhautionLossFactor` 값 이상 — 근사.
-     * 버전 폴백 `_sm_1_1` → 1F.
+     * default=1.5F. No difficulty chain. up() lower bound = >= `_walkingExhautionLossFactor` value — approximation.
+     * Version fallback `_sm_1_1` → 1F.
      */
     public float sneakingExhautionLossFactor = 1.5F;
 
     /**
-     * 원본 `_standingHungerGainFactor` L429 = `PositiveFactor("move.hunger.stand.gain.factor")
+     * Original `_standingHungerGainFactor` L429 = `PositiveFactor("move.hunger.stand.gain.factor")
      *   .defaults(0F)`.
-     * default=0F. 난이도 체인 없음.
+     * default=0F. No difficulty chain.
      */
     public float standingHungerGainFactor = 0F;
 
     /**
-     * 원본 `_standingExhautionLossFactor` L405 = `PositiveFactor("move.exhaustion.stand.loss.factor")
+     * Original `_standingExhautionLossFactor` L405 = `PositiveFactor("move.exhaustion.stand.loss.factor")
      *   .up(2F, _sneakingExhautionLossFactor.maximum(1F))`.
-     * default=2F. 난이도 체인 없음. up() 하한 = `_sneakingExhautionLossFactor` 값을 최대 1F 로
-     * 클램프한 값 이상 — 근사.
+     * default=2F. No difficulty chain. up() lower bound = >= `_sneakingExhautionLossFactor` value clamped to max 1F
+     * — approximation.
      */
     public float standingExhautionLossFactor = 2F;
 

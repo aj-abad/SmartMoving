@@ -17,56 +17,56 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 5-8 (클라이언트): move() HEAD/TAIL 훅 — STEP_HEIGHT 억제/복원 + 이동 거리 누적.
- * 8-6: 수영 소리 누적 — distanceSwom 기반 재생.
+ * 5-8 (client-side): move() HEAD/TAIL hook — STEP_HEIGHT suppression/restoration + accumulated movement distance.
+ * 8-6: swimming sound accumulation — distance-based playback.
  *
- * MixinEntity (main) 의 서버 측 구현에 대응하는 클라이언트 측 구현.
+ * Client-side implementation corresponding to server-side implementation of MixinEntity (main).
  */
 @Mixin(Entity.class)
 @Environment(EnvType.CLIENT)
 public abstract class MixinEntityClient {
 
     /**
-     * 5-8 (클라이언트) after:
-     *   - 클라이밍 이동 거리 누적 (피로도 계산용)
-     *   - 수영 소리 누적 (8-6)
+     * 5-8 (client-side) after:
+     *   - accumulate climbing movement distance (for exhaustion calculation)
+     *   - accumulate swimming sound (8-6)
      *
-     * 원본: afterMoveEntity() — distanceSwom 누적, SwimSoundDistance 초과 시 소리 재생.
-     * SwimSoundDistance = 1/0.7F ≈ 1.4286F (swim_dive.md 기록값).
-     * 소리: volume=0.05F, pitch=1.0F ± rand*0.4F.
+     * Original: afterMoveEntity() — distanceSwom accumulation, playback when SwimSoundDistance exceeded.
+     * SwimSoundDistance = 1/0.7F ≈ 1.4286F (swim_dive.md recorded value).
+     * Sound: volume=0.05F, pitch=1.0F ± rand*0.4F.
      *
-     * 🔴 fix #73 2단계 (2026-05-10): STEP_HEIGHT=0 억제 / 복원 로직 일괄 제거.
-     *   상세는 MixinEntity.sm_afterMove 주석 참조.
+     * Red circle fix #73 phase 2 (2026-05-10): remove all STEP_HEIGHT=0 suppression/restoration logic.
+     *   See MixinEntity.sm_afterMove comment for details.
      */
     @Inject(method = "move", at = @At("TAIL"))
     private void sm_afterMove_client(MoverType type, Vec3 movement, CallbackInfo ci) {
         if (!((Object) this instanceof LocalPlayer player)) return;
 
-        // BUG-24 (세션 36): SM disabled 시 SmartStatistics 갱신 + heightOffset 보정 + climb 거리
-        //   누적 + swim 소리 모두 skip → vanilla 정상. 잔존 sm.heightOffset 으로 인한 player.setPos
-        //   영향 차단 (비행 진입 뚜둑 가능 원인 1).
+        // BUG-24 (session 36): when SM disabled, skip SmartStatistics update + heightOffset correction + climb distance
+        //   accumulation + swim sound → vanilla normal. block player.setPos impact from remaining sm.heightOffset
+        //   (possible cause 1 of flight entry stutter).
         if (!SmartMovingConfig.Config.enabled) return;
 
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
-        // C-25: SmartStatistics 갱신 — prevX/Y/Z는 tickMovement HEAD에서 저장된 이전 위치
-        // yaw: 원본 SmartRenderRender.currentCameraAngle = rotationYaw / RadiantToAngle 용
+        // C-25: SmartStatistics update — prevX/Y/Z are previous positions saved in tickMovement HEAD
+        // yaw: original SmartRenderRender.currentCameraAngle = rotationYaw / RadiantToAngle for
         sm.stats.calculate(player.xo, player.yo, player.zo,
                            player.getX(), player.getY(), player.getZ(),
                            player.getYRot());
 
-        // 클라이밍 이동 거리 누적
+        // Accumulate climbing movement distance
         if (sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing) {
             sm.distanceClimbedModified += movement.length() * (sm.isClimbing ? 1.2 : 0.9);
         }
 
-        // 🔴 fix #14 revert (2026-05-08): mixin offset + sm_afterMove setPos 보정 매핑 시도 →
-        //   vanilla `Entity.move` 의 collision 처리 (박스 발 = player.y +1m 기준 충돌 검사 →
-        //   ground 도달 시 player.y = bb.minY - 1m = ground -1m → push out → 진동) 와 호환 X.
-        //   원본 1:1 매핑 (박스 발 +1m + posY 변화 X) 를 1.21.1 매핑하려면 calculateBoundingBox
-        //   가로채기 + setPos/prevY/lastRenderY/Camera baseline 동기화 등 복합 매핑 필요 — 별도
-        //   사이클. 현재 setPos 보정은 비활성 + MixinEntity 의 POSE=SLIDING 가드로 mixin offset
-        //   차단 → 박스 발 = player.y (STANDING 동일), 박스 머리 = player.y +0.8 (1m 낮음 = 위 작아짐).
+        // Red circle fix #14 revert (2026-05-08): attempted mixin offset + sm_afterMove setPos correction mapping →
+        //   incompatible with vanilla `Entity.move` collision processing (box feet = player.y +1m collision check basis →
+        //   when ground reached player.y = bb.minY - 1m = ground -1m → push out → vibration).
+        //   To 1:1 map original (box feet +1m + posY unchanged) to 1.21.1 requires complex mapping with
+        //   calculateBoundingBox interception + setPos/prevY/lastRenderY/Camera baseline sync etc. — separate
+        //   cycle. Current setPos correction is inactive + MixinEntity's POSE=SLIDING guard blocks mixin offset
+        //   → box feet = player.y (same as STANDING), box head = player.y +0.8 (1m lower = less height).
         // if (sm.heightOffset != 0F && sm.isHeadJumping) {
         //     player.setPos(player.getX(), player.getY() + sm.heightOffset, player.getZ());
         // }
