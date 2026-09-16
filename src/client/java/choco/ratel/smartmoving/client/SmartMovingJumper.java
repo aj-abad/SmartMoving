@@ -304,71 +304,71 @@ public final class SmartMovingJumper {
             // === D-14 — SKIP (§7-1 approximation) ===
             // Original L2120-L2124 post-jump exhaustion accumulation: Same dead as D-5.
 
-            // === D-15 (원본 L2126-L2130) — head → isHeadJumping + setPoseSmall + heightOffset ===
+            // === D-15 (original L2126-L2130) — head → isHeadJumping + setPoseSmall + heightOffset ===
             if (head) {
                 sm.isHeadJumping = true;
                 setPoseSmall(player);
                 sm.heightOffset = -1F;
-                // 🔴 fix (2026-05-08, 사용자 보고 "진입 시 카메라 확 올라감 + 착지 튕김"):
-                //   이전 매핑: setPos(y+1m) + calculateDimensions() → player.y +1m 즉시 점프 +
-                //     박스 갱신. 결과:
-                //     (a) 진입 카메라 = vanilla getCameraPosVec lerp(prevY=old, y=old+1) 가 1 tick
-                //         동안 +1m 보간 → "확 올라감" 시각 (1인칭/3인칭 모두).
-                //     (b) 종료 시 player.y 가 +1m 잔존 → STANDING POSE 복원 시 박스 발 +1m 떠 있음
-                //         → vanilla collision 으로 1m 떨어짐 → 박스 갑자기 커짐 + 튕김.
-                //   원본 동작: setHeightOffset(-1F) 가 boundingBox.minY +=1m + height -=1m,
-                //     posY 변경 X. 카메라 = posY + 1.62F (STANDING eyeHeight) = 변화 X. vy 만큼만
-                //     부드럽게. 종료 resetHeightOffset 도 boundingBox 만 변경, posY 변경 X →
-                //     박스 자연 복원.
-                //   진짜 매핑: player.y 변화 X + dim eyeHeight=1.62F (STANDING 동일) 처리.
-                //     박스 콜리전 발 위치는 STANDING 와 동일 (1m 차이 — 원본과 콜리전 차이는 추후
-                //     calculateBoundingBox 가로채기로 별도 fix 필요 시).
-                //   eyeHeight 1.62F 처리는 MixinPlayerEntityClient.sm_getBaseDimensions_client 에서
-                //     isHeadJumping 별도 분기.
-                // setPos / calculateDimensions 제거 — player.y 변화 X + 카메라 = player.y + 1.62F.
+                // 🔴 fix (2026-05-08, user report "camera jumps up on entry + bounce on landing"):
+                //   Previous mapping: setPos(y+1m) + calculateDimensions() → player.y +1m immediate jump +
+                //     box update. Result:
+                //     (a) Entry camera = vanilla getCameraPosVec lerp(prevY=old, y=old+1) interpolates
+                //         +1m over 1 tick → "jumps up" visual (first/third person both).
+                //     (b) On exit player.y remains +1m → STANDING POSE restore box feet +1m above
+                //         → vanilla collision 1m away → box suddenly enlarges + bounces.
+                //   Original behavior: setHeightOffset(-1F) adjusts boundingBox.minY +=1m + height -=1m,
+                //     posY unchanged. Camera = posY + 1.62F (STANDING eyeHeight) = unchanged. Only vy
+                //     moves smoothly. Exit resetHeightOffset also only changes boundingBox, posY unchanged →
+                //     box naturally restores.
+                //   True mapping: posY unchanged + dim eyeHeight=1.62F (same as STANDING) handling.
+                //     Box collision foot position same as STANDING (1m difference — collision difference from
+                //     original requires separate fix if needed via calculateBoundingBox interception later).
+                //   eyeHeight 1.62F handling in MixinPlayerEntityClient.sm_getBaseDimensions_client with
+                //     isHeadJumping separate branch.
+                // Removed setPos / calculateDimensions — posY unchanged + camera = player.y + 1.62F.
             }
 
-            // === D-16 (원본 L2131-L2134) — setVelocity + isJumping ===
+            // === D-16 (original L2131-L2134) — setVelocity + isJumping ===
             player.setDeltaMovement(motionX, noVertical ? vel.y : motionY, motionZ);
-            // sp.isAirBorne = true — vanilla 자동 (velocityDirty + fallDistance)
+            // sp.isAirBorne = true — automatic vanilla (velocityDirty + fallDistance)
             sm.isJumping = true;
-            // onLivingJump() — vanilla PlayerEntity 자동 점프 이벤트 처리
+            // onLivingJump() — automatic vanilla PlayerEntity jump event handling
         }
 
-        // === D-18 제거 (Phase C 1:1 정정) — 호출 측 분리 처리로 원본 1:1 복원 ===
-        //   기존: tryJump 끝에 jumpCharge=0 / headJumpCharge=0 / blockJumpTillButtonRelease=true /
-        //         jumpPending=false 통합 set. 원본은 호출 측 (handleJumping 차지/헤드 release
-        //         분기) 에서 분리 처리 — 다른 호출처 (wall/climb/angle/slide/water/CreativeFlying)
-        //         에서는 set 안 함.
-        //   부작용 (제거 전): blockJumpTillButtonRelease=true 가 모든 tryJump 후 set →
-        //         wall/climb back/angle jump 후 점프 키 hold 중 일반 점프 가드 fail → 차이.
-        //   복원 후: 원본 동작 정확히 일치. handleJumping 차지/헤드 분기 호출 측 reset 은
-        //         이미 정상 매핑됨 (L413-L416 / L463-L468 / L419-L423 / L469-L473).
-        //         jumpPending=false 는 handleJumping 시작 (L367) 에서 매 tick reset.
+        // === D-18 removed (Phase C 1:1 correction) — separated caller handling restores original 1:1 ===
+        //   Previous: tryJump end sets jumpCharge=0 / headJumpCharge=0 / blockJumpTillButtonRelease=true /
+        //         jumpPending=false all together. Original handles separately in caller (handleJumping charge/head
+        //         release branches) — other call sites (wall/climb/angle/slide/water/CreativeFlying)
+        //         don't set.
+        //   Side effect (before removal): blockJumpTillButtonRelease=true set after every tryJump →
+        //         wall/climb back/angle jump then jump key hold regular jump guard fails → difference.
+        //   After restoration: matches original behavior exactly. handleJumping charge/head branch caller resets
+        //         already correctly mapped (L413-L416 / L463-L468 / L419-L423 / L469-L473).
+        //         jumpPending=false reset each tick at handleJumping start (L367).
 
-        // === D-17 (원본 L2135) — return enabled ===
+        // === D-17 (original L2135) — return enabled ===
         return enabled;
     }
 
     // ── [10-1] handleJumping ─────────────────────────────────────────────────
 
     /**
-     * 점프 판정 진입점. 매 틱 sm_travel_client() HEAD에서 호출된다.
-     * 원본: SmartMovingSelf.handleJumping() L1842-L1944.
+     * Jump determination entry point. Called from sm_travel_client() HEAD each tick.
+     * Original: SmartMovingSelf.handleJumping() L1842-L1944.
      *
-     * **포커스 #4 B-3 (세션 2 재작성)**: 사용자 인게임 보고 — "shift만 눌러도 차지 점프
-     *   발동" → 7+ 결함 일괄 정정.
+     * **Focus #4 B-3 (Session 2 rewrite)**: User in-game report — "charge jump triggers with just shift
+     *   press" → batch fix for 7+ bugs.
      *
-     * 처리 순서 (원본 1:1):
-     *   1. jumpPending = false (메서드 시작, 원본 L1844)
-     *   2. blockJumpTillButtonRelease 해제 (jumpKey release 시, 원본 L1846)
-     *   3. isSwimming/isDiving early return (원본 L1849)
-     *   4. jumpMotionX/Z 저장 (원본 L1853-L1854)
-     *   5. 차지 점프 (원본 L1856-L1878) — jumpKey hold 트리거 + wouldIsSneaking 게이트
-     *   6. 헤드 점프 (원본 L1880-L1899) — jumpKey hold 트리거 + grab+sprint 게이트
-     *   7. 수면 점프 (원본 L1901-L1913) — jumpKey hold + isDipping
-     *   8. 일반 점프 (원본 L1915-L1916) — jumpAvoided + !isVineAnyClimbing
-     *   9. 방향 회피 — 전용 dodge 키 또는 기존 A/D/S 더블탭
+     * Processing order (original 1:1):
+     *   1. jumpPending = false (method start, original L1844)
+     *   2. Release blockJumpTillButtonRelease (on jumpKey release, original L1846)
+     *   3. isSwimming/isDiving early return (original L1849)
+     *   4. Save jumpMotionX/Z (original L1853-L1854)
+     *   5. Charge jump (original L1856-L1878) — jumpKey hold trigger + wouldIsSneaking gate
+     *   6. Head jump (original L1880-L1899) — jumpKey hold trigger + grab+sprint gate
+     *   7. Water jump (original L1901-L1913) — jumpKey hold + isDipping
+     *   8. Normal jump (original L1915-L1916) — jumpAvoided + !isVineAnyClimbing
+     *   9. Directional dodge — dedicated dodge key or existing A/D/S double-tap
      */
     public static void handleJumping(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;

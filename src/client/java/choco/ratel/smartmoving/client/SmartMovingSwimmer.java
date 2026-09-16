@@ -294,14 +294,14 @@ public final class SmartMovingSwimmer {
         //   Immediately update bounding box on first swim/dive entry frame → same timing as original setHeightOffset(-1F).
         if (sm.isSwimming_sm != prevSwim103 || sm.isDiving != prevDive103) {
             // 🔴 (2026-05-22 fix #152) User report: swim → dipping transition box feet 1m down BUG.
-            //   log 실측 (tick 219→220): swim 시 mixin offset 활성 (dim swim h=0.8 eye=1.62) →
-            //     박스 +1m up → 박스 발 = entity.y+1 = ground top. entity.y = ground - 1.
-            //     swim → dipping 전환 시 dim 변경 (swim 0.8 → STANDING 1.8, orphan SWIMMING 가드)
-            //     → mixin offset 차단 → 박스 발 = entity.y = ground - 1. **박스 위쪽 ground 안 박힘**.
-            //     vanilla push out 차단 (= sm_travel_client ci.cancel) → entity.y 잔존.
-            //   원본 1.7.10 spec: swim 시 posY 변경 X (= setHeightOffset 의 box.minY += 1 만).
-            //     dipping 시 박스 발 = posY = ground. 우리 매핑 entity.y 가 swim 시 ground-1 → mismatch.
-            //   해결: swim 종료 시점 (= prev=true → cur=false) entity.y push to ground top.
+            //   Log measurement (tick 219→220): mixin offset active when swimming (dim swim h=0.8 eye=1.62) →
+            //     box +1m up → box feet = entity.y+1 = ground top. entity.y = ground - 1.
+            //     swim → dipping transition: dim change (swim 0.8 → STANDING 1.8, orphan SWIMMING guard)
+            //     → mixin offset blocked → box feet = entity.y = ground - 1. **Box top doesn't embed in ground**.
+            //     vanilla push out blocked (= sm_travel_client ci.cancel) → entity.y persists.
+            //   Original 1.7.10 spec: no posY change on swim (= only box.minY += 1 in setHeightOffset).
+            //     On dipping, box feet = posY = ground. Our mapping: entity.y on swim = ground-1 → mismatch.
+            //   Solution: At swim end point (= prev=true → cur=false) push entity.y to ground top.
             boolean swimEnded = (prevSwim103 || prevDive103) && !sm.isSwimming_sm && !sm.isDiving;
             if (swimEnded) {
                 double upperGround = SmartMovingClientState.getMaxPlayerSolidBetween(
@@ -338,30 +338,30 @@ public final class SmartMovingSwimmer {
             boolean wasSwimming,
             boolean wasDiving) {
 
-        // ── SwimCrawlWater 전환 (원본: handleSwimming L274-279, L416-432, R-06) ──────
-        // wasHeightOffset = heightOffset (크롤링 hitbox 오프셋 캡처).
-        // 1.21.1: bounding box minY 이동 없음 → wasHeightOffset=0, playerCrawlWaterBorder=dippingDepth
+        // ── SwimCrawlWater transition (original: handleSwimming L274-279, L416-432, R-06) ──────
+        // wasHeightOffset = heightOffset (capture crawling hitbox offset).
+        // 1.21.1: no bounding box minY movement → wasHeightOffset=0, playerCrawlWaterBorder=dippingDepth
         boolean wasCrawling = sm.isCrawling;
 
-        // ① standupIfPossible 상당: 수심 > TopBorder → 크롤링 해제 시도
+        // ① Equivalent to standupIfPossible: water depth > TopBorder → attempt crawl exit
         if (sm.isCrawling && sm.dippingDepth > SWIM_CRAWL_TOP) {
             sm.isCrawling = false;
         }
 
-        // ② playerCrawlWaterBorder 판정 (이전 틱에서 크롤링 중이었던 경우)
-        // B-13 (세션 61): 원본 L2434 `(isCrawling || isSliding) && playerCrawlWaterBorder <
-        // SwimCrawlWaterMaxBorder` 에 맞춰 `|| sm.isSliding` 추가. 원본 isCrawling 은
-        // L2415 분기에서 해제 후 시점이라 1.21.1 의 진입 시 스냅샷 wasCrawling 과 등가.
-        // isSliding 은 L121 에서 수정 안 되므로 원본과 동일 시점.
+        // ② playerCrawlWaterBorder determination (when crawling in previous tick)
+        // B-13 (Session 61): Align with original L2434 `(isCrawling || isSliding) && playerCrawlWaterBorder <
+        // SwimCrawlWaterMaxBorder` by adding `|| sm.isSliding`. Original isCrawling
+        // released after L2415 branch, so timing is equivalent to 1.21.1 wasCrawling snapshot at entry.
+        // isSliding not modified at L121, so same timing as original.
         if ((wasCrawling || sm.isSliding) && sm.dippingDepth >= 0F) {
             float playerCrawlWaterBorder = sm.dippingDepth;
             if (playerCrawlWaterBorder < SWIM_CRAWL_MAX) {
                 if (playerCrawlWaterBorder < SWIM_CRAWL_TOP) {
-                    // 얕은 물 — 계속 크롤링 (handleSwimmingRejected = true)
+                    // Shallow water — continue crawling (handleSwimmingRejected = true)
                     sm.isCrawling = true;
                     return false;
                 } else {
-                    // 크롤링 → 수영 전환 (원본: isCrawling=false; isSwimming=true; isDipping=false)
+                    // Crawl → swimming transition (original: isCrawling=false; isSwimming=true; isDipping=false)
                     sm.isCrawling    = false;
                     sm.isDiving      = false;
                     sm.isSwimming_sm = true;
@@ -377,25 +377,25 @@ public final class SmartMovingSwimmer {
         if (sm.isDiving && !cfg.dive) return false;
         if ((sm.isSwimming_sm || sm.isDipping) && !cfg.swim) return false;
 
-        // ── 원본 SmartMovingSelf L226-L246 (isFakeShallowWaterSneaking = true 설정 경로) ──
-        // 원본:
+        // ── Original SmartMovingSelf L226-L246 (isFakeShallowWaterSneaking = true setting path) ──
+        // Original:
         //   couldStandUp = playerSwimWaterBorder >= 0 && minPlayerSwimWaterDepth <= 1.5
         //   swimDown = sneak && _swimDownOnSneak
         //   wantShallowSwim = couldStandUp && (wasSwimming || wasDiving)
         //   if (wantShallowSwim) {
         //       for (Orientation o : getClimbingOrientations(sp, true, true))
-        //           if (o.isTunnelAhead(world, i, j, k)) wantShallowSwim = false;   // 터널 앞에선 차단
+        //           if (o.isTunnelAhead(world, i, j, k)) wantShallowSwim = false;   // Block ahead tunnel
         //   }
         //   if (wasSwimming && wantShallowSwim && swimDown) { swimDown=false; isFakeShallowWaterSneaking=true; }
         //
-        // B-5 (세션 63) → **B-42-B5 해소 (세션 121)**: 근사 (1) couldStandUp 수심 측정
-        //   원본 L276 `playerSwimWaterBorder >= 0 && minPlayerSwimWaterDepth <= 1.5` 복원.
-        //   `SwimBorderValues` (B-42d) 를 사용한 AABB 정밀 파생값.
-        // 잔존 근사 2건 (§7 B-5 갱신 — 이들은 B-42 범위 외):
-        //   2) getClimbingOrientations 방향 집합 — 원본 8방향, 1.21.1 4방향 (별도 원자)
-        //   3) swimDown=false (원본 L244) 미이식 — 동작 영향 없음 (1.21.1 swim 수직 속도는
-        //      swimDown 무관). B-9 메인 분류 재작성 시 재검토.
-        //   isTunnelAhead → 아래 private 헬퍼.
+        // B-5 (Session 63) → **B-42-B5 Resolution (Session 121)**: Approximation (1) couldStandUp water depth measurement
+        //   Restore original L276 `playerSwimWaterBorder >= 0 && minPlayerSwimWaterDepth <= 1.5`.
+        //   AABB-precise derived values using `SwimBorderValues` (B-42d).
+        // Remaining 2 approximations (§7 B-5 update — these outside B-42 scope):
+        //   2) getClimbingOrientations direction set — original 8-way, 1.21.1 4-way (separate atom)
+        //   3) swimDown=false (original L244) not ported — no behavior impact (1.21.1 swim vertical velocity
+        //      unrelated to swimDown). Revisit in B-9 main classification rewrite.
+        //   isTunnelAhead → private helper below.
         SmartMovingClientState.SwimBorderValues swimVals =
                 SmartMovingClientState.computeSwimBorderValues(player);
         boolean couldStandUp = swimVals.playerSwimWaterBorder >= 0
@@ -406,13 +406,13 @@ public final class SmartMovingSwimmer {
             int py = (int) Math.floor(player.getY());
             int pz = (int) Math.floor(player.getZ());
             Level world = player.level();
-            // **B-5 (2) 해소 (세션 135)**: 원본 `getClimbingOrientations(sp, true, true)` 는
-            //   대각 포함 8방향 (L285 `true, true` 파라미터). 기존 4방향 (Direction.HORIZONTAL)
-            //   근사 → 대각 4방향 추가. Orientation 의 8 방향 상수 대응:
-            //   PZ/NZ/ZP/ZN (4 straight) + PP/PN/NP/NN (4 대각).
+            // **B-5 (2) Resolution (Session 135)**: Original `getClimbingOrientations(sp, true, true)` is
+            //   8-way including diagonals (L285 `true, true` parameter). Existing 4-way (Direction.HORIZONTAL)
+            //   approximation → add 4-way diagonals. Correspond to 8 directional constants of Orientation:
+            //   PZ/NZ/ZP/ZN (4 straight) + PP/PN/NP/NN (4 diagonals).
             int[][] dirs8 = {
                     { 1, 0}, {-1, 0}, {0,  1}, {0, -1},   // 4-HORIZONTAL (PZ/NZ/ZP/ZN)
-                    { 1, 1}, { 1,-1}, {-1, 1}, {-1, -1}   // 4-대각       (PP/PN/NP/NN)
+                    { 1, 1}, { 1,-1}, {-1, 1}, {-1, -1}   // 4-diagonals  (PP/PN/NP/NN)
             };
             for (int[] d : dirs8) {
                 if (isTunnelAhead(world, px, py, pz, d[0], d[1])) {
@@ -421,12 +421,12 @@ public final class SmartMovingSwimmer {
                 }
             }
         }
-        // **B-9h 해소 (세션 130)**: 원본 L243-L244 `swimDown = sneak && _swimDownOnSneak` +
+        // **B-9h Resolution (Session 130)**: Integrate original L243-L244 `swimDown = sneak && _swimDownOnSneak` +
         //   L292-L296 `if (wasSwimming && wantShallowSwim && swimDown) { swimDown=false;
-        //   isFakeShallowWaterSneaking=true; }` 통합. swimDown 은 swimming A 경로
-        //   motionYDiff 계산 시 소비 (원본 L320-L321).
-        // 🔵 (BUG 5 fix #107) raw sneak key — isSneaking override 우회.
-        // 🔴 fix #201: swimDown jump 가드. swim+sneak+jump 시 swim 분기 미매치 → 위로 정상.
+        //   isFakeShallowWaterSneaking=true; }`. swimDown consumed during swimming A path
+        //   motionYDiff calculation (original L320-L321).
+        // 🔵 (BUG 5 fix #107) raw sneak key — bypass isSneaking override.
+        // 🔴 fix #201: swimDown jump guard. swim+sneak+jump miss swim branch → upward normal.
         boolean swimDown = player.input.keyPresses.shift() && cfg.swimDownOnSneak && !player.input.keyPresses.jump();
         if (wasSwimming && wantShallowSwim && swimDown) {
             swimDown = false;

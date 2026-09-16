@@ -180,94 +180,94 @@ public final class SmartMovingServer {
         isWallJumping     = ((bits >> 31) & 1) != 0;
         boolean _oldCrawl = isCrawling;
         setCrawling(((bits >> 13) & 1) != 0);
-        // 🔴 (2026-05-22) 사용자 보고 fix: 1칸 공간 swim 종료 + 엎드리기 → 물 진입 시 server reconcile.
-        //   cause: swim ↔ crawl transition 시 isSmall 식 (= 8 SM OR) 변화 X (swim=true → crawl=true).
-        //     → setSmall 호출 X → server calculateDimensions 호출 X → server dim 잔존 (eye=1.62) +
-        //     client dim 갱신 (eye=0.62) → mixin offset 가드 매치 결과 다름 → server 박스 +1m up,
-        //     client 박스 정상 → server reconcile → 사용자 verbatim "엎드리기 가끔만" / "STANDING 위로" /
-        //     "땅 잠김" 모두 같은 cause.
-        //   해결: bit 13 (isCrawling) 변경 시 calculateDimensions 명시 호출 — 다른 bit (= isClimbCrawling
-        //     L246 / isHeadJumping L213 / isSliding L235) 와 동일 패턴.
-        //   메모리: feedback_processStatePacket_calculateDimensions, feedback_server_reconcile_box_sync.
+        // 🔴 (2026-05-22) User-reported fix: 1-block space swim end + crouch → water entry server reconcile.
+        //   cause: isSmall formula (= 8 SM OR) unchanged during swim ↔ crawl transition (swim=true → crawl=true).
+        //     → setSmall not called → server calculateDimensions not called → server dim persists (eye=1.62) +
+        //     client dim updated (eye=0.62) → mixin offset guard match differs → server box +1m up,
+        //     client box normal → server reconcile → user verbatim "crouch sometimes" / "standing upward" /
+        //     "ground lock" all same cause.
+        //   fix: Explicit calculateDimensions call when bit 13 (isCrawling) changes — same pattern as other bits
+        //     (= isClimbCrawling L246 / isHeadJumping L213 / isSliding L235).
+        //   memory: feedback_processStatePacket_calculateDimensions, feedback_server_reconcile_box_sync.
         if (_oldCrawl != isCrawling) {
             player.refreshDimensions();
         }
-        // R-04: setSmall() 경유하여 calculateDimensions() 호출 → 서버 AABB 갱신
+        // R-04: calculateDimensions() called via setSmall() → server AABB updated
         boolean newSmall = ((bits >> 15) & 1) != 0;
         if (newSmall != isSmall) setSmall(player, newSmall);
         isSneakButtonPressed = ((bits >> 33) & 1) != 0;
 
-        // ── 포커스 #2.7 D-1 신규 디코딩 (POSE 완전 대칭화) ──────────────
+        // ── Focus #2.7 D-1 New Decoding (Complete POSE Symmetry) ──────────────
         isDiving       = ((bits >>  9) & 1) != 0;
         isSwimming     = ((bits >> 11) & 1) != 0;
         isLevitating   = ((bits >> 19) & 1) != 0;
-        // 🔴 fix #42 (2026-05-09, 사용자 보고 "콜리전 1칸 위 고정"):
-        //   isHeadJumping/isSliding change detection + calculateDimensions() 호출 추가.
-        //   Why: 단순 디코딩만 했을 때 서버 측 dim cache (= STANDING 1.8) 잔존 → mixin offset
-        //     (= height<1 && eyeHeight>1) 미적용 → 서버 박스 (entity.y, entity.y+1.8) →
-        //     ground 안 박힘 인식 → server position correction packet 송신 → 클라 위치 reset
-        //     → entity 정지 + 무한 reconcile.
-        //   해결: ICC (bit 34) 와 동일 패턴 — change detection + calculateDimensions() 호출 →
-        //     dim 즉시 갱신 → mixin offset 즉시 활성 → 서버 박스 = 클라 박스 동일 위치 →
-        //     server reconcile 발생 X.
-        //   메모리 feedback_server_reconcile_box_sync + project_isclimbcrawling_complete 패턴.
-        // 🔴 fix #55 (2026-05-10, 사용자 보고 "fix #53 후 벽에 박힌 마냥 튕김"):
-        //   client 는 fix #29 의 headJumpCharge==0 가드로 case A (=headJumpCharge>0) 시
-        //   calculateDimensions 호출 skip → dim 캐시 (=eye 1.62) 잔존 → mixin offset 활성 →
-        //   박스 발 = entity.y+1m = ground (정상).
-        //   server 는 fix #42 로 무조건 calculateDimensions 호출 → dim 갱신 (=eye 0.62,
-        //   isHeadJumping=false+isSliding=true 의 smSmall 매치) → mixin offset 차단 → 박스 발
-        //   = entity.y = 원래 ground -1m → ground 박힘 인식 → server position correction
-        //   packet → client 위치 reset → 사용자 보고 "벽에 박힌 마냥 튕김".
-        //   해결: server 도 client 처럼 dim 캐시 잔존 (= 진입 시점만 호출, 종료 시점 skip).
-        //     - isHeadJumping=false→true (진입): 호출 (fix #42 의도 유지, 콜리전 1칸 위 고정 회귀 차단).
-        //     - isHeadJumping=true→false (종료): skip (= fix #53 시나리오 + 정상 헤드점프 종료).
-        //     - isSliding=false→true (진입): skip (= fix #53 시나리오 + 일반 슬라이딩 진입).
-        //     - isSliding=true→false (종료): 호출 (= 박스 SLIDING→STANDING 정상 복원).
-        //   1 tick lag 발생 시나리오 (= 진입 skip 시) 는 vanilla updatePose 자동 호출로 dim 갱신 →
-        //   client 와 동등하게 잔존 → reconcile 발생 X.
+        // 🔴 fix #42 (2026-05-09, user-reported "collision locked 1 block up"):
+        //   isHeadJumping/isSliding change detection + calculateDimensions() call added.
+        //   Why: When only decoding without refresh, server dim cache (= STANDING 1.8) persists → mixin offset
+        //     (= height<1 && eyeHeight>1) not applied → server box (entity.y, entity.y+1.8) →
+        //     perceives collision ground lock → sends server position correction packet → client position reset
+        //     → entity stops + infinite reconcile.
+        //   fix: Same pattern as ICC (bit 34) — change detection + calculateDimensions() call →
+        //     dim updates immediately → mixin offset activates immediately → server box = client box same position →
+        //     no server reconcile.
+        //   memory: feedback_server_reconcile_box_sync + project_isclimbcrawling_complete pattern.
+        // 🔴 fix #55 (2026-05-10, user-reported "after fix #53 bounces like stuck against wall"):
+        //   client uses fix #29 headJumpCharge==0 guard to skip calculateDimensions in case A (=headJumpCharge>0)
+        //   → dim cache (=eye 1.62) persists → mixin offset active →
+        //   box foot = entity.y+1m = ground (correct).
+        //   server unconditionally calls calculateDimensions with fix #42 → dim updated (=eye 0.62,
+        //   smSmall match with isHeadJumping=false+isSliding=true) → mixin offset blocked → box foot
+        //   = entity.y = original ground -1m → perceives ground lock → server position correction
+        //   packet → client position reset → user reported "bounces like stuck against wall".
+        //   fix: server also dim cache persists like client (= call only at enter, skip at exit).
+        //     - isHeadJumping=false→true (enter): call (maintains fix #42 intent, prevents collision 1-block lock regression).
+        //     - isHeadJumping=true→false (exit): skip (= fix #53 scenario + normal head jump exit).
+        //     - isSliding=false→true (enter): skip (= fix #53 scenario + normal slide enter).
+        //     - isSliding=true→false (exit): call (= box SLIDING→STANDING normal restore).
+        //   1-tick lag scenario (= skip at enter) vanilla updatePose auto-call refreshes dim →
+        //   persists equivalent to client → no reconcile.
         boolean newHeadJumping = ((bits >> 20) & 1) != 0;
         if (newHeadJumping != isHeadJumping) {
             isHeadJumping = newHeadJumping;
-            if (newHeadJumping) player.refreshDimensions();   // 진입 시만 호출.
+            if (newHeadJumping) player.refreshDimensions();   // Call only on enter.
         }
-        // 🔴 fix #63 (2026-05-10, 사용자 보고 "슬라이딩 시 모델 박스 1m 아래 + 종료 박스 박힘"):
-        //   fix #55 의 isSliding 분기 가드 (= 진입 시 skip) 가 *정상 자체 슬라이딩 진입* 시
-        //   server reconcile 야기. 정상 진입 흐름:
-        //     - 진입 직전: isHeadJumping=false, isSliding=false → server dim = STANDING (1.8).
-        //     - 진입 후: isSliding=true. fix #55 → calculateDimensions skip → server dim
-        //       STANDING 잔존 → mixin offset 가드 미매치 (height>=1) → 차단 → server 박스 발 =
-        //       entity.y = ground - 1m (= fix #60 결과 동기) → server 박스 ground 안 1m 박힘.
-        //     - server reconcile 또는 모델 위치 처리 mismatch.
-        //   해결: isSliding=false→true 진입 시 isHeadJumping=false 면 calculateDimensions 호출
-        //         (= server dim 갱신 → fix #59 매치 → eye=1.62 → mixin offset 활성 → 박스 +1m
-        //         up = ground 정렬). isHeadJumping=true 시는 skip (= fix #53 시나리오 = 헤드점프
-        //         + 자체 슬라이딩 동시 진입 시 server dim 캐시 잔존 효과 유지).
-        //   fix #42 history BUG (= "콜리전 1칸 위 고정") 도 fix #63 으로 정확 매핑 회복.
+        // 🔴 fix #63 (2026-05-10, user-reported "sliding model box 1m below + exit box lock"):
+        //   fix #55 isSliding branch guard (= skip on enter) causes server reconcile during *normal self slide enter*.
+        //   Normal enter flow:
+        //     - Before enter: isHeadJumping=false, isSliding=false → server dim = STANDING (1.8).
+        //     - After enter: isSliding=true. fix #55 → skip calculateDimensions → server dim
+        //       STANDING persists → mixin offset guard mismatch (height>=1) → blocks → server box foot =
+        //       entity.y = ground - 1m (= sync with fix #60 result) → server box lock 1m below ground.
+        //     - server reconcile or model position handling mismatch.
+        //   fix: Call calculateDimensions on isSliding=false→true enter when isHeadJumping=false
+        //         (= server dim updates → fix #59 match → eye=1.62 → mixin offset active → box +1m
+        //         up = ground aligned). Skip when isHeadJumping=true (= fix #53 scenario = maintain
+        //         server dim cache effect during concurrent head jump + self slide enter).
+        //   fix #42 history BUG (= "collision locked 1 block up") also exactly mapped recover via fix #63.
         boolean newSliding = ((bits >> 21) & 1) != 0;
         if (newSliding != isSliding) {
             isSliding = newSliding;
             if (newSliding) {
-                // 진입 시: isHeadJumping=false 일 때만 호출 (= 정상 슬라이딩 진입).
-                //   isHeadJumping=true 시 skip (= fix #53 시나리오: 헤드점프+자체슬라이딩 동시).
+                // On enter: call only when isHeadJumping=false (= normal slide enter).
+                //   Skip when isHeadJumping=true (= fix #53 scenario: concurrent head jump + self slide).
                 if (!isHeadJumping) {
                     player.refreshDimensions();
                 }
             } else {
-                // 종료 시: 항상 호출 (= STANDING 복원).
+                // On exit: always call (= STANDING restore).
                 player.refreshDimensions();
             }
         }
-        // ── X/Z 땡김 fix: 클라/서버 박스 동기화 (bit 34, bit 22 는 angleJumpType 사용) ──
+        // ── X/Z Pull Fix: Client/Server Box Sync (bit 34, bit 22 uses angleJumpType) ──
         boolean newClimbCrawling = ((bits >> 34) & 1) != 0;
         if (newClimbCrawling != isClimbCrawling) {
             isClimbCrawling = newClimbCrawling;
             player.refreshDimensions();
         }
 
-        // 3-9: 낙하 거리 리셋 조건 (벽점프 포함)
+        // 3-9: Fall distance reset condition (includes wall jump)
         resetFallDistance     = isClimbing || isCrawlClimbing || isCeilingClimbing || isWallJumping;
-        // 3-2: floatingTick 리셋 조건 (벽점프 제외 — 벽점프는 순간적이라 kick 위험 없음)
+        // 3-2: floatingTick reset condition (excludes wall jump — wall jump is instantaneous so no kick risk)
         resetTicksForFloatKick = isClimbing || isCrawlClimbing || isCeilingClimbing;
 
         // 🔴 fix #90 (2026-05-13, 사용자 보고 "remote 벽 박은 후 slide→crawl 시 모델 1m 잠긴 후 회복"):

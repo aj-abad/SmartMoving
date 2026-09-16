@@ -188,9 +188,9 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1039-L1047 `setClimbingAngles(float directionAngle)`.
-     * `_freeClimbingDiagonalDirectionAngle` (80F) / `_freeClimbingOrthogonalDirectionAngle`
-     * (90F) 설정값의 절반을 전방 방향각 양쪽으로 펼쳐 min/max 계산.
+     * Original L1039-L1047 `setClimbingAngles(float directionAngle)`.
+     * Takes half of `_freeClimbingDiagonalDirectionAngle` (80F) / `_freeClimbingOrthogonalDirectionAngle`
+     * (90F) config values and spreads it on both sides of forward direction angle to calculate min/max.
      */
     private boolean setClimbingAngles(float directionAngle) {
         _directionAngle = directionAngle;
@@ -203,7 +203,7 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1049-L1062 `setClimbingAngles(min, max)`. 음수/360+ 정규화 후 필드 저장.
+     * Original L1049-L1062 `setClimbingAngles(min, max)`. Normalizes negative/360+ values, then stores in fields.
      */
     private boolean setClimbingAngles(float mimimumClimbingAngle, float maximumClimbingAngle) {
         if (mimimumClimbingAngle < 0F)   mimimumClimbingAngle += 360F;
@@ -216,24 +216,24 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1064-L1069 — 이 방향의 전방각(`_directionAngle`) 이 주어진 회전 범위 내인지.
-     * `getOrientation` 에서 플레이어 회전 허용 범위에 맞는 방향 찾을 때 사용.
+     * Original L1064-L1069 — Whether this orientation's forward angle (`_directionAngle`) is within
+     * the given rotation range. Used in `getOrientation` to find direction matching player rotation tolerance.
      */
     private boolean isWithinAngle(float minimumRotation, float maximumRotation) {
         return isWithinAngle(_directionAngle, minimumRotation, maximumRotation);
     }
 
     /**
-     * 원본 L1071-L1075 — 주어진 회전이 이 방향의 등반 가능 각도 범위 내인지.
-     * `seekClimbGap` / `addTo` 에서 사용.
+     * Original L1071-L1075 — Whether the given rotation is within this orientation's climbable angle range.
+     * Used in `seekClimbGap` / `addTo`.
      */
     protected boolean isRotationForClimbing(float rotation) {
         return isWithinAngle(rotation, _mimimumClimbingAngle, _maximumClimbingAngle);
     }
 
     /**
-     * 원본 L1077-L1085 — 회전 값이 [min, max] 범위 내인지. min > max 인 경우 (0도 경계
-     * 통과) OR 로 처리.
+     * Original L1077-L1085 — Whether rotation value is within [min, max] range. If min > max (crossing 0°
+     * boundary), handles with OR logic.
      */
     private static boolean isWithinAngle(float rotation, float minimumRotation, float maximumRotation) {
         if (minimumRotation > maximumRotation)
@@ -241,12 +241,12 @@ public class Orientation {
         return rotation >= minimumRotation && rotation <= maximumRotation;
     }
 
-    // ── rotate (원본 L90-L165) ──────────────────────────────────────────────
+    // ── rotate (original L90-L165) ──────────────────────────────────────
 
     /**
-     * 원본 L90-L165 — 이 방향을 `angle` 도만큼 회전한 결과 반환.
-     * 지원 각도: 0 / ±45 / ±90 / ±135 / ±180.
-     * ZZ 는 회전 불가 (RuntimeException).
+     * Original L90-L165 — Returns result of rotating this orientation by `angle` degrees.
+     * Supported angles: 0 / ±45 / ±90 / ±135 / ±180.
+     * ZZ cannot be rotated (RuntimeException).
      */
     public Orientation rotate(int angle) {
         if (this == ZZ) throw new RuntimeException("unrotatable orientation");
@@ -293,14 +293,14 @@ public class Orientation {
         throw new RuntimeException("angle \"" + angle + "\" not supported");
     }
 
-    // ── getOrientation (원본 L167-L205) ─────────────────────────────────────
+    // ── getOrientation (original L167-L205) ─────────────────────────────────
 
     /**
-     * 원본 L167-L205 — 플레이어 회전각 + 허용범위 기반으로 매칭되는 Orientation 반환.
-     * 우선순위: orthogonal 먼저 (NZ/PZ/ZN/ZP), 그 다음 diagonal (NP/PN/NN/PP).
-     * 매칭 없으면 null.
+     * Original L167-L205 — Returns matching Orientation based on player rotation angle + tolerance range.
+     * Priority: orthogonal first (NZ/PZ/ZN/ZP), then diagonal (NP/PN/NN/PP).
+     * Returns null if no match found.
      *
-     * 1.21.1 매핑: `p.rotationYaw` → `player.getYaw()`.
+     * 1.21.1 mapping: `p.rotationYaw` → `player.getYaw()`.
      */
     public static Orientation getOrientation(Player p, float tolerance,
                                              boolean orthogonals, boolean diagonals) {
@@ -328,18 +328,17 @@ public class Orientation {
         return null;
     }
 
-    // ── getClimbingOrientations + addTo (원본 L262-L297) ────────────────────
+    // ── getClimbingOrientations + addTo (original L262-L297) ────────────────
 
     private static HashSet<Orientation> _getClimbingOrientationsHashSet = null;
 
     /**
-     * 원본 L262-L289 — 플레이어 회전각 기반으로 등반 가능한 방향 집합 반환.
-     * orthogonals=true → NZ/PZ/ZN/ZP 체크. diagonals=true → NP/PN/NN/PP 체크.
-     * 각 방향이 자신의 `_mimimumClimbingAngle ~ _maximumClimbingAngle` 범위에 rotation 을
-     * 포함하면 add.
+     * Original L262-L289 — Returns set of climbable orientations based on player rotation angle.
+     * orthogonals=true → checks NZ/PZ/ZN/ZP. diagonals=true → checks NP/PN/NN/PP.
+     * Each orientation is added if its `_mimimumClimbingAngle ~ _maximumClimbingAngle` range contains rotation.
      *
-     * **주의**: 반환 HashSet 은 정적 캐시 재사용 — 호출 간 mutate 주의.
-     * 1.21.1 매핑: `p.rotationYaw` → `player.getYaw()`.
+     * **Note**: Returned HashSet is static cache reused — beware mutation between calls.
+     * 1.21.1 mapping: `p.rotationYaw` → `player.getYaw()`.
      */
     public static HashSet<Orientation> getClimbingOrientations(Player p,
                                                                boolean orthogonals, boolean diagonals) {
@@ -367,29 +366,29 @@ public class Orientation {
     }
 
     /**
-     * 원본 L293-L297 — `isRotationForClimbing(rotation)` 이면 정적 HashSet 에 추가.
-     * `getClimbingOrientations` 전용 보조 메서드.
+     * Original L293-L297 — Adds to static HashSet if `isRotationForClimbing(rotation)` is true.
+     * Auxiliary method dedicated to `getClimbingOrientations`.
      */
     private void addTo(float rotation) {
         if (isRotationForClimbing(rotation))
             _getClimbingOrientationsHashSet.add(this);
     }
 
-    // ── getHorizontalBorderGap (원본 L226-L247) ─────────────────────────────
+    // ── getHorizontalBorderGap (original L226-L247) ─────────────────────────
 
     /**
-     * 원본 L226-L247 — 플레이어 (i, k) 위치에서 이 방향 블록 경계까지의 거리.
-     *   NZ: i%1 (플레이어 X 좌표 소수부)
+     * Original L226-L247 — Distance from player (i, k) position to block boundary in this direction.
+     *   NZ: i%1 (fractional part of player X coordinate)
      *   PZ: 1 - i%1
      *   ZN: k%1
      *   ZP: 1 - k%1
-     *   기타: 0
+     *   Other: 0
      *
-     * orthogonal 4방향만 의미 있음. diagonal/ZZ 는 0 반환.
+     * Only meaningful for orthogonal 4-directions. Diagonal/ZZ returns 0.
      *
-     * **Overload (static 위치 기반)**: 엔티티 위치가 아닌 임의 좌표 기반 계산 필요 시
-     * 호출자가 직접 i, k 를 추출하여 static 버전 호출. 인스턴스 기반 오버로드 (원본 L231-L234
-     * `base_id`/`base_kd` 사용) 는 getHorizontalBorderGap() 로 제공 (B-19a1a).
+     * **Overload (static position-based)**: When calculation based on arbitrary coordinates rather than
+     * entity position is needed, caller directly extracts i, k and calls static version. Instance-based
+     * overload (original L231-L234 using `base_id`/`base_kd`) provided as getHorizontalBorderGap() (B-19a1a).
      */
     public double getHorizontalBorderGap(double i, double k) {
         if (this == NZ) return i % 1;

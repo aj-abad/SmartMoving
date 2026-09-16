@@ -162,9 +162,9 @@ public class SmartStatistics {
             currentVerticalAngle = (float) Math.atan2(diffY, horizontalDistance);
         }
 
-        // 원본 SmartRenderRender L100-111: -atan(xDiff/zDiff). NaN(xDiff=0&&zDiff=0) 시
-        //   prevHorizontalAngle NaN → currentCameraAngle, 아니면 prev 사용.
-        //   정상 값이면 zDiff<0 일 때 +π 보정. Minecraft rotationYaw convention(+Z=0, +X=-π/2, -X=+π/2).
+        // Original SmartRenderRender L100-111: -atan(xDiff/zDiff). When NaN (xDiff=0&&zDiff=0)
+        //   if prevHorizontalAngle NaN → use currentCameraAngle, else use prev.
+        //   If normal value and zDiff<0 add +π correction. Minecraft rotationYaw convention (+Z=0, +X=-π/2, -X=+π/2).
         float newH = (float) -Math.atan(diffX / diffZ);
         if (Float.isNaN(newH)) {
             newH = Float.isNaN(prevHorizontalAngle) ? currentCameraAngle : prevHorizontalAngle;
@@ -174,31 +174,31 @@ public class SmartStatistics {
         prevHorizontalAngle = newH;
         currentHorizontalAngle = newH;
 
-        // 🔴 (세션 57): 원본 1:1 — total += EMA 결과 (currentSpeed, raw distance 아님).
-        //   원본 SmartStatisticsData.calcualte L49-L50:
-        //     legYaw += (distance - legYaw) * 0.4F;   // EMA 갱신 (위에서 처리)
-        //     total += legYaw;                          // 누적 = EMA 결과
+        // 🔴 (session 57): exact 1:1 — total += EMA result (currentSpeed, not raw distance).
+        //   Original SmartStatisticsData.calcualte L49-L50:
+        //     legYaw += (distance - legYaw) * 0.4F;   // EMA update (handled above)
+        //     total += legYaw;                          // accumulate = EMA result
         totalHorizontalDistance += currentHorizontalSpeed;
         totalVerticalDistance   += currentVerticalSpeed;
         totalDistance           += currentSpeed;
     }
 
-    // ── 🔴 partial tick lerp getter (Flying Phase / 세션 48): 60Hz 부드러움 보간 ────
-    //   원본 SmartStatisticsData.getCurrentSpeed:
+    // ── 🔴 partial tick lerp getter (Flying Phase / session 48): 60Hz smoothness interpolation ───
+    //   Original SmartStatisticsData.getCurrentSpeed:
     //     return Math.min(1.0F, prevLegYaw + (legYaw - prevLegYaw) * renderPartialTicks);
-    //   원본 SmartStatisticsData.getTotalDistance:
+    //   Original SmartStatisticsData.getTotalDistance:
     //     return total - legYaw * (1.0F - renderPartialTicks);
-    //   매 프레임 호출 시 prev/current 사이 partial tick 비율로 보간 = 부드러움.
+    //   Per-frame call interpolates between prev/current at partial tick ratio = smoothness.
 
     public float getCurrentSpeed(float partialTicks) {
         return Math.min(1.0F, prevCurrentSpeed + (currentSpeed - prevCurrentSpeed) * partialTicks);
     }
 
     /**
-     * 🔴 (2026-05-04 사용자 요청 "원본 1:1") 원본 SmartStatistics.getCurrentHorizontalSpeedFlattened
-     *   (partialTicks, -1) = data history 평균 + partialTicks 보간. FIR 10-tick.
-     *   각 history entry 의 getCurrentSpeed = min(1.0, prevLegYaw + (legYaw-prev)*pt).
-     *   직전 EMA(0.5) on EMA(0.4) 매핑은 transient 차이 사용자 보고 → FIR 10-tick 1:1 매핑.
+     * 🔴 (2026-05-04 user request "exact 1:1") original SmartStatistics.getCurrentHorizontalSpeedFlattened
+     *   (partialTicks, -1) = data history average + partialTicks interpolation. FIR 10-tick.
+     *   Each history entry's getCurrentSpeed = min(1.0, prevLegYaw + (legYaw-prev)*pt).
+     *   Previous EMA(0.5) on EMA(0.4) mapping had transient differences user reported → FIR 10-tick exact 1:1 mapping.
      */
     public float getCurrentHorizontalSpeedFlattened(float partialTicks) {
         if (flattenedHistoryIndex < 0) return 0f;
@@ -225,26 +225,26 @@ public class SmartStatistics {
                 + (currentVerticalSpeed - prevCurrentVerticalSpeed) * partialTicks);
     }
 
-    // 🔴 (2026-05-21, fix #147) sub-tick interpolation 식 정정 — explicit lerp(p, prev, cur).
-    //   사용자 verbatim "팔이 회전할때 엄청 잠깐 뚜둑 거리면서 끊기면서 잔상".
+    // 🔴 (2026-05-21, fix #147) sub-tick interpolation formula correction — explicit lerp(p, prev, cur).
+    //   User verbatim "arm rotation gets very brief stuttering/stutter/artifact".
     //
-    //   원인:
-    //     기존 식 `total - cSpd * (1 - p)` = `prev_total + cSpd * p` (정상 sequence 가정).
-    //     가정: total = prev_total + cSpd (= 위 update L172 의 결과).
-    //     근데 cSpd_field 가 spike (raw 의 velocity spike) 또는 sequence race 시 가정 깨짐 →
-    //     `total - cSpd * (1-p)` 와 `prev_total + cSpd * p` 가 다른 결과 → tick boundary 에서
-    //     partial 0.180 → 0.000 transition 시 distance backward jump.
-    //   log 검증 (sample 22 partial 0.180 dist 1491.352 → sample 23 partial 0.000 dist 1491.235):
-    //     기존 식 가정 시 sample 23 distance = total_1932 - cSpd_1932 = prev_total = total_1931.
-    //     sample 22 distance = total_1931 - cSpd_1931 * 0.820. = expected < sample 23 distance.
-    //     근데 log: sample 22 > sample 23 = 0.117 backward.
-    //     = cSpd_1931 음수 또는 가정 모순. = field race / spike 가능.
+    //   Cause:
+    //     Existing formula `total - cSpd * (1 - p)` = `prev_total + cSpd * p` (assumes normal sequence).
+    //     Assumption: total = prev_total + cSpd (= result of update L172 above).
+    //     But when cSpd_field spikes (velocity spike in raw) or sequence race assumption breaks →
+    //     `total - cSpd * (1-p)` and `prev_total + cSpd * p` give different results → at tick boundary
+    //     partial 0.180 → 0.000 transition causes distance backward jump.
+    //   Log validation (sample 22 partial 0.180 dist 1491.352 → sample 23 partial 0.000 dist 1491.235):
+    //     With existing formula assumption sample 23 distance = total_1932 - cSpd_1932 = prev_total = total_1931.
+    //     sample 22 distance = total_1931 - cSpd_1931 * 0.820 = expected < sample 23 distance.
+    //     But log: sample 22 > sample 23 = 0.117 backward.
+    //     = cSpd_1931 negative or assumption contradiction = field race / spike likely.
     //
-    //   해결: explicit lerp(p, prev_total_field, total_field).
-    //     정상 sequence 시 = 동등 식. inconsistency 시 prev_total_field 직접 사용 → 더 robust.
+    //   Solution: explicit lerp(p, prev_total_field, total_field).
+    //     Normal sequence = equivalent formula. On inconsistency directly use prev_total_field → more robust.
     public float getTotalDistance(float partialTicks) {
         float result = prevTotalDistance + (totalDistance - prevTotalDistance) * partialTicks;
-        // 🔴 (2026-05-22, fix #149) monotonic guard — tick boundary backward jump 차단.
+        // 🔴 (2026-05-22, fix #149) monotonic guard — block tick boundary backward jump.
         if (result < lastDistResult - 0.001f) {
             result = lastDistResult;
         }
@@ -255,7 +255,7 @@ public class SmartStatistics {
     public float getTotalHorizontalDistance(float partialTicks) {
         float result = prevTotalHorizontalDistance
                 + (totalHorizontalDistance - prevTotalHorizontalDistance) * partialTicks;
-        // 🔴 (2026-05-22, fix #149) monotonic guard — tick boundary backward jump 차단.
+        // 🔴 (2026-05-22, fix #149) monotonic guard — block tick boundary backward jump.
         if (result < lastHorizontalDistResult - 0.001f) {
             result = lastHorizontalDistResult;
         }
@@ -266,7 +266,7 @@ public class SmartStatistics {
     public float getTotalVerticalDistance(float partialTicks) {
         float result = prevTotalVerticalDistance
                 + (totalVerticalDistance - prevTotalVerticalDistance) * partialTicks;
-        // 🔴 (2026-05-22, fix #149) monotonic guard — tick boundary backward jump 차단.
+        // 🔴 (2026-05-22, fix #149) monotonic guard — block tick boundary backward jump.
         if (result < lastVerticalDistResult - 0.001f) {
             result = lastVerticalDistResult;
         }
@@ -292,7 +292,7 @@ public class SmartStatistics {
         prevTotalHorizontalDistance = 0;
         prevTotalVerticalDistance = 0;
         prevTotalDistance = 0;
-        // 🔴 (fix #149) monotonic guard 도 reset.
+        // 🔴 (fix #149) also reset monotonic guard.
         lastDistResult = 0f;
         lastHorizontalDistResult = 0f;
         lastVerticalDistResult = 0f;

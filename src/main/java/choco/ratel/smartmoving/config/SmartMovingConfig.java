@@ -760,80 +760,80 @@ public class SmartMovingConfig {
     public float climbBackHeadJumpHandsOnlyHorizontalFactor = 1F;
 
     /**
-     * 원본: _angleJumpDoubleClickTicks = Positive("move.jump.angle.double.click.ticks").singular().up(3F, 2F)
-     * 각도 점프 더블클릭 감지 타이머(틱). 첫 클릭 후 이 시간 내에 두 번째 클릭 시 트리거.
-     * 기본 3F, 최솟값 2F. 사용 시 (int)Math.ceil(value).
+     * Original: _angleJumpDoubleClickTicks = Positive("move.jump.angle.double.click.ticks").singular().up(3F, 2F)
+     * Angle jump double-click detection timer (ticks). Triggers on second click within this time after first click.
+     * Default 3F, minimum 2F. Use as (int)Math.ceil(value).
      */
     public float angleJumpDoubleClickTicks = 3F;
     /**
-     * 원본: _wallJumpDoubleClick = Unmodified("move.jump.wall.double.click").singular()
-     * true=더블클릭+홀드로 벽 점프 발동 / false=싱글클릭+홀드. Unmodified 기본값 true.
+     * Original: _wallJumpDoubleClick = Unmodified("move.jump.wall.double.click").singular()
+     * true=wall jump triggered by double-click+hold / false=single-click+hold. Unmodified default true.
      */
     public boolean wallJumpDoubleClick = true;
     /**
-     * 원본: _wallJumpDoubleClickTicks = Positive("move.jump.wall.double.click.ticks").singular().up(3F, 2F)
-     * 벽 점프 더블클릭 타이머(틱). 기본 3F, 최솟값 2F.
+     * Original: _wallJumpDoubleClickTicks = Positive("move.jump.wall.double.click.ticks").singular().up(3F, 2F)
+     * Wall jump double-click timer (ticks). Default 3F, minimum 2F.
      */
     public float wallJumpDoubleClickTicks = 3F;
 
     // ── Sliding ─────────────────────────────────────────────────
-    // 원본: SmartMovingConfig._slideSlipperinessFactor (PositiveFactor, 기본값 1F)
+    // Original: SmartMovingConfig._slideSlipperinessFactor (PositiveFactor, default 1F)
     public float slideSlipperinessFactor = 1.0F;
-    // 원본: SmartMovingConfig._slideParticlePeriodFactor (PositiveFactor, 기본값 0.5F)
+    // Original: SmartMovingConfig._slideParticlePeriodFactor (PositiveFactor, default 0.5F)
     public float slideParticlePeriodFactor = 0.5F;
-    // 원본: SmartMovingConfig._slidingSpeedStopFactor (PositiveFactor, 기본값 1F)
+    // Original: SmartMovingConfig._slidingSpeedStopFactor (PositiveFactor, default 1F)
     public float slidingSpeedStopFactor = 1.0F;
-    // 원본: SmartMovingConfig._slideControlDegrees (PositiveFactor, 기본값 1F, deg/tick)
-    //   슬라이딩 중 좌우 입력으로 방향 회전. SmartMovingSelf L730-L744.
+    // Original: SmartMovingConfig._slideControlDegrees (PositiveFactor, default 1F, deg/tick)
+    //   Direction rotation by left/right input during sliding. SmartMovingSelf L730-L744.
     public float slideControlDegrees = 1.0F;
 
     // ── Flying ──────────────────────────────────────────────────
-    // 원본: Config._flyingSpeedFactor (PositiveFactor, 기본값 1F)
+    // Original: Config._flyingSpeedFactor (PositiveFactor, default 1F)
     public float flyingSpeedFactor = 1.0F;
-    // 원본: Options._flyControlVertical — pitch 방향 3D 이동 활성화 여부 (기본값 true)
+    // Original: Options._flyControlVertical — enable 3D movement in pitch direction (default true)
     public boolean flyControlVertical = true;
     /**
-     * 원본: _diveControlVertical = Unmodified("move.dive.control.vertical").singular()
-     * 기본값 true. 잠수 중 pitch 방향 3D 이동 활성화 여부.
-     * SmartMovingSelf.handleSwimming (isDiving 분기) 에서 moveFlying 5-인자 treeDimensional 파라미터로 전달.
+     * Original: _diveControlVertical = Unmodified("move.dive.control.vertical").singular()
+     * Default true. Enable 3D movement in pitch direction while diving.
+     * Passed as moveFlying 5-argument treeDimensional parameter in SmartMovingSelf.handleSwimming (isDiving branch).
      */
     public boolean diveControlVertical = true;
 
     // ── Crawl edge protection ──────────────────────────────────
-    // 원본: SmartMovingConfig._crawlOverEdge = Unmodified("move.crawl.edge") → 기본값 true
-    // false → 크롤링 중 엣지에서 isSneaking=true 강제 (추락 방지)
+    // Original: SmartMovingConfig._crawlOverEdge = Unmodified("move.crawl.edge") → default true
+    // false → force isSneaking=true at edge during crawl (prevent fall)
     public boolean crawlOverEdge = true;
 
     // ── Crawl / Sneak toggle ────────────────────────────────────
-    // 원본: Options._crawlToggle = Modified("move.crawl.toggle") → 기본값 false
-    // false=홀드(스닉키 누름 유지), true=토글(grab 한 번 눌러 크롤링 고정/해제)
+    // Original: Options._crawlToggle = Modified("move.crawl.toggle") → default false
+    // false=hold (keep sneak key pressed), true=toggle (press grab once to toggle crawl on/off)
     public boolean crawlToggle = false;
     /**
-     * 원본: _sneakToggle = Modified("move.sneak.toggle") → 기본값 false
-     * false=홀드(스닉키 누름 유지), true=토글(스닉키 한 번 눌러 스닉 고정/해제).
-     * 원본 isSneakToggleEnabled() = _sneakToggle.value && enabled.
+     * Original: _sneakToggle = Modified("move.sneak.toggle") → default false
+     * false=hold (keep sneak key pressed), true=toggle (press sneak once to toggle sneak on/off).
+     * Original isSneakToggleEnabled() = _sneakToggle.value && enabled.
      */
     public boolean sneakToggle = false;
 
     // ── Name tag display ────────────────────────────────────────
-    // 원본: _sneakNameTag = Modified("move.sneak.name") → 기본값 true
-    // true → 스니킹 중에도 이름 태그 64 거리 기준 (vanilla는 32)
+    // Original: _sneakNameTag = Modified("move.sneak.name") → default true
+    // true → use 64 distance for name tag visibility while sneaking (vanilla is 32)
     public boolean sneakNameTag = true;
-    // 원본: _crawlNameTag = Modified("move.crawl.name") → 기본값 true
-    // true → 크롤 중 이름 태그 표시, false → 숨김
+    // Original: _crawlNameTag = Modified("move.crawl.name") → default true
+    // true → show name tag while crawling, false → hide
     public boolean crawlNameTag = true;
 
     // ── HUD display ────────────────────────────────────────────
     /**
-     * 원본: _displayExhaustionBar = Unmodified("move.gui.exhaustion.bar").singular()
-     * 기본값 true (Unmodified). 소진 바 HUD 표시 여부.
-     * SmartMovingRender.renderGuiIngame 진입 조건:
+     * Original: _displayExhaustionBar = Unmodified("move.gui.exhaustion.bar").singular()
+     * Default true (Unmodified). Whether to display exhaustion bar HUD.
+     * SmartMovingRender.renderGuiIngame entry condition:
      *   Config.enabled && (displayExhaustionBar || displayJumpChargeBar)
      */
     public boolean displayExhaustionBar = true;
     /**
-     * 원본: _displayJumpChargeBar = Unmodified("move.gui.jump.charge.bar").singular()
-     * 기본값 true. 점프 차지 바 HUD 표시 여부.
+     * Original: _displayJumpChargeBar = Unmodified("move.gui.jump.charge.bar").singular()
+     * Default true. Whether to display jump charge bar HUD.
      */
     public boolean displayJumpChargeBar = true;
 

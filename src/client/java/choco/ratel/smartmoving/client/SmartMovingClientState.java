@@ -984,20 +984,20 @@ public final class SmartMovingClientState {
 
 
     /**
-     * crawl-climbing 의 bodyAngleX fade lerp helper.
-     * setupTransforms 에서 호출 → faded 값 저장 + 반환. setAngles 가 같은 frame 에서 read.
+     * crawl-climbing bodyAngleX fade lerp helper.
+     * called in setupTransforms → store faded value + return. setAngles reads on same frame.
      */
-    /** isCrawling setupTransforms 의 부모 R_x 회전값 (= π/2 - π/16). isCrawlClimbing fade 시작값. */
+    /** isCrawling setupTransforms parent R_x rotation value (= π/2 - π/16). isCrawlClimbing fade start value. */
     public static final float CRAWL_TILT_ANGLE = (float) (Math.PI / 2 - Math.PI / 16);
 
     public float applyCrawlClimbFade(float target, float curTime) {
         float prev = smCrawlClimbBodyAngleXFaded;
         float prevTime = smCrawlClimbFadeTimePrev;
-        // 🔴 fade 보간 (2026-05-04 — 사용자 보고 fix "다리 땅 침투"):
-        //   진입 직전 = isCrawling 자세 (= setupTransforms R_x(-CRAWL_TILT_ANGLE) ≈ 78.75°).
-        //   prev=0 시작 시 = R_x(0) = 직선 → isCrawling R_x(-tilt) 와 ~78° 차이 → leg vertex 박스 침투.
-        //   fix: prev = CRAWL_TILT_ANGLE 시작 → 진입 시 isCrawling 자세와 동일 시작 → 점진적 target.
-        //   isCrawlClimbing 진입 = 항상 isCrawling 상태에서 가능 (= ICC = crawl + climbing).
+        // 🔴 fade interpolation (2026-05-04 — user report fix "legs ground penetration"):
+        //   before entry = isCrawling pose (= setupTransforms R_x(-CRAWL_TILT_ANGLE) ≈ 78.75°).
+        //   when prev=0 start = R_x(0) = straight → ~78° difference with isCrawling R_x(-tilt) → leg vertex box penetration.
+        //   fix: start prev = CRAWL_TILT_ANGLE → on entry same start as isCrawling pose → gradually target.
+        //   isCrawlClimbing entry = always possible from isCrawling state (= ICC = crawl + climbing).
         if (Float.isNaN(prev) || Float.isNaN(prevTime)) {
             smCrawlClimbBodyAngleXFaded = CRAWL_TILT_ANGLE;
             smCrawlClimbFadeTimePrev = curTime;
@@ -1005,7 +1005,7 @@ public final class SmartMovingClientState {
         }
         float deltaT = curTime - prevTime;
         if (deltaT <= 0F || deltaT > 2F) {
-            // timeout/역방향 → prev 유지하고 그대로 반환 (= jump 차단).
+            // timeout/reverse → keep prev and return as-is (= block jump).
             smCrawlClimbFadeTimePrev = curTime;
             return prev;
         }
@@ -1053,34 +1053,34 @@ public final class SmartMovingClientState {
         return faded;
     }
     /**
-     * sm_captureBodyYaw 가 비행/SM force 분기 활성 시 true 로 set.
-     * MixinPlayerEntityModelClient.sm_setAngles 가 body.yaw fade adjustment skip 위해 사용.
+     * sm_captureBodyYaw sets to true when flight/SM force branch active.
+     * MixinPlayerEntityModelClient.sm_setAngles uses to skip body.yaw fade adjustment.
      */
     public boolean smBodyYawActive_publicShared = false;
     /**
-     * 🔴 (Phase 2 fix-3-1) 기존 MixinPlayerEntityRenderer 의 mixin static 2 개
-     *   (smBodyYawActive, smBodyYawOverride) 를 player 별 instance 로 이동.
-     *   sm_captureBodyYaw 가 set, sm_modifyBodyYaw (ModifyArg) 가 read.
+     * 🔴 (Phase 2 fix-3-1) move 2 existing mixin static fields from MixinPlayerEntityRenderer
+     *   (smBodyYawActive, smBodyYawOverride) to per-player instance.
+     *   sm_captureBodyYaw sets, sm_modifyBodyYaw (ModifyArg) reads.
      */
     public boolean smBodyYawActive = false;
     public float smBodyYawOverride = 0f;
-    /** BUG-27/32: 비행 시 추가 Y 회전 (horizontalAngle - lerpedYaw, 라디안). 0 = 추가 회전 없음. */
+    /** BUG-27/32: additional Y rotation during flight (horizontalAngle - lerpedYaw, radians). 0 = no additional rotation. */
     public float smFlyingExtraYaw = 0f;
     /**
-     * 🔴 (2026-04-27) 낙하/기본 상태 fade lag 활성 플래그.
-     * sm_captureBodyYaw 가 set, sm_setupTransforms TAIL 가 fade 적용 가드용.
+     * 🔴 (2026-04-27) fall/standard state fade lag active flag.
+     * sm_captureBodyYaw sets, sm_setupTransforms TAIL uses to guard fade application.
      */
     public boolean smStandardFadeActive = false;
     /**
-     * 🔴 (2026-04-27) 낙하 시 비행 패턴(머리/몸 같이 fade lag) 활성 플래그.
-     * smStandardFadeActive=true 의 sub-mode — 활성 시:
-     *   - sm_animateFalling 가 head.yaw=0 force (머리/몸 같이 회전).
-     *   - sm_modifyNetHeadYaw 가 head 보정 skip (vanilla netHeadYaw 그대로 → fade matrix 영향 받음).
-     * false (기본 상태) 시: 머리는 vanilla 동작 유지 (sm_modifyNetHeadYaw 가 보정 적용).
+     * 🔴 (2026-04-27) falling flight pattern (head/body together fade lag) active flag.
+     * sub-mode of smStandardFadeActive=true — when active:
+     *   - sm_animateFalling forces head.yaw=0 (head/body rotate together).
+     *   - sm_modifyNetHeadYaw skips head correction (vanilla netHeadYaw as-is → affected by fade matrix).
+     * when false (standard): head maintains vanilla behavior (sm_modifyNetHeadYaw applies correction).
      */
     public boolean smFallingFadeMode = false;
     /**
-     * 🔴 (2026-04-27) sm_setupTransforms TAIL 가 set, sm_modifyNetHeadYaw 가 head 보정에 사용.
+     * 🔴 (2026-04-27) sm_setupTransforms TAIL sets, sm_modifyNetHeadYaw uses for head correction.
      */
     public float smCachedYawLerpedRad = 0f;
     /**

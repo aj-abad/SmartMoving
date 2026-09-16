@@ -789,18 +789,18 @@ public final class SmartMovingClimber {
             return;
         }
 
-        // 🔴 사다리/덩굴 1-1 BUG: wantClimb / wantClimbUp / wantClimbDown 결정 정정.
-        //   이전: `wantClimb = SmartMovingKeys.grab.isPressed()` — grab 키만 체크.
-        //   원본 (SmartMovingSelf L2479-2500):
+        // 🔴 Ladder/vine 1-1 BUG: correct wantClimb / wantClimbUp / wantClimbDown decision.
+        //   Previous: `wantClimb = SmartMovingKeys.grab.isPressed()` — only grab key checked.
+        //   Original (SmartMovingSelf L2479-2500):
         //     wantClimb = isFreeClimbingEnabled && wouldWantClimb;
         //     wouldWantClimb = (grab || (climbHolding && sneak) || (autoLadder && faced)
         //                      || (autoVine && facedSolid)) && ...;
-        //     wantClimbUp = (wantClimb && forward>0) || (vine + jump 메커니즘);
+        //     wantClimbUp = (wantClimb && forward>0) || (vine + jump mechanism);
         //     wantClimbDown = wantClimb && forward<=0 && !wantCrawl;
-        //   → grab 키 없이 정면 사다리/덩굴 시 자동 진입 (auto ladder/vine 분기) 활성.
-        //   SmartMovingClientState.tickEssential 가 매 틱 sm.wantClimb / sm.wantClimbUp /
-        //   sm.wantClimbDown 갱신 (L1262, L1289-1295) — 4-OR + vine jump 모두 포함.
-        //   이걸 그대로 사용 → 자동 진입 정상 작동.
+        //   → auto entry active (auto ladder/vine branch) when facing ladder/vine without grab key.
+        //   SmartMovingClientState.tickEssential updates sm.wantClimb / sm.wantClimbUp /
+        //   sm.wantClimbDown every tick (L1262, L1289-1295) — includes all 4-OR + vine jump.
+        //   Use as-is → auto entry works normally.
         boolean wantClimbUp   = sm.wantClimbUp;
         boolean wantClimbDown = sm.wantClimbDown;
 
@@ -809,60 +809,60 @@ public final class SmartMovingClimber {
             return;
         }
 
-        // 🔴 (BUG 1+2 fix, 사용자 보고): 원본 SmartMovingSelf L979 가드 1:1 이식.
-        //   원본 흐름: handleClimbing 의 wantClimbUp/Down 분기는 `if (feetClimbing.IsRelevant()
-        //     || handsClimbing.IsRelevant())` 안에 있음. 평지 (NONE+NONE) 시 이 분기 진입 안 됨
-        //     → setShouldClimbSpeed 호출 안 됨 → isClimbing 변경 안 됨.
-        //   1.21.1 매핑 누락 → 평지에서도 분기 진입 → fallback HOLD_MOTION → setOnlyShouldClimbSpeed
-        //     → isClimbing=true → canCrawl `!isClimbing` 가드 false → isCrawling=false → 크롤 풀림.
-        //   사용자 보고: shift+grab+W 시 엎드림 ↔ 일어남 진동 + 엎드린 채 W 시 풀림 직접 원인.
-        //   해결: 평지 NONE+NONE 가드 → 즉시 return (handleClimbBackJump / handleCrash 등은 위에서
-        //     처리됨 — 이 가드는 motion/isClimbing set 분기 진입만 차단).
+        // 🔴 (BUG 1+2 fix, user report): original SmartMovingSelf L979 guard 1:1 port.
+        //   Original flow: wantClimbUp/Down branch in handleClimbing is inside `if (feetClimbing.IsRelevant()
+        //     || handsClimbing.IsRelevant())`. On flat ground (NONE+NONE), branch not entered
+        //     → setShouldClimbSpeed not called → isClimbing not changed.
+        //   1.21.1 mapping missing → branch entered even on flat ground → fallback HOLD_MOTION → setOnlyShouldClimbSpeed
+        //     → isClimbing=true → canCrawl `!isClimbing` guard false → isCrawling=false → crawl released.
+        //   User report: shift+grab+W causes crawl ↔ stand vibration + W while crawled causes release directly.
+        //   Solution: flat ground NONE+NONE guard → immediate return (handleClimbBackJump / handleCrash etc handled above
+        //     — this guard only blocks motion/isClimbing set branch entry).
         if (!feetClimbing.isRelevant() && !handsClimbing.isRelevant()) {
             return;
         }
 
         double value = 0D;
         boolean isUp = true;
-        // 🔴 (세션 145 BUG fix): wantClimbUp/Down 분기 sub-branch 매치 여부 추적.
-        //   원본 SmartMovingSelf L981-L1027 의 if-else 체인은 어떤 sub-branch 도 매치 안 되면
-        //   `setShouldClimbSpeed` 호출 자체가 발생 안 함 (= isClimbing 안 set).
-        //   이전 매핑은 fallback HOLD_MOTION 으로 강제 호출 → 평지 크롤 (feet=BaseWithHands
-        //   강제 승격, hands=NONE) 시 isClimbing=true → canCrawl=false → 크롤 풀림 BUG.
-        //   해결: 매치된 분기 없으면 setOnlyShouldClimbSpeed skip (원본 1:1).
+        // 🔴 (Session 145 BUG fix): track wantClimbUp/Down branch sub-branch matching.
+        //   Original SmartMovingSelf L981-L1027 if-else chain: if no sub-branch matches,
+        //   `setShouldClimbSpeed` call never happens (= isClimbing not set).
+        //   Previous mapping forcibly called with fallback HOLD_MOTION → on flat ground crawl (feet=BaseWithHands
+        //   forced promotion, hands=NONE) isClimbing=true → canCrawl=false → crawl release BUG.
+        //   Solution: skip setOnlyShouldClimbSpeed if no matching branch (original 1:1).
         boolean matched = false;
 
-        // 🔴 원본 setShouldClimbSpeed 의 (handsClimbType, feetClimbType) 매핑 변수.
-        //   원본 도메인: hands={NoGrab=0, UpGrab=1, MiddleGrab=2}, feet={NoStep=0, DownStep=1}.
-        //   원본 setShouldClimbSpeed(value) 1-arg 기본 = (UpGrab=1, DownStep=1).
-        //   분기별 명시 호출만 다른 값. 아래 if-else 체인이 원본 SmartMovingSelf L991-L1052 1:1.
+        // 🔴 Original setShouldClimbSpeed (handsClimbType, feetClimbType) mapping variables.
+        //   Original domain: hands={NoGrab=0, UpGrab=1, MiddleGrab=2}, feet={NoStep=0, DownStep=1}.
+        //   Original setShouldClimbSpeed(value) 1-arg default = (UpGrab=1, DownStep=1).
+        //   Only explicit branch calls differ. Below if-else chain is original SmartMovingSelf L991-L1052 1:1.
         int handsAnim = 1;  // default UpGrab
         int feetAnim  = 1;  // default DownStep
 
         if (wantClimbUp) {
-            // 🔴 (2026-04-27) 원본 SmartMovingSelf L981-1027 1:1 정밀 매핑.
+            // 🔴 (2026-04-27) Original SmartMovingSelf L981-1027 precise 1:1 mapping.
 
-            // 원본 L983-987: 슬라이딩 중에 grab+전진 → 크롤 전환.
+            // Original L983-987: grab + forward while sliding → transition to crawl.
             if (sm.isSliding && handsClimbing.isRelevant()) {
                 sm.isSliding  = false;
                 sm.isCrawling = true;
             }
 
-            // 원본 L989: handsClimbing = handsClimbing.ToUp(); (BottomHold → Up 전환)
+            // Original L989: handsClimbing = handsClimbing.ToUp(); (BottomHold → Up transition)
             handsClimbing = handsClimbing.toUp();
 
-            // 원본 L991-995: feetClimbing.FastUp + 특수 조건 → fast climb.
-            //   원본 조건: !(handsClimbing == None && onGround && feetClimbGap.Block != bed)
-            //   1.21.1 매핑: bed 검사 생략 (근사).
+            // Original L991-995: feetClimbing.FastUp + special condition → fast climb.
+            //   Original condition: !(handsClimbing == None && onGround && feetClimbGap.Block != bed)
+            //   1.21.1 mapping: bed check omitted (approximation).
             boolean handsNoneOnGround = (handsClimbing == HandsClimbing.NONE) && player.onGround();
             if (feetClimbing == FeetClimbing.FAST_UP && !handsNoneOnGround) {
                 value = FAST_UP_MOTION; isUp = true;
-                handsAnim = 0; feetAnim = 1;  // 원본 L994: NoGrab + DownStep
+                handsAnim = 0; feetAnim = 1;  // Original L994: NoGrab + DownStep
                 matched = true;
             }
-            // ★ 원본 L996-1000: hasClimbGap || hasClimbCrawlGap + handsClimbing.FastUp +
+            // ★ Original L996-1000: hasClimbGap || hasClimbCrawlGap + handsClimbing.FastUp +
             //   feetClimbing(None or BaseWithHands) → climb into crawl gap.
-            //   = 2칸 벽 위에 갭 있을 때 자동 등반 분기. 사용자 보고 "2칸 벽 안 올라감" 직접 원인.
+            //   = auto climb branch when gap above 2-block wall. User report "2-block wall won't climb" direct cause.
             else if ((sm.hasClimbGap || sm.hasClimbCrawlGap)
                     && handsClimbing == HandsClimbing.FAST_UP
                     && (feetClimbing == FeetClimbing.NONE

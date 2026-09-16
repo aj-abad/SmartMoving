@@ -92,18 +92,18 @@ public abstract class MixinServerPlayNetworkHandler {
     }
 
     /**
-     * 🔴 fix #101 (2026-05-31, BUG "moved too quickly" — return 살아있는 문제):
-     * vanilla bytecode `505: ifle 609` (threshold check) 가 SM phase 중에도 매치되면
-     * warn + requestTeleport + return 가 통째로 실행. 기존 SM redirect 는 requestTeleport
-     * 만 cancel 하므로 return 은 그대로 → player.move() 미실행 → server 위치 동결 → 다음
-     * packet 도 동일 cascade.
+     * 🔴 fix #101 (2026-05-31, BUG "moved too quickly" — return stays alive issue):
+     * vanilla bytecode `505: ifle 609` (threshold check) still matches during SM phase
+     * executing warn + requestTeleport + return entirely. Existing SM redirect only cancels requestTeleport
+     * but return stays → player.move() doesn't execute → server position frozen → next
+     * packet cascades identically.
      *
-     * 해결: slot 25 의 첫 번째 dstore (= distanceSq, offset 313) 직후 값을 0 으로 만들면
-     * `(0 - velocityLenSq) ≤ 0` → ifle 609 → 분기 진입 자체가 차단되어 warn + teleport +
-     * return 전체 skip. 후속 player.move() 정상 실행. server 좌표 자연 갱신.
+     * Solution: after first dstore of slot 25 (= distanceSq, offset 313), set value to 0
+     * then `(0 - velocityLenSq) ≤ 0` → ifle 609 → branch entry itself blocked, warn + teleport +
+     * return entirely skipped. Following player.move() executes normally. Server coordinates update naturally.
      *
-     * 참고: 사이 sleeping check (offset 325, dload 25) 는 isSleeping=true 시점에 분기되며
-     * 어차피 return 도달 경로라 distSq=0 영향 X.
+     * Note: sleeping check in between (offset 325, dload 25) branches when isSleeping=true
+     * which is return path anyway so distSq=0 impact is none.
      */
     @ModifyVariable(method = "handleMovePlayer", require = 0,
         at = @At(value = "STORE", ordinal = 0),
@@ -113,19 +113,19 @@ public abstract class MixinServerPlayNetworkHandler {
     }
 
     /**
-     * 🔴 fix #102 (2026-05-31, BUG "moved wrongly" — server 동기화 안 됨):
-     * vanilla bytecode `817: ifle 885` (postDistSq > 0.0625 check) 매치 시 wronglyMoved=1
-     * + warn + 후속 rubber-band 분기 진입. 기존 SM redirect 는 requestTeleport 만 cancel
-     * 하지만 return 은 살아있어 `player.updatePositionAndAngles(packetX, packetY, packetZ)`
-     * 미호출 → server 가 packet pos 동기화 X. 진단 로그로 직접 확인: SM phase 중 client
-     * SM physics vs server.move() 결과가 ~0.35m 차이 (sliding+sneak motion 식 미일치) →
-     * postDistSq=0.14 > 0.0625 매번 매치.
+     * 🔴 fix #102 (2026-05-31, BUG "moved wrongly" — server sync fails):
+     * vanilla bytecode `817: ifle 885` (postDistSq > 0.0625 check) matches setting wronglyMoved=1
+     * + warn + enters following rubber-band branch. Existing SM redirect only cancels requestTeleport
+     * but return stays so `player.updatePositionAndAngles(packetX, packetY, packetZ)`
+     * never called → server doesn't sync packet pos. Confirmed via diagnostic log: during SM phase
+     * client SM physics vs server.move() result differs ~0.35m (sliding+sneak motion formula mismatch) →
+     * postDistSq=0.14 > 0.0625 matches every time.
      *
-     * 해결: slot 25 의 두 번째 dstore (= postDistSq, offset 796) 직후 값을 0 으로 만들면
-     * `0 ≤ 0.0625` → ifle 885 → wronglyMoved=1 set 안 됨 + warn skip. 후속 `iload 33;
-     * ifeq 923` 에서 wronglyMoved=0 (default) 이므로 isPlayerNotCollidingWithBlocks 분기로.
-     * 거기서도 SM phase 중 box 차이로 false positive 가능 → 기존 requestTeleport redirect
-     * 가 안전망. updatePositionAndAngles 까지 진행되어 server 동기화 정상.
+     * Solution: after second dstore of slot 25 (= postDistSq, offset 796), set value to 0
+     * then `0 ≤ 0.0625` → ifle 885 → wronglyMoved=1 not set + warn skipped. Following `iload 33;
+     * ifeq 923` with wronglyMoved=0 (default) branches to isPlayerNotCollidingWithBlocks. There too
+     * false positive possible due to box diff during SM phase → existing requestTeleport redirect
+     * is safeguard. Proceeds to updatePositionAndAngles so server sync normal.
      */
     @ModifyVariable(method = "handleMovePlayer", require = 0,
         at = @At(value = "STORE", ordinal = 1),
@@ -135,12 +135,12 @@ public abstract class MixinServerPlayNetworkHandler {
     }
 
     /**
-     * C-21: onPlayerMove 내 requestTeleport 호출 전부 가로채기.
-     * SM 이동 중에는 "moved wrongly" / "moved too quickly" rubber-band를 차단한다.
-     * require=0: 메서드 내 대상 invocation 개수가 변경되어도 크래시 없이 소프트 실패.
+     * C-21: Intercept all requestTeleport calls within onPlayerMove.
+     * Blocks "moved wrongly" / "moved too quickly" rubber-band during SM movement.
+     * require=0: soft fail without crash if target invocation count changes in method.
      *
-     * 참고: fix #101/#102 가 두 IF 분기 자체를 차단하므로 SM phase 중 이 redirect 가
-     * 호출될 일은 거의 없음. 단 isPlayerNotCollidingWithBlocks=true edge case 의 안전망.
+     * Note: fix #101/#102 blocks both IF branches themselves, so this redirect rarely
+     * gets called during SM phase. But it's safeguard for isPlayerNotCollidingWithBlocks=true edge case.
      */
     @Redirect(method = "handleMovePlayer", require = 0,
         at = @At(value = "INVOKE",
@@ -160,12 +160,12 @@ public abstract class MixinServerPlayNetworkHandler {
         if (player == null) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
 
-        // 3-9: 낙하 거리 리셋 (isClimbing 계열 + isWallJumping 중 fallDistance가 누적되지 않도록)
+        // 3-9: Reset fall distance (prevent fallDistance accumulation during isClimbing series + isWallJumping)
         if (sm.resetFallDistance) {
             sm.applyFallDistanceReset(player);
         }
 
-        // 3-2: floatingTicks 리셋 (80틱 kick 방지)
+        // 3-2: Reset floatingTicks (prevent 80 tick kick)
         if (sm.resetTicksForFloatKick) {
             aboveGroundTickCount = 0;
         }

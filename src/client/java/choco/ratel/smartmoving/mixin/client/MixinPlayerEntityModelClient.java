@@ -482,39 +482,39 @@ public abstract class MixinPlayerEntityModelClient {
             leftArm.zRot  = 0f;
         }
 
-        // BUG-13/16 (세션 36): SM disabled 시 모든 SM 분기 + isFalling + isAngleJumping 한 번에 skip.
-        //   기존: if-else 체인의 sm.* 분기는 sm.* 자체가 cfg.enabled 후만 true 라 안전했지만,
-        //   else 분기 (isFalling) 는 vanilla 조건만 검사 → SM disabled 시에도 sm_animateFalling
-        //   호출 (사용자 보고 = 낙하 모션 잔존). 또한 isAngleJumping 도 SmartMovingJumper
-        //   잔존 상태 기반이므로 disabled 시에도 false 보장 어려움.
-        //   해결: cfgEnabled false 시 진입점에서 즉시 return — 모든 SM 분기 skip + vanilla 정상.
-        //   reset 인프라 + cloak.pitch 는 위에서 이미 처리되었으므로 잔존 정리는 보장.
+        // BUG-13/16 (session 36): skip all SM branches + isFalling + isAngleJumping at once when SM disabled.
+        //   Previous: sm.* branches in if-else chain safe because sm.* itself only true after cfg.enabled,
+        //   but else branch (isFalling) checks only vanilla condition → call sm_animateFalling even when SM disabled
+        //   (user report = falling motion lingering). Also isAngleJumping based on SmartMovingJumper
+        //   lingering state so no guarantee of false even when disabled.
+        //   Solution: when cfgEnabled false return immediately at entry point — skip all SM branches + vanilla normal.
+        //   reset infrastructure + cloak.pitch already handled above so lingering cleanup guaranteed.
         if (!cfgEnabled) return;
 
-        // 🔴 (Phase 2 multi BUG-13) 1인칭 손 render 시 SM 분기 skip — reset chunk 는 위에서 이미 적용.
-        //   다른 player setAngles 결과 (= ModelPart arm.roll/scales/leg.roll 등) 잔존이 본인 1인칭 손에 leak →
-        //   reset chunk 만 적용하고 SM 분기 진입 안 함 → ModelPart default → 본인 1인칭 손 정상.
+        // 🔴 (Phase 2 multi BUG-13) Skip SM branch when rendering first-person hand — reset chunk already applied above.
+        //   Other players' setAngles result (= ModelPart arm.roll/scales/leg.roll, etc.) lingering leaks to own first-person hand →
+        //   apply reset chunk only and don't enter SM branch → ModelPart default → own first-person hand normal.
         if (SmartMovingRenderContext.firstPersonArmRender) return;
 
-        // ── [12-7] smallOverGroundHeight 계산 ─────────────────────────────────
-        // 원본: SmartMovingRender.rotatePlayer() → moving.getOverGroundHeight(5D)
-        // isCrawlClimbing/isHeadJumping 상태에서만 발 아래 지면까지의 거리를 계산한다.
+        // ── [12-7] smallOverGroundHeight calculation ─────────────────────────────────
+        // Original: SmartMovingRender.rotatePlayer() → moving.getOverGroundHeight(5D)
+        // Calculate distance from feet to ground only in isCrawlClimbing/isHeadJumping states.
         if (sm.isCrawlClimbing || sm.isHeadJumping) {
-            // 🔴 (Phase 2 multi BUG-6) ClientPlayerEntity 가드 제거 — 모든 player 자체 계산.
-            //   computeSmallOverGroundHeight = entity 위치 + world block scan → server-sync entity.y +
-            //   client-side world 로 remote 도 정확 계산 가능.
-            //   기존: self only → remote 의 smallOverGroundHeight=0 → height=0.25 → bodyAngleX 큰 값 →
-            //         isCrawlClimbing 자세 시각상 잘못 (사용자 보고 "엎드려서 앞으로 가는 애니메이션만").
+            // 🔴 (Phase 2 multi BUG-6) Remove ClientPlayerEntity guard — compute for all players.
+            //   computeSmallOverGroundHeight = entity position + world block scan → can calculate
+            //   accurately for remote using server-sync entity.y + client-side world.
+            //   Previous: self only → remote smallOverGroundHeight=0 → height=0.25 → large bodyAngleX →
+            //             isCrawlClimbing pose looks wrong visually (user report "crawling forward animation only").
             sm.smallOverGroundHeight = computeSmallOverGroundHeight(player, player.level());
         }
 
-        // ── SM 11-state if-else 체인 (SmartMovingModel.setRotationAngles 우선순위) ──
-        // 🔴 사용자 보고 후 (천장 등반): isCeilingClimbing 을 isClimbing 보다 먼저 검사.
-        //   원본 SmartMovingModel L127-L316 은 isClimb 우선이지만 isClimb && isCeilingClimb
-        //   둘 다 true 발생 안 함을 가정. 1.21.1 측은 천장 등반 시 sm.isClimbing 도 true 로
-        //   매핑되어 둘 다 true 발생 → isClimbing 분기 진입 → 일반 클라이밍 식 적용 → 천장
-        //   등반인데 팔/다리 가만히. 우선순위 변경으로 isCeilingClimbing 시 sm_animateCeilingClimbing
-        //   호출 보장.
+        // ── SM 11-state if-else chain (SmartMovingModel.setRotationAngles priority) ──
+        // 🔴 After user report (ceiling climbing): check isCeilingClimbing before isClimbing.
+        //   Original SmartMovingModel L127-L316 prioritizes isClimb but assumes both
+        //   isClimb && isCeilingClimb never both true. In 1.21.1 on ceiling climbing sm.isClimbing
+        //   also maps to true so both true → enter isClimbing branch → apply regular climbing formula → ceiling
+        //   climbing but arms/legs still. Priority change ensures sm_animateCeilingClimbing
+        //   called when isCeilingClimbing.
         if (sm.isRopeSliding) {
             sm_animateRopeSliding(animationProgress, player);
         } else if (sm.isCeilingClimbing) {
@@ -522,13 +522,13 @@ public abstract class MixinPlayerEntityModelClient {
         } else if (sm.isClimbing || sm.isCrawlClimbing) {
             sm_animateClimbing(sm, player, limbSwing, limbSwingAmount, headPitch, animationProgress);
         } else if (isWeepingTwistingVines) {
-            // 🔴 늘어진/휘어진 덩굴 — 사다리 자세 애니메이션 적용.
-            //   사용자 의도: 기능은 vanilla 등반 그대로 (sm_travel_client bypass 유지). 애니메이션만 SM 사다리.
-            //   sm.actualHandsClimbType / actualFeetClimbType 임시 1/1 (UpGrab+DownStep) set 후
-            //   sm_animateClimbing 호출 → 호출 후 원래 값 복원 (다른 코드 영향 0).
-            //   handleClimbing 호출 안 됨 → 매 tick 잔존값 = NoGrab+NoStep (NONE.ordinal()=0).
-            //   임시 1/1 set 으로 사다리 식 (cos*0.3-0.3 leg pitch 등) 적용. isHandsVineClimbing=false
-            //   유지 → vine 분기 (arm scale boost / leg total 식) 안 들어감 = 사다리 자세.
+            // 🔴 weeping/twisting vines — apply ladder climbing pose animation.
+            //   User intent: keep feature as vanilla climbing (maintain sm_travel_client bypass). Only animation is SM ladder.
+            //   Set sm.actualHandsClimbType / actualFeetClimbType temporarily to 1/1 (UpGrab+DownStep) then
+            //   call sm_animateClimbing → restore original values after call (no effect on other code).
+            //   handleClimbing not called → lingering value per tick = NoGrab+NoStep (NONE.ordinal()=0).
+            //   Temporary 1/1 set applies ladder formula (cos*0.3-0.3 leg pitch, etc.). Maintain isHandsVineClimbing=false
+            //   → don't enter vine branch (arm scale boost / leg total formula) = ladder pose.
             int origHandsType = sm.actualHandsClimbType;
             int origFeetType  = sm.actualFeetClimbType;
             sm.actualHandsClimbType = 1;  // UpGrab
@@ -537,7 +537,7 @@ public abstract class MixinPlayerEntityModelClient {
             sm.actualHandsClimbType = origHandsType;
             sm.actualFeetClimbType  = origFeetType;
         } else if (sm.isClimbJumping) {
-            // [isClimbJump] 클라이밍 점프 — 팔을 위로 뻗은 자세
+            // [isClimbJump] climbing jump — arms extended upward pose
             rightArm.xRot = HALF + SIXTEENTH;
             leftArm.xRot  = HALF + SIXTEENTH;
             rightArm.zRot  = -THIRTYTWOTH;
@@ -555,28 +555,28 @@ public abstract class MixinPlayerEntityModelClient {
         } else if (sm.isHeadJumping) {
             sm_animateHeadJumping(sm, player);
         } else {
-            // 🔴 (Phase 2 multi BUG-1) fallDistance 직접 검사 → sm.doFallingAnimation (server-relay sync).
-            //   vanilla 1.21.1 server 가 remote 의 fallDistance 를 미동기 → 사용자 보고 "낙하 애니 안 보임".
-            //   doFallingAnimation 정의 자체가 isFalling 식 등가로 확장됨 (sendStatePacket 참조).
+            // 🔴 (Phase 2 multi BUG-1) Direct fallDistance check → sm.doFallingAnimation (server-relay sync).
+            //   vanilla 1.21.1 server doesn't sync remote fallDistance → user report "falling animation not visible".
+            //   doFallingAnimation definition itself expands equivalent to isFalling formula (see sendStatePacket).
             if (sm.doFallingAnimation) {
                 sm_animateFalling(sm, player);
             }
-            // 🔴 (2026-04-28) isStandard 분기 swing 식 덮어쓰기 제거.
-            //   vanilla setAngles 의 sneak/idle 진동/heldItem 등 += 누적 효과 보존.
-            //   limbSwing/limbSwingAmount 인자만 ModifyArg 로 SM stat 으로 변경 (MixinLivingEntityRenderer).
+            // 🔴 (2026-04-28) Remove isStandard branch swing formula overwrite.
+            //   Preserve += cumulative effects of vanilla setAngles sneak/idle vibration/heldItem, etc.
+            //   Only change limbSwing/limbSwingAmount arguments via ModifyArg to SM stat (MixinLivingEntityRenderer).
         }
 
-        // ── [12-2] animateAngleJumping — 방향 점프 팔/다리 포즈 ──────────────
+        // ── [12-2] animateAngleJumping — directional jump arm/leg pose ──────────────
         if (sm.isAngleJumping()) {
             sm_animateAngleJumping(sm, animationProgress);
         }
 
-        // 🔴 (2026-04-27) head 는 vanilla 그대로 — sm_setupTransforms TAIL 의 fade 가
-        //   모든 ModelPart 부모 변환 영향. head 만 cancel 안 함 → vanilla netHeadYaw 그대로
-        //   (사용자 의도 "머리만 바닐라 코드"). 즉 head 도 fade lag 따라 회전 (의도된 동작).
+        // 🔴 (2026-04-27) head stays vanilla — fade in sm_setupTransforms TAIL affects
+        //   all ModelPart parent transforms. Don't cancel head only → keep vanilla netHeadYaw
+        //   (user intent "head only vanilla code"). So head also rotates following fade lag (intended behavior).
 
-        // [B-16 / §16-24 / BUG-7] cloak.pitch 처리는 위로 이동 (BUG-13/16 cfgEnabled return 가드 위).
-        //   원본 SmartRenderModel L251 = SM 상태 무관 항상 적용. cfgEnabled false 시에도 0 reset 보장.
+        // [B-16 / §16-24 / BUG-7] Move cloak.pitch handling above (above BUG-13/16 cfgEnabled return guard).
+        //   Original SmartRenderModel L251 = always apply regardless of SM state. Guarantee reset to 0 even when cfgEnabled false.
 
         // In 26.2 sleeves, pants, jacket, and hat are child parts. They inherit the
         // parent transforms directly, so the old sibling copyFrom synchronization is gone.

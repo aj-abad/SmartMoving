@@ -353,7 +353,7 @@ public abstract class MixinLivingEntityClient {
         } else {
             climbSpeedFactor *= climbSlowFactor;
         }
-        // damping/rawSpeed 결정.
+        // Determine damping/rawSpeed.
         float climbDamping;
         if (player.onGround() && (!sm.isJumping || sm.vanilla())) {
             net.minecraft.world.level.block.state.BlockState below = player.level().getBlockState(player.getOnPos());
@@ -370,26 +370,26 @@ public abstract class MixinLivingEntityClient {
             float jumpMovementFactor = 0.02F;
             climbRawSpeed = jumpMovementFactor / (player.isSprinting() && !player.getAbilities().flying ? 1.3F : 1F);
         }
-        // Phase F 1:1 정정: jumpControlFactor / headJumpControlFactor 적용 분기 제거.
-        //   원본 SmartMovingSelf L688-L719 흐름은 if/else 체인:
-        //     if (isClimbing && climbingUpIsBlockedBy*) { /* climb 처리, factor 미적용 */ }
-        //     else if (!isSliding) { /* land 처리, factor 적용 (L703-L706) */ }
-        //   즉 등반 분기에서는 jumpControlFactor / headJumpControlFactor 미적용.
-        //   이 climbMotion 위치에 적용은 원본 위반. wouldWantClimb 식 (`!isHeadJumping` 가드)
-        //   로 헤드점프 중 등반 진입 차단되어 dead code 였으나 1:1 정합 명시.
+        // Phase F 1:1 correction: Remove jumpControlFactor / headJumpControlFactor application branch.
+        //   Original SmartMovingSelf L688-L719 flow is if/else chain:
+        //     if (isClimbing && climbingUpIsBlockedBy*) { /* climb handling, factor not applied */ }
+        //     else if (!isSliding) { /* land handling, factor applied (L703-L706) */ }
+        //   So jump Control/head Jump ControlFactor not applied in climbing branch.
+        //   Applying at this climbMotion location violates original. wouldWantClimb expression (`!isHeadJumping` guard)
+        //   blocks climbing entry during head jump making it dead code, but explicit 1:1 match.
         // runFactor (isRunning && !isFast).
         if (cfg2.run && SmartMovingMover.isRunning(player, sm, cfg2) && !sm.isFast) {
             climbSpeedFactor *= cfg2.runFactor;
         }
-        // !onGround 시 potionFactor 정상화.
+        // Normalize potionFactor when !onGround.
         if (!player.onGround()) {
             float potion = SmartMovingMover.getPotionSpeedFactor(player);
             if (potion > 0F) climbSpeedFactor /= potion;
         }
         player.moveRelative(climbRawSpeed * climbSpeedFactor, movementInput);
 
-        // c. 원본 L757-775: ladder/vine 시 motion clamp -0.15 ~ 0.15.
-        //   onClimbable=true (사다리/덩굴 인접) 시만 적용. free climb 일반 벽엔 미적용.
+        // c. Original L757-775: ladder/vine motion clamp -0.15 ~ 0.15.
+        //   Apply only when onClimbable=true (adjacent ladder/vine). Don't apply to free climb normal walls.
         if (onClimbable) {
             Vec3 v = player.getDeltaMovement();
             double clampH = 0.15D;
@@ -400,12 +400,12 @@ public abstract class MixinLivingEntityClient {
             }
         }
 
-        // d. fallDistance reset (사다리/덩굴 매달림 시 낙하 데미지 방지)
+        // d. fallDistance reset (prevent fall damage while hanging on ladder/vine)
         if (onClimbable) {
             player.fallDistance = 0;
         }
 
-        // f. 원본 setLandMotions L1176-1182:
+        // f. Original setLandMotions L1176-1182:
         //   sp.motionY -= 0.08;  sp.motionY *= 0.98;
         //   sp.motionX *= horizontalDamping;  (= 0.91F air damping)
         //   sp.motionZ *= horizontalDamping;
@@ -413,22 +413,22 @@ public abstract class MixinLivingEntityClient {
         double newY = (vel.y - 0.08D) * 0.98D;
         player.setDeltaMovement(vel.x * 0.91F, newY, vel.z * 0.91F);
 
-        // 🔴 사다리/덩굴 motion 가드 — 원본 L757-794 (landMotion) 1:1.
-        //   원본 흐름: landMotion (motion 가드) → move (player.move) → setLandMotions.
-        //   우리 흐름: setLandMotions → player.move (역순). 따라서 motion 가드는
-        //   setLandMotions 후 player.move 전 위치에서 적용 → player.move 시점 motion 보장.
+        // 🔴 Ladder/vine motion guard — 1:1 original L757-794 (landMotion).
+        //   Original flow: landMotion (motion guard) → move (player.move) → setLandMotions.
+        //   Our flow: setLandMotions → player.move (reversed order). So motion guard applied
+        //   after setLandMotions and before player.move → guarantee motion at player.move time.
         //
-        //   가드 1 (L757-775): motionX/Z ±0.15 clamp.
-        //   가드 2 (L779-780): fallDistance=0 + motionY = max(motionY, -0.15*factor).
-        //   가드 3 (L782-794): sneak 시 motionY=0 (떨어지지 않게).
+        //   Guard 1 (L757-775): motionX/Z ±0.15 clamp.
+        //   Guard 2 (L779-780): fallDistance=0 + motionY = max(motionY, -0.15*factor).
+        //   Guard 3 (L782-794): sneak motionY=0 (prevent falling).
         //
-        // 🔴 ICC 추가 (사용자 보고 — 그랩 클라이밍 + sneak 진동/덜컹 BUG fix):
-        //   ICC=true 시 박스 = (entity.y+1, entity.y+1.8) (mixin offset 적용). 박스가 사다리
-        //   영역 위 (사다리 끝 통과 후) 도달 시 onClimbable=false (사다리 인접 인식 X) →
-        //   기존 가드 미진입 → setLandMotions 후 motion 음수 누적 → 박스 떨어짐 → ICC 진동.
-        //   원본 1.7.10 은 vanilla 사다리 grip (motion clamp -0.15, sneak my=0) 자체 처리 →
-        //   박스 떨어짐 차단. 우리 매핑은 sm_travel_client 가 vanilla travel cancel 하므로
-        //   vanilla grip 미작동 → 직접 매핑 필요.
+        // 🔴 Add ICC (user report — grab climbing + sneak vibration/jitter BUG fix):
+        //   When ICC=true box = (entity.y+1, entity.y+1.8) (mixin offset applied). Box above ladder
+        //   area (after passing ladder end) reaches when onClimbable=false (ladder not recognized) →
+        //   existing guard not entered → motion negatively accumulates after setLandMotions → box falls → ICC vibration.
+        //   Original 1.7.10 handles vanilla ladder grip itself (motion clamp -0.15, sneak my=0) →
+        //   prevents box falling. Our mapping cancels vanilla travel with sm_travel_client so
+        //   vanilla grip doesn't work → need direct mapping.
         if (onClimbable || sm.isClimbCrawling) {
             Vec3 v = player.getDeltaMovement();
             double clampH = 0.15D;
@@ -452,7 +452,7 @@ public abstract class MixinLivingEntityClient {
             player.fallDistance = 0;
         }
 
-        // g. 원본 L655 등가: vanilla move() 호출로 위치 갱신.
+        // g. Original L655 equivalent: update position by calling vanilla move().
         player.move(MoverType.SELF, player.getDeltaMovement());
 
         ci.cancel();
@@ -460,19 +460,19 @@ public abstract class MixinLivingEntityClient {
 
     /**
      * 5-4: LivingEntity.jumping (field_6282).
-     * SM 조건 필터가 적용될 때 이 필드를 false로 강제 설정한다.
-     * sm_jumpingFilter()에서 조건 체크 후 false 설정.
+     * Force set this field to false when SM condition filter is applied.
+     * Check conditions in sm_jumpingFilter(), then set false.
      */
     @Shadow protected boolean jumping;
 
     /**
-     * 5-4: jumping 필드 억제 — SM 상태 조건 필터.
-     * 원본: SmartMovingSelf.updateEntityActionState() isp.setIsJumpingField() 로직.
+     * 5-4: jumping field suppression — SM state condition filter.
+     * Original: SmartMovingSelf.updateEntityActionState() isp.setIsJumpingField() logic.
      *
-     * 억제 조건:
+     * Suppression conditions:
      *   isCrawling || isSliding || isHeadJumping || jumpCharge>0 || blockJumpTillButtonRelease
      *
-     * LivingEntity.tickMovement() HEAD에서 실행 → travel() 내 jump() 호출 전에 확실히 세팅됨.
+     * Execute in LivingEntity.tickMovement() HEAD → definitely set before jump() call inside travel().
      */
     @Inject(method = "aiStep", at = @At("HEAD"))
     private void sm_jumpingFilter(CallbackInfo ci) {
