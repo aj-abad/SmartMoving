@@ -1,99 +1,99 @@
 package choco.ratel.smartmoving.stat;
 
 /**
- * 렌더 틱마다 플레이어별 이동 데이터를 추적.
- * 원본 SmartStatistics 필드 목록을 그대로 이식 (animation_system.md 기반).
- * 계산: afterMoveEntityWithHeading 대응 → ClientPlayerEntity.move() TAIL 이후 호출.
+ * Tracks player movement data per render tick.
+ * Directly ported original SmartStatistics field list (based on animation_system.md).
+ * Calculation: corresponds to afterMoveEntityWithHeading → called after ClientPlayerEntity.move() TAIL.
  */
 public class SmartStatistics {
 
-    // ── 누적 거리 ─────────────────────────────────────────────
-    public float totalHorizontalDistance;   // limbSwing 등가 (animateArmSwinging 입력)
+    // ── Cumulative distance ────────────────────────────────────
+    public float totalHorizontalDistance;   // equivalent to limbSwing (input to animateArmSwinging)
     public float totalVerticalDistance;
     public float totalDistance;
 
-    // ── 현재 속도 (0~1 정규화) ──────────────────────────────────
-    public float currentHorizontalSpeed;         // limbSwingAmount 등가
-    public float currentHorizontalSpeedFlattened;  // ← 사용 안 함 (FIR history 로 대체).
+    // ── Current speed (0~1 normalized) ─────────────────────────
+    public float currentHorizontalSpeed;         // equivalent to limbSwingAmount
+    public float currentHorizontalSpeedFlattened;  // ← unused (replaced by FIR history).
     public float currentVerticalSpeed;
     public float currentSpeed;
 
-    // 🔴 (2026-05-04 사용자 요청 — "원본 1:1 매핑"): currentHorizontalSpeedFlattened
-    //   = 원본 SmartStatistics.getCurrentHorizontalSpeedFlattened(pt, -1) 1:1.
-    //   원본 = datas[10] history 의 getCurrentHorizontalSpeed() 평균.
-    //   각 data 의 getCurrentHorizontalSpeed = min(1, prevLegYaw + (legYaw-prev)*pt).
-    //   기존 EMA(0.5) 매핑 → FIR 10-tick 평균.
+    // 🔴 (2026-05-04 user request — "exact 1:1 mapping"): currentHorizontalSpeedFlattened
+    //   = exact 1:1 with original SmartStatistics.getCurrentHorizontalSpeedFlattened(pt, -1).
+    //   Original = average of datas[10] history's getCurrentHorizontalSpeed().
+    //   Each data's getCurrentHorizontalSpeed = min(1, prevLegYaw + (legYaw-prev)*pt).
+    //   Previous EMA(0.5) mapping → FIR 10-tick average.
     private static final int FLATTENED_HISTORY_SIZE = 10;
     private final float[] flattenedLegYawHistory = new float[FLATTENED_HISTORY_SIZE];
     private final float[] flattenedPrevLegYawHistory = new float[FLATTENED_HISTORY_SIZE];
     private final boolean[] flattenedHistoryReady = new boolean[FLATTENED_HISTORY_SIZE];
     private int flattenedHistoryIndex = -1;
 
-    // ── 🔴 prev 필드 (Flying Phase / 세션 48): partial tick lerp 보간용 ─────
-    //   원본 SmartStatisticsData (SmartRender) 는 prevLegYaw / legYaw 두 필드 + 매 프레임
-    //   getter 가 `prevLegYaw + (legYaw - prevLegYaw) * partialTicks` lerp 적용.
-    //   매 틱 EMA 갱신 + 매 프레임 lerp 처리 = 60Hz 부드러움.
-    //   이전 1.21.1 매핑은 단일 필드 (current 만) → 매 틱 20Hz 띡띡 = 사용자 보고
-    //   "원본보다 부드럽지 않음" 직접 원인. prev 필드 추가 + lerp getter 매핑.
+    // ── 🔴 prev fields (Flying Phase / session 48): for partial tick lerp interpolation ────
+    //   Original SmartStatisticsData (SmartRender) has two fields prevLegYaw / legYaw + per-frame
+    //   getter applies `prevLegYaw + (legYaw - prevLegYaw) * partialTicks` lerp.
+    //   Per-tick EMA update + per-frame lerp processing = 60Hz smoothness.
+    //   Previous 1.21.1 mapping used single field (current only) → per-tick 20Hz stuttering = user report
+    //   "not as smooth as original" direct cause. Added prev fields + lerp getter mapping.
     public float prevCurrentHorizontalSpeed;
     public float prevCurrentVerticalSpeed;
     public float prevCurrentSpeed;
     public float prevTotalHorizontalDistance;
     public float prevTotalVerticalDistance;
     public float prevTotalDistance;
-    /** 🔴 (2026-05-03 crawl) currentHorizontalSpeedFlattened 의 partial ticks lerp 보간용 prev. */
+    /** 🔴 (2026-05-03 crawl) prev for currentHorizontalSpeedFlattened partial ticks lerp interpolation. */
     public float prevCurrentHorizontalSpeedFlattened;
 
     /**
-     * 🔴 (2026-05-22, fix #149) tick boundary 의 dist backward jump 차단용 monotonic guard.
+     * 🔴 (2026-05-22, fix #149) monotonic guard to block dist backward jump at tick boundary.
      *
-     * 원인 (log 실측):
-     *   매 tick boundary (= render frame partial=0.000 시점) 의 getTotalHorizontalDistance 결과가
-     *   직전 frame (partial≈0.82) 결과보다 1 cSpd 만큼 BACKWARD jump.
-     *   예: tT=384.82 dist=34.294 → tT=385.00 dist=33.855 (-0.439). tT=385.16 dist=34.476 (forward 재개).
+     * Cause (measured from logs):
+     *   At each tick boundary (= render frame partial=0.000 moment) getTotalHorizontalDistance result
+     *   backward jump by 1 cSpd compared to previous frame (partial≈0.82).
+     *   Example: tT=384.82 dist=34.294 → tT=385.00 dist=33.855 (-0.439). tT=385.16 dist=34.476 (forward resumes).
      *
-     * 식 역산: partial=0.000 frame 호출 시점 `prevTotalHorizontalDistance` field 가 1 tick stale
-     *   (= prev_total_384 의 값. expected = total_384). 즉 vanilla 1.21.1 의 render frame partial=0.000
-     *   시점이 entity tick (= Entity.move() TAIL 의 calculate() 호출) 호출 sequence 보다 직전.
+     * Formula reverse engineering: at partial=0.000 frame call `prevTotalHorizontalDistance` field is 1 tick stale
+     *   (= prev_total_384 value. expected = total_384). That is, vanilla 1.21.1 render frame partial=0.000
+     *   moment is before entity tick (= Entity.move() TAIL calculate() call) call sequence.
      *
-     * 결과: swim arm 식 `sawtooth(dist × 0.5) × walk` 의 dist backward → input.pitch backward →
-     *   사용자 보고 "팔 회전 뚜둑" plicking 의 진짜 cause.
+     * Result: swim arm formula `sawtooth(dist × 0.5) × walk` dist backward → input.pitch backward →
+     *   user report "arm rotation plicking" is the real cause.
      *
-     * 해결: 매 frame 의 dist getter 결과가 직전 호출 결과보다 작으면 (= backward) 직전 값 유지.
-     *   → tick boundary frame 만 1 frame stationary (≈ 50ms). visual 자연.
+     * Solution: if dist getter result per frame is less than previous call result (= backward) keep previous value.
+     *   → only tick boundary frame stays stationary 1 frame (≈ 50ms). visually natural.
      *
-     * 회귀 차단: 모든 분기 (swim/dive/flying/sliding/crawling/headjumping/ceilingclimbing) 에서
-     *   dist 가 monotonic 누적 (SmartStatistics.reset() 호출 안 됨). guard 의 영향 = backward 차단만.
+     * Regression guard: in all branches (swim/dive/flying/sliding/crawling/headjumping/ceilingclimbing)
+     *   dist accumulates monotonically (SmartStatistics.reset() not called). guard effect = block backward only.
      */
     private float lastDistResult = 0f;
     private float lastHorizontalDistResult = 0f;
     private float lastVerticalDistResult = 0f;
 
-    // ── 프레임 단위 이동량 ────────────────────────────────────
+    // ── Per-frame movement amount ──────────────────────────────
     public double horizontalDistance;
     public double verticalDistance;
     public double distance;
 
-    // ── 각도 (라디안) ──────────────────────────────────────────
+    // ── Angle (radians) ────────────────────────────────────────
     public float currentCameraAngle;
     public float currentVerticalAngle;
     public float currentHorizontalAngle;
     /**
-     * 원본: SmartRenderRender.statistics.prevHorizontalAngle — 이전 계산값.
-     * atan(xDiff/zDiff) 가 NaN(xDiff=0 && zDiff=0)일 때 fallback 경로에서 사용.
-     * 최초값 NaN → currentCameraAngle 사용, 그 이후 prev 사용.
+     * Original: SmartRenderRender.statistics.prevHorizontalAngle — previous calculated value.
+     * Used in fallback path when atan(xDiff/zDiff) is NaN (xDiff=0 && zDiff=0).
+     * Initial value NaN → use currentCameraAngle, then use prev afterwards.
      */
     public float prevHorizontalAngle = Float.NaN;
 
-    // ── 기타 ───────────────────────────────────────────────────
+    // ── Miscellaneous ──────────────────────────────────────────
     public float smallOverGroundHeight;
 
     /**
-     * move() TAIL 이후 매 틱 호출 — 위치 델타로 이동 통계 갱신.
-     * 원본: SmartStatisticsPlayerBase.afterMoveEntityWithHeading() → statistics.calculateAllStats(false)
+     * Called per tick after move() TAIL — updates movement statistics with position delta.
+     * Original: SmartStatisticsPlayerBase.afterMoveEntityWithHeading() → statistics.calculateAllStats(false)
      *
-     * prevX/prevY/prevZ는 tickMovement() HEAD에서 현재 위치로 저장되므로,
-     * move() 이후 delta = currentPos - prevPos = 이번 틱 실제 이동량.
+     * prevX/prevY/prevZ are saved as current position in tickMovement() HEAD,
+     * so after move() delta = currentPos - prevPos = actual movement amount this tick.
      */
     public void calculate(double prevX, double prevY, double prevZ,
                           double x, double y, double z, float yawDegrees) {
@@ -105,9 +105,9 @@ public class SmartStatistics {
         verticalDistance = Math.abs(diffY);
         distance = Math.sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ);
 
-        // 🔴 (세션 48): prev 필드 갱신 — 매 틱 EMA 적용 전 이전 값 저장 (lerp 보간용).
-        //   원본 SmartStatisticsDatas.initialize: prevLegYaw = previous.legYaw, legYaw = previous.legYaw.
-        //   1.21.1 동등: prev = 이번 틱 시작 시점의 current (= 이전 틱 EMA 결과).
+        // 🔴 (session 48): update prev fields — save previous values before applying per-tick EMA (for lerp interpolation).
+        //   Original SmartStatisticsDatas.initialize: prevLegYaw = previous.legYaw, legYaw = previous.legYaw.
+        //   1.21.1 equivalent: prev = current at tick start (= previous tick EMA result).
         prevCurrentHorizontalSpeed = currentHorizontalSpeed;
         prevCurrentVerticalSpeed   = currentVerticalSpeed;
         prevCurrentSpeed           = currentSpeed;
@@ -116,46 +116,46 @@ public class SmartStatistics {
         prevTotalDistance           = totalDistance;
         prevCurrentHorizontalSpeedFlattened = currentHorizontalSpeedFlattened;
 
-        // 원본: SmartStatisticsData.calcualte() — distance *= 4F; legYaw += (dist - legYaw) * 0.4F
-        // legYaw = EMA(rawDistance * 4, factor=0.4). 일반 보행(~0.22 b/t) → ~0.88, 비행(~0.3 b/t) → 1.0(clamp).
-        // sm_setupTransforms/sm_animateFlying에서 walkFactor = min(1, currentSpeed)으로 사용됨.
+        // Original: SmartStatisticsData.calcualte() — distance *= 4F; legYaw += (dist - legYaw) * 0.4F
+        // legYaw = EMA(rawDistance * 4, factor=0.4). Normal walk (~0.22 b/t) → ~0.88, flying (~0.3 b/t) → 1.0(clamp).
+        // Used in sm_setupTransforms/sm_animateFlying as walkFactor = min(1, currentSpeed).
         currentHorizontalSpeed += ((float) horizontalDistance * 4f - currentHorizontalSpeed) * 0.4f;
         currentVerticalSpeed   += ((float) verticalDistance   * 4f - currentVerticalSpeed)   * 0.4f;
         currentSpeed           += ((float) distance           * 4f - currentSpeed)           * 0.4f;
 
-        // 🔴 (세션 57): total 누적 1:1 정정 — 원본 SmartStatisticsData.calcualte L50:
-        //     `total += legYaw;` (legYaw = EMA 결과, raw distance 아님!)
-        //   이전 1.21.1 매핑 `totalDistance += raw distance` 가 잘못 → 진자 사이클이 원본의
-        //   1/2 속도 (raw distance 가 EMA 결과의 약 2배) → 팔/다리 진자운동 디테일 차이.
-        //   사용자 보고 "팔/다리 진자운동 디테일이 원본이랑 다른 느낌" 직접 원인.
-        //   정정: total += currentSpeed (EMA 결과, clamp 전).
+        // 🔴 (session 57): total accumulation 1:1 correction — original SmartStatisticsData.calcualte L50:
+        //     `total += legYaw;` (legYaw = EMA result, not raw distance!)
+        //   Previous 1.21.1 mapping `totalDistance += raw distance` was wrong → pendulum cycle at 1/2 speed
+        //   of original (raw distance ~2x EMA result) → arm/leg pendulum movement detail difference.
+        //   User report "arm/leg pendulum movement detail feels different from original" direct cause.
+        //   Correction: total += currentSpeed (EMA result, before clamp).
 
-        // 🔴 (2026-05-04 사용자 요청 "원본 1:1") — Flattened FIR 10-tick history 저장.
-        //   원본 SmartStatistics.calculateAllStats: datas[currentDataIndex] 에 새 entry +
-        //     prev datas 로 initialize. 각 entry 의 prevLegYaw/legYaw 는 직전 entry 의 legYaw
-        //     로 init 후 calcualte() 에서 갱신.
-        //   우리 매핑은 단일 currentHorizontalSpeed 필드 쓰므로, 매 tick 의 prev/curr 값을
-        //     ring buffer 에 저장. getCurrentHorizontalSpeedFlattened(pt) 가 history 평균.
+        // 🔴 (2026-05-04 user request "exact 1:1") — save Flattened FIR 10-tick history.
+        //   Original SmartStatistics.calculateAllStats: new entry at datas[currentDataIndex] +
+        //     initialize with prev datas. Each entry's prevLegYaw/legYaw initialized to previous entry's legYaw
+        //     then updated in calcualte().
+        //   Our mapping uses single currentHorizontalSpeed field, so save prev/curr values per tick
+        //     in ring buffer. getCurrentHorizontalSpeedFlattened(pt) averages history.
         flattenedHistoryIndex++;
         if (flattenedHistoryIndex >= FLATTENED_HISTORY_SIZE) flattenedHistoryIndex = 0;
         flattenedPrevLegYawHistory[flattenedHistoryIndex] = prevCurrentHorizontalSpeed;
         flattenedLegYawHistory[flattenedHistoryIndex] = currentHorizontalSpeed;
         flattenedHistoryReady[flattenedHistoryIndex] = true;
 
-        // 원본 SmartRenderRender L95: currentCameraAngle = rotationYaw / RadiantToAngle (= Math.toRadians)
+        // Original SmartRenderRender L95: currentCameraAngle = rotationYaw / RadiantToAngle (= Math.toRadians)
         currentCameraAngle = (float) Math.toRadians(yawDegrees);
 
-        // 🔴 (세션 53): 수직 이동 각도 (라디안) 1:1 정정.
-        //   원본 SmartRenderRender L77-L79:
+        // 🔴 (session 53): vertical movement angle (radians) 1:1 correction.
+        //   Original SmartRenderRender L77-L79:
         //     currentVerticalAngle = (float)Math.atan(yDiff / horizontalDistance);
         //     if(Float.isNaN(currentVerticalAngle)) currentVerticalAngle = Quarter;
-        //   - yDiff > 0, h == 0: atan(+∞) = +π/2 (위로 이동).
-        //   - yDiff < 0, h == 0: atan(-∞) = -π/2 (아래로 이동). ★ 부호 부수적
+        //   - yDiff > 0, h == 0: atan(+∞) = +π/2 (moving up).
+        //   - yDiff < 0, h == 0: atan(-∞) = -π/2 (moving down). ★ sign matter
         //   - yDiff == 0, h == 0: atan(0/0) = NaN → fallback +π/2.
-        //   = atan2(diffY, h) (h≥0) 와 동일 + (0,0) 시 +π/2 fallback.
-        //   이전 1.21.1 매핑 `(h > 1e-4) ? atan2 : +π/2` 가드는 잘못 — h 작을 때 항상 +π/2
-        //   → 마우스 아래 + W 이동 시 verticalAngle 부호 반대 (= 몸이 위로 기울어짐 잘못).
-        //   사용자 보고 "마우스 위/아래 → W 진행 방향 이동 시 진행 방향으로 몸 안 기울어짐" 직접 원인.
+        //   = atan2(diffY, h) (h≥0) equivalent + +π/2 fallback at (0,0).
+        //   Previous 1.21.1 mapping `(h > 1e-4) ? atan2 : +π/2` guard was wrong — always +π/2 when h small
+        //   → mouse down + W move verticalAngle sign reversed (= body tilts up incorrectly).
+        //   User report "mouse up/down → W movement not tilting body in movement direction" direct cause.
         if (horizontalDistance < 1e-9 && Math.abs(diffY) < 1e-9) {
             currentVerticalAngle = (float) (Math.PI / 2f);  // 0/0 fallback
         } else {

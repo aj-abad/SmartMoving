@@ -116,22 +116,22 @@ public final class SmartMovingSwimmer {
         // - isInLiquid (B-7d session 127) — AABB liquid detection (more precise than vanilla isTouchingWater)
         // - player.isInLava() → corresponds to original handleLavaMovement() (vanilla liquid cross detection)
         SmartMovingConfig cfg7c = SmartMovingConfig.Config;
-        // 🔴 (2026-05-22) isLavaLikeWaterEnabled(player) overload 사용 — Creative 모드 자동 true.
-        // 🔴 (2026-05-22) 사용자 보고 fix v4 — 1칸 공간 + dipping 시점 정확 매핑.
+        // 🔴 (2026-05-22) isLavaLikeWaterEnabled(player) overload used — Creative mode auto true.
+        // 🔴 (2026-05-22) User report fix v4 — 1-block space + dipping timing precise mapping.
         //
-        //   log 실측 (line 371~): sm[cr=false dip=true] 매 tick + handleSwimming=true → ci.cancel →
-        //     fromSwimmingOrDiving 도달 X → 자동 crawl 진입 path 없음. **이전 fix v3 의 !isCrawling 가드 효과
-        //     X** (= isCrawling=false 시).
+        //   Log measurement (line 371~): sm[cr=false dip=true] per tick + handleSwimming=true → ci.cancel →
+        //     fromSwimmingOrDiving unreachable → no auto crawl entry path. **Previous fix v3's !isCrawling guard effect
+        //     X** (= when isCrawling=false).
         //
-        //   사용자 verbatim 3 시나리오 모두 cause = 1칸 공간 안 dipping 활성 시 swim 처리 cycle:
-        //   1. swim → 1칸 진입 시 dipping 활성 frame 잠시 STANDING.
-        //   2. 1칸 공간 + dipping 잔존 → 엎드리기 전환 X (= 자동 crawl path 없음).
-        //   3. 엎드리기 + 물 진입 → swim 진입 → isCrawling reset → STANDING.
+        //   All 3 user verbatim scenarios cause = 1-block space swim processing cycle during dipping active:
+        //   1. swim → 1-block entry dipping active frame briefly STANDING.
+        //   2. 1-block space + dipping persist → crawl conversion X (= no auto crawl path).
+        //   3. crawl + water entry → swim entry → isCrawling reset → STANDING.
         //
-        //   해결: 1칸 공간 (= 박스 발+1m 위 ceiling) 검출 시 handleSwim=false 강제. swim 처리 skip →
-        //     resetSwimming → dipping=false → fromSwimmingOrDiving 분기 진입 → 분기 1 매치 → 자동 crawl.
-        //   dipping=true 시점만 검사 (= 성능 회피, 정상 swim 영향 X).
-        //   박스 식 = swim 박스 가정 (entity.y+1, entity.y+1.8). 박스 dim 잔존 무관 일관 결과.
+        //   Solution: When 1-block space (= box feet+1m above ceiling) detected, force handleSwim=false. Skip swim processing →
+        //     resetSwimming → dipping=false → fromSwimmingOrDiving branch enter → branch 1 match → auto crawl.
+        //   Check only at dipping=true moment (= performance avoidance, normal swim unaffected).
+        //   Box formula = swim box assumption (entity.y+1, entity.y+1.8). Consistent result regardless of box dim persistence.
         boolean inSmallHole = false;
         if (sm.isDipping) {
             double standMinY = player.getY() + 1.0;
@@ -149,72 +149,72 @@ public final class SmartMovingSwimmer {
                     || (sm.isSwimming_sm && SmartMovingClientState.isInLiquid(player))
                     || (cfg7c.isLavaLikeWaterEnabled(player) && player.isInLava()));
         if (!handleSwim) {
-            // B-10-reset-post (세션 114): 원본 L1488-L1498 `resetSwimming()` 메서드 호출.
-            // updateSwimState 진입 `!handleSwim` 분기 (원본 L242/L253) 대응 — 물 밖 전환 시
-            // 8 수중 관련 필드 일괄 리셋 (이전 개별 할당에서 isLevitating / isFakeShallowWaterSneaking
-            // / isJumpingOutOfWater 3 필드 누락 해소).
+            // B-10-reset-post (Session 114): Call original L1488-L1498 `resetSwimming()` method.
+            // Corresponds to `!handleSwim` branch at updateSwimState entry (original L242/L253) — transition out of water.
+            // Batch reset of 8 underwater-related fields (resolves omission of isLevitating / isFakeShallowWaterSneaking
+            // / isJumpingOutOfWater 3 fields in previous individual assignments).
             resetSwimming(sm);
-            // B-10c-post (세션 112): 원본 L550 `isStillSwimmingJump = false` — useStandard
-            // 경로 별도 리셋. 원본 resetSwimming 자체에는 없으나 1.21.1 `!handleSwim`
-            // 경로가 useStandard 대응이라 여기서 함께 리셋.
+            // B-10c-post (Session 112): Original L550 `isStillSwimmingJump = false` — separate reset for useStandard path.
+            // Not in original resetSwimming itself, but 1.21.1 `!handleSwim` path corresponds to useStandard,
+            // so reset together here.
             sm.isStillSwimmingJump = false;
-            // 1.21.1 추가 — waterMovementTicks 리셋 (원본 resetSwimming 에 없음. B-12 정정
-            // 경로와 일관성 유지를 위해 물 밖에서 0).
+            // 1.21.1 addition — reset waterMovementTicks (not in original resetSwimming; consistent with B-12 correction
+            // path, set to 0 outside water).
             sm.waterMovementTicks  = 0;
-            // 🔵 (BUG 1 fix #103) dim 변화 시 calculateDimensions — 물 나감 시 swim/dive→false.
+            // 🔵 (BUG 1 fix #103) calculateDimensions on dim change — swim/dive→false on water exit.
             if (sm.isSwimming_sm != prevSwim103 || sm.isDiving != prevDive103) {
                 player.refreshDimensions();
             }
             return;
         }
 
-        // **B-9a 해소 (세션 128)**: `dippingDepth` 시멘틱을 원본 `playerSwimWaterBorder`
-        //   (AABB 정밀, 0~∞ 범위) 로 교체. 기존 `fluidHeight` 근사는 블록 내 액체 높이
-        //   (0~1 범위) — 원본과 시멘틱 다름.
-        //   원본 L270: `playerSwimWaterBorder = totalSwimWaterBorder - j - j_offset`
-        //   원본 L416: `dippingDepth = (float)playerSwimWaterBorder`
-        //   B-42d `SwimBorderValues` 소비. 아래 분기 공식 + dippingDepth 필드 공유.
+        // **B-9a Resolution (Session 128)**: Replace `dippingDepth` semantics with original `playerSwimWaterBorder`
+        //   (AABB precision, 0~∞ range). Existing `fluidHeight` approximation is liquid height within block
+        //   (0~1 range) — semantics differ from original.
+        //   Original L270: `playerSwimWaterBorder = totalSwimWaterBorder - j - j_offset`
+        //   Original L416: `dippingDepth = (float)playerSwimWaterBorder`
+        //   Consume B-42d `SwimBorderValues`. Share dippingDepth field with branch formula below.
         SmartMovingClientState.SwimBorderValues sbv9a =
                 SmartMovingClientState.computeSwimBorderValues(player);
         sm.dippingDepth = (float) sbv9a.playerSwimWaterBorder;
 
-        // 원본 L301 3-OR: isCrawling || isClimbCrawling || isCrawlClimbing → isDipping 강제
-        // (handleSwimming L308-L309). B-6 (세션 60): 누락된 `sm.isClimbCrawling` 추가.
-        // isClimbCrawling 공식 이식은 B-18 범위 — 현재 항상 false 유지이나 조건은 1:1 복원.
+        // Original L301 3-OR: isCrawling || isClimbCrawling || isCrawlClimbing → force isDipping
+        // (handleSwimming L308-L309). B-6 (Session 60): Added missing `sm.isClimbCrawling`.
+        // isClimbCrawling formula porting is in B-18 scope — currently maintained as always false, but condition restored 1:1.
         if (sm.isCrawling || sm.isClimbCrawling || sm.isCrawlClimbing) {
             sm.isDipping     = true;
             sm.isSwimming_sm = false;
             sm.isDiving      = false;
-            // B-10a-post (세션 109): 원본 L507 공식 `couldStandUp && (isDiving || isSwimming)`.
-            // 강제 isDipping 경로는 swim/dive 모두 false → 자동 false.
+            // B-10a-post (Session 109): Original L507 formula `couldStandUp && (isDiving || isSwimming)`.
+            // Forced isDipping path has both swim/dive false → automatically false.
             sm.isShallowDiveOrSwim = false;
-            // B-12 (세션 64): 원본 L481-L484 `if(swimming||diving) ticks++; else ticks=0;`.
-            //   dipping 강제 경로는 swimming/diving 아님 → ticks=0 리셋.
+            // B-12 (Session 64): Original L481-L484 `if(swimming||diving) ticks++; else ticks=0;`.
+            //   Forced dipping path is not swimming/diving → reset ticks=0.
             sm.waterMovementTicks = 0;
-            // 🔵 (BUG 1 fix #103) dim 변화 시 calculateDimensions — 강제 dipping (crawl 등) 진입.
+            // 🔵 (BUG 1 fix #103) calculateDimensions on dim change — entry forced dipping (crawl, etc).
             if (sm.isSwimming_sm != prevSwim103 || sm.isDiving != prevDive103) {
                 player.refreshDimensions();
             }
             return;
         }
 
-        // **B-9a 해소 (세션 128)**: 원본 L305 `offset = playerSwimWaterBorder + 0.1625D`
-        //   공식 복원. fluidHeight 근사 → AABB 정밀 playerSwimWaterBorder.
-        //   A/B 서브 분기 + (2, ∞) 구간 + (<0) 분기는 B-9b/c/d/e/f 후속 원자에서 재구성.
-        //   현재는 A 경로 threshold (1.4 / 1.9) 만 유지.
+        // **B-9a Resolution (Session 128)**: Restore original L305 `offset = playerSwimWaterBorder + 0.1625D`
+        //   formula. Replace fluidHeight approximation with AABB-precise playerSwimWaterBorder.
+        //   A/B sub-branches + (2, ∞) interval + (<0) branch reconstructed in subsequent atoms B-9b/c/d/e/f.
+        //   Currently maintain only A path thresholds (1.4 / 1.9).
         double offset = sbv9a.playerSwimWaterBorder + 0.1625D;
         sm.isDipping     = offset < OFFSET_SWIMMING;
         sm.isSwimming_sm = offset >= OFFSET_SWIMMING && offset < OFFSET_DIVING;
         sm.isDiving      = offset >= OFFSET_DIVING;
 
-        // B-8 (세션 67): 원본 L436-L441 Config 게이트 이식.
+        // B-8 (Session 67): Port original L436-L441 Config gate.
         //   swimming = !useStandard && swimming && Config.isSwimmingEnabled();
         //   diving   = !useStandard && diving   && Config.isDivingEnabled();
         //   dipping  = !useStandard && dipping  && Config.isSwimmingEnabled();
-        // Config 비활성화 시 상태 플래그를 false 로 정화 → 소비처 (#1/#3/#4) 가 잘못된
-        // true 를 참조하지 않도록. 기존은 handleSwimming 에서 return false 로 근사만 —
-        // 상태 플래그 자체는 정화 안 됨 (오역).
-        // useStandard 는 B-9 (메인 분류 재작성) 범위 — 여기선 플래그 정화만.
+        // Purify state flags to false on Config disable → prevent consumers (#1/#3/#4) from referencing false values.
+        // Existing mapping only approximates via return false in handleSwimming —
+        // state flags themselves not purified (mistranslation).
+        // useStandard is in B-9 scope (main classification rewrite) — here only purify flags.
         SmartMovingConfig cfg = SmartMovingConfig.Config;
         if (!cfg.isSwimmingEnabled()) {
             sm.isSwimming_sm = false;
@@ -224,22 +224,22 @@ public final class SmartMovingSwimmer {
             sm.isDiving = false;
         }
 
-        // B-10d (세션 71): 원본 L474 + L505 `isLevitating = levitating` 이식.
+        // B-10d (Session 71): Port original L474 + L505 `isLevitating = levitating`.
         //   levitating = diving && !diveUp && !diveDown && moveStrafing==0 && moveForward==0
-        // 원본 L468-L469:
+        // Original L468-L469:
         //   diveUp   = isp.getIsJumpingField()       → player.input.jumping
         //   diveDown = sneak && Config._diveDownOnSneak.value
-        // 완전 정적 잠수 상태 (입력 전혀 없음) 판정. 애니메이션(isDive Quarter-Sixteenth 수직
-        // 각도 적용 조건) 등에 사용. R-11 A-2 불일치 #11 해소. 필드는 L179 기존 이식됨.
-        // 🔵 (BUG 5 fix #107) raw sneak key 사용 — player.isSneaking() override 우회.
-        //   MixinClientPlayerEntity.isSneaking() override 는 수영 중 항상 false 반환
-        //   (= 메모리 [[feedback_clientplayer_isSneaking_override]] + [[feedback_movementInput_vs_isSneaking]]
-        //   패턴). raw `player.input.sneaking` 사용 → 원본 `esp.movementInput.sneak` 1:1.
-        // 🔴 fix #201 (2026-05-29): swim/dive sneak+jump 동시 → jump 우선 매핑.
-        //   답지: 1.7.10 L445-446 `if(diveUp) motionY -= 0.04` 식 vs 1.12.2 L443-455 (제거).
-        //   project_swimming_complete fix #109 = 1.12.2 1:1 매핑. 즉 motionY -= 0.04 식 제거가 1.12.2 답지.
-        //   추가: swimDown/diveDown 에 jump 가드 → swim+sneak+jump 시 sneak 효과 무시.
-        //   사용자 verbatim "원래 됐었음 → jump 우선 위로 + 수면 끝까지" 매핑.
+        // Determine completely static diving state (no input at all). Used in animation (isDive Quarter-Sixteenth
+        // vertical angle application condition), etc. Resolves R-11 A-2 mismatch #11. Field already ported in L179.
+        // 🔵 (BUG 5 fix #107) Use raw sneak key — bypass player.isSneaking() override.
+        //   MixinClientPlayerEntity.isSneaking() override always returns false while swimming
+        //   (= memory [[feedback_clientplayer_isSneaking_override]] + [[feedback_movementInput_vs_isSneaking]]
+        //   pattern). Use raw `player.input.sneaking` → original `esp.movementInput.sneak` 1:1.
+        // 🔴 fix #201 (2026-05-29): swim/dive sneak+jump simultaneous → jump priority mapping.
+        //   Reference: 1.7.10 L445-446 `if(diveUp) motionY -= 0.04` formula vs 1.12.2 L443-455 (removed).
+        //   project_swimming_complete fix #109 = 1.12.2 1:1 mapping. So removing motionY -= 0.04 is 1.12.2 reference.
+        //   Addition: jump guard for swimDown/diveDown → ignore sneak effect on swim+sneak+jump.
+        //   User verbatim "originally worked → jump priority upward + to water surface extent" mapping.
         boolean diveUp16   = player.input.keyPresses.jump();
         boolean diveDown16 = player.input.keyPresses.shift() && cfg.diveDownOnSneak && !player.input.keyPresses.jump();
         sm.isLevitating = sm.isDiving
@@ -248,25 +248,25 @@ public final class SmartMovingSwimmer {
                 && player.input.getMoveVector().x == 0F
                 && player.input.getMoveVector().y == 0F;
 
-        // B-12 (세션 64): 원본 L481-L484 정정 — swimming/diving 만 증분, dipping 포함
-        //   else 는 ticks=0 리셋. 기존 무조건 증분 (dipping 포함) 은 오역.
-        //   isJumpingOutOfWater 공식 (원본 L486-L487) 이식 시 이 ticks 값이 정확해야 함.
+        // B-12 (Session 64): Original L481-L484 correction — increment only swimming/diving, not dipping.
+        //   else resets ticks=0. Existing unconditional increment (including dipping) is mistranslation.
+        //   This ticks value must be accurate when porting isJumpingOutOfWater formula (original L486-L487).
         if (sm.isSwimming_sm || sm.isDiving) {
             sm.waterMovementTicks++;
         } else {
             sm.waterMovementTicks = 0;
         }
 
-        // 🔵 (BUG 7 fix #108) isJumpingOutOfWater 식 위치 — 1.12.2 1:1 매핑.
-        //   1.7.10 L486-L487 식이 `if(swim||dive)` 분기 안만 평가 → dipping 시 평가 안 됨 →
-        //     1칸 물 + 옆 블록 + jump + wasd 시 surface 점프 (motionY=0.3) 미발동.
-        //   1.12.2 L470-L473 식이 `if(!useStandard)` 안 (= swim/dive/dipping 모두) → dipping
-        //     시도 isJumpingOutOfWater 평가 → `onGround` 분기로 매치 → motionY=0.3 step up.
-        //   해결: 식 위치를 `if(swim||dive)` 분기 *밖* 으로 이동. 우리 매핑은 updateSwimState +
-        //     handleSwimming 분리 구조 → 식 평가는 여기, motion 적용은 handleSwimming 끝 final
-        //     override (fix #101) 자동 매치.
-        //   회귀 안전성: ticks=0 잔존 (dipping 시) 이지만 onGround / wasJumpingOutOfWater 분기로
-        //     자체 매치. swim/dive 진입 시 ticks>10 조건도 그대로 작동.
+        // 🔵 (BUG 7 fix #108) isJumpingOutOfWater formula position — 1.12.2 1:1 mapping.
+        //   1.7.10 L486-L487 formula evaluated only inside `if(swim||dive)` branch → not evaluated on dipping →
+        //     1-block water + adjacent block + jump + wasd: surface jump (motionY=0.3) not triggered.
+        //   1.12.2 L470-L473 formula inside `if(!useStandard)` (= swim/dive/dipping all) → even on dipping
+        //     attempt evaluate isJumpingOutOfWater → match `onGround` branch → motionY=0.3 step up.
+        //   Solution: Move formula position *outside* `if(swim||dive)` branch. Our mapping has separate
+        //     updateSwimState + handleSwimming structure → formula evaluation here, motion application
+        //     at end of handleSwimming final override (fix #101) automatic match.
+        //   Regression safety: ticks=0 remains (on dipping), but matches via onGround / wasJumpingOutOfWater branch.
+        //     When swim/dive entered, ticks>10 condition still works.
         boolean wantJumpOutOfWater = (player.input.getMoveVector().y != 0F
                                    || player.input.getMoveVector().x != 0F)
                 && player.horizontalCollision
@@ -277,23 +277,23 @@ public final class SmartMovingSwimmer {
                     || player.onGround()
                     || sm.wasJumpingOutOfWater);
 
-        // B-10a-post (세션 109): 원본 L507 `isShallowDiveOrSwim = couldStandUp && (isDiving ||
-        // isSwimming);` 이식. `couldStandUp` = 원본 L276 공식.
-        // B-42-B5 해소 (세션 121): 기존 `dippingDepth >= 0F && dippingDepth <= 1.5F` 근사를
-        // `SwimBorderValues` 로 원본 공식 복원 — `playerSwimWaterBorder >= 0 &&
-        // minPlayerSwimWaterDepth <= 1.5` (AABB 정밀 파생값).
-        // 소비처: B-36 분기 (a) 얕은 물 swim/dive → walking 전환 활성화. B-11 Phase 5
-        // (얕은 물 특수 분기) 에서도 진입 게이트로 소비.
+        // B-10a-post (Session 109): Port original L507 `isShallowDiveOrSwim = couldStandUp && (isDiving ||
+        // isSwimming);`. `couldStandUp` = original L276 formula.
+        // B-42-B5 Resolution (Session 121): Restore original formula via `SwimBorderValues` from existing
+        // `dippingDepth >= 0F && dippingDepth <= 1.5F` approximation — `playerSwimWaterBorder >= 0 &&
+        // minPlayerSwimWaterDepth <= 1.5` (AABB-precision derived values).
+        // Consumers: B-36 branch (a) shallow water swim/dive → walking transition activation. Also consumed
+        // in B-11 Phase 5 (shallow water special branch) as entry gate.
         SmartMovingClientState.SwimBorderValues swimVals =
                 SmartMovingClientState.computeSwimBorderValues(player);
         boolean couldStandUp = swimVals.playerSwimWaterBorder >= 0
                             && swimVals.minPlayerSwimWaterDepth <= 1.5;
         sm.isShallowDiveOrSwim = couldStandUp && (sm.isDiving || sm.isSwimming_sm);
 
-        // 🔵 (BUG 1 fix #103) 메인 분기 끝 — dim 변화 시 calculateDimensions.
-        //   첫 swim/dive 진입 frame 에서 즉시 박스 갱신 → 원본 setHeightOffset(-1F) 동일 timing.
+        // 🔵 (BUG 1 fix #103) End of main branch - call calculateDimensions on dim change.
+        //   Immediately update bounding box on first swim/dive entry frame → same timing as original setHeightOffset(-1F).
         if (sm.isSwimming_sm != prevSwim103 || sm.isDiving != prevDive103) {
-            // 🔴 (2026-05-22 fix #152) 사용자 보고: swim → dipping 전환 시 박스 발 1m down BUG.
+            // 🔴 (2026-05-22 fix #152) User report: swim → dipping transition box feet 1m down BUG.
             //   log 실측 (tick 219→220): swim 시 mixin offset 활성 (dim swim h=0.8 eye=1.62) →
             //     박스 +1m up → 박스 발 = entity.y+1 = ground top. entity.y = ground - 1.
             //     swim → dipping 전환 시 dim 변경 (swim 0.8 → STANDING 1.8, orphan SWIMMING 가드)
@@ -321,14 +321,14 @@ public final class SmartMovingSwimmer {
     // ── [8-2] handleSwimming ─────────────────────────────────────────────────
 
     /**
-     * 수중 이동 물리를 직접 처리한다. vanilla travel() 물속 분기를 완전 대체.
-     * 원본: SmartMovingSelf.handleSwimming(moveForward, moveStrafing, speedFactor,
+     * Directly handle underwater movement physics. Completely replaces vanilla travel() underwater branch.
+     * Original: SmartMovingSelf.handleSwimming(moveForward, moveStrafing, speedFactor,
      *                                      wasSwimming, wasDiving, isLiquidClimbing, wasJumpingOutOfWater)
      *
-     * @param jumping jump 키가 현재 눌려있는 상태 (LivingEntity.jumping)
-     * @param wasSwimming superMoveEntityWithHeading 진입 시 isSwimming 스냅샷(원본 L97).
-     * @param wasDiving   동일 시점 isDiving 스냅샷(원본 L99).
-     * @return SM이 처리했으면 true (호출자가 travel() cancel)
+     * @param jumping jump key currently pressed state (LivingEntity.jumping)
+     * @param wasSwimming snapshot of isSwimming at superMoveEntityWithHeading entry (original L97).
+     * @param wasDiving   snapshot of isDiving at same time point (original L99).
+     * @return true if SM handled it (caller cancels travel())
      */
     public static boolean handleSwimming(
             LocalPlayer player,

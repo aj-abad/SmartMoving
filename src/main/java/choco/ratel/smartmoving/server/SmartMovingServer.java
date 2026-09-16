@@ -14,163 +14,163 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 서버 플레이어당 SM 상태 컴포넌트.
- * 원본 SmartMovingServerPlayerBase + SmartMovingServer를 Map 기반으로 통합.
- * Mixin @Unique 주입 대신 UUID→SmartMovingServer 맵 방식을 사용 —
- * ServerPlayerEntity 계층에 필드를 직접 주입하면 mixins 충돌 위험이 크고,
- * 플레이어 생명주기(JOIN/DISCONNECT)와 결합하면 Map 방식이 더 안전하다.
+ * Server-side SM state component per player.
+ * Integrates original SmartMovingServerPlayerBase + SmartMovingServer using Map-based approach.
+ * Uses UUID→SmartMovingServer map instead of Mixin @Unique injection —
+ * Injecting fields directly into ServerPlayerEntity layer risks mixin conflicts,
+ * and coupling with player lifecycle (JOIN/DISCONNECT) makes Map-based approach safer.
  */
 public final class SmartMovingServer {
 
-    /** 서버 콘솔 로그. 원본: FMLLog (Forge). 1.21.1: SLF4J (vanilla 로거 체인). */
+    /** Server-side console logger. Original: FMLLog (Forge). 1.21.1: SLF4J (vanilla logger chain). */
     private static final Logger LOGGER = LoggerFactory.getLogger("smartmoving");
 
-    /** 크롤링 중 아이템 습득 Y방향 확장 범위. 원본: SmartMovingServer.SmallSizeItemGrabHeight = 0.25F */
+    /** Y-direction expansion range for item pickup during crawling. Original: SmartMovingServer.SmallSizeItemGrabHeight = 0.25F */
     public static final double SMALL_SIZE_ITEM_GRAB_HEIGHT = 0.25;
 
-    // ── 3-1 서버 상태 필드 ────────────────────────────────────────
+    // ── 3-1 Server State Fields ────────────────────────────────────────
 
-    /** afterOnUpdate()에서 낙하 거리 리셋 여부 (isClimbing 계열이 true인 동안 유지) */
+    /** Whether to reset fall distance in afterOnUpdate() (maintained while isClimbing family is true) */
     public boolean resetFallDistance;
 
-    /** afterOnUpdate()에서 floatingTicks 리셋 여부 (클라이밍 3종) */
+    /** Whether to reset floatingTicks in afterOnUpdate() (3-type climbing) */
     public boolean resetTicksForFloatKick;
 
-    /** initialize() 완료 여부 */
+    /** Whether initialize() has completed */
     public boolean initialized;
 
-    /** onLivingUpdate 진행 중 여부 */
+    /** Whether onLivingUpdate is in progress */
     public boolean withinOnLivingUpdate;
 
-    /** 크롤링 종료 후 쿨다운 (10틱) — isInsideWall 억제에 사용 */
+    /** Cooldown after crawling ends (10 ticks) — used to suppress isInsideWall */
     public int crawlingCooldown;
 
-    /** 서버 측 크롤링 상태 */
+    /** Server-side crawling state */
     public boolean isCrawling;
     /** 🔵 fix #153 v3 (2026-05-22): swim/dive → crawl multi-step transition history flag. */
     public int smRecentSwimDiveEndTick_fix153 = -9999;
 
-    /** 서버 측 작은 크기 상태. setSmall() → calculateDimensions() 경로로 서버 AABB 갱신. */
+    /** Server-side small size state. Server AABB updated via setSmall() → calculateDimensions() path. */
     public boolean isSmall;
 
-    /** 클라이언트 소진값. -1=억제 해제, 0=소진 없음 */
+    /** Client exhaustion value. -1=suppression disabled, 0=no exhaustion */
     public float hunger = -1F;
 
-    /** 소진 억제 중첩 깊이 */
+    /** Exhaustion suppression nesting depth */
     public int disableAddExhaustionDepth;
 
-    /** 소진 추가 비활성화 여부 */
+    /** Whether to disable additional exhaustion */
     public boolean disableAddExhaustion;
 
-    /** 클라이언트 스니킹 버튼 상태 (State 패킷 bit 33) */
+    /** Client sneak button state (State packet bit 33) */
     public boolean isSneakButtonPressed;
 
-    /** isSneaking() 강제 오버라이드. null=비강제, true/false=강제 반환값 */
+    /** isSneaking() force override. null=not forced, true/false=forced return value */
     public Boolean forceIsSneaking;
 
-    /** 클라이밍 이동 거리 누적 (피로도 계산용). 원본 distanceClimbedModified 이식. */
+    /** Accumulated climbing movement distance (for fatigue calculation). Original distanceClimbedModified ported. */
     public double distanceClimbedModified;
 
-    /** 클라이언트가 전송한 SM 버전 문자열 (ConfigInfo 패킷). null=미수신 */
+    /** SM version string sent by client (ConfigInfo packet). null=not received */
     public String clientVersion;
 
-    // ── 패킷에서 디코딩된 이동 상태 ──────────────────────────────
+    // ── Movement State Decoded from Packet ──────────────────────────────
 
     public boolean isClimbing;
     public boolean isCrawlClimbing;
     public boolean isCeilingClimbing;
     public boolean isWallJumping;
 
-    // ── 포커스 #2.7 D-1 (세션 4): 클라/서버 POSE 완전 대칭화 — 5 필드 추가 ──
-    // 원본은 PacketStream 7 비트 sync 만, 서버 dimensions 결정은 isSmall 단일 의존.
-    // 그러나 1.21.1 vanilla POSE 시스템은 양쪽 동일 분기 매핑 필요 (datatracker sync 진동
-    // 방지). Phase 1 client 측이 이미 8 SM 상태 → 4 분기 (SWIMMING/SLIDING) 매핑하므로,
-    // 서버도 동일 분기 처리하려면 추가 비트 디코딩 필요. SmartMovingState 는 이미 21 bit
-    // 인코딩 (bit 9 isDiving / 11 isSwimming / 19 isLevitating / 20 isHeadJumping /
-    // 21 isSliding) — 서버에서 디코딩만 추가하면 됨.
+    // ── Focus #2.7 D-1 (Session 4): Client/Server POSE Complete Symmetry — 5 Fields Added ──
+    // Original uses PacketStream 7-bit sync only, server dimensions determined by isSmall alone.
+    // However, 1.21.1 vanilla POSE system requires identical branch mapping on both sides (prevent datatracker sync oscillation).
+    // Phase 1 client already maps 8 SM states → 4 branches (SWIMMING/SLIDING),
+    // so server needs additional bit decoding for identical branch handling. SmartMovingState already encodes 21 bits
+    // (bit 9 isDiving / 11 isSwimming / 19 isLevitating / 20 isHeadJumping / 21 isSliding) —
+    // server only needs to add decoding.
 
-    /** SmartMovingState bit 9. SM 다이빙 상태. POSE.SWIMMING 매핑. */
+    /** SmartMovingState bit 9. SM diving state. Maps to POSE.SWIMMING. */
     public boolean isDiving;
-    /** SmartMovingState bit 11. SM 수영 상태. POSE.SWIMMING 매핑. */
+    /** SmartMovingState bit 11. SM swimming state. Maps to POSE.SWIMMING. */
     public boolean isSwimming;
-    /** SmartMovingState bit 19. Levitate 포션 상태. POSE.SLIDING 매핑. */
+    /** SmartMovingState bit 19. Levitate potion state. Maps to POSE.SLIDING. */
     public boolean isLevitating;
-    /** SmartMovingState bit 20. SM 헤드 점프 상태. POSE.SLIDING 매핑. */
+    /** SmartMovingState bit 20. SM head jump state. Maps to POSE.SLIDING. */
     public boolean isHeadJumping;
-    /** SmartMovingState bit 21. SM 슬라이딩 상태. POSE.SLIDING 매핑. */
+    /** SmartMovingState bit 21. SM sliding state. Maps to POSE.SLIDING. */
     public boolean isSliding;
     /**
-     * SmartMovingState bit 22. SM 클라이밍 크롤 상태. 박스 +1 mixin offset 적용.
-     * 사용자 보고 fix (X/Z 땡김): ICC 활성 중 클라/서버 박스 1m Y 차이 → server reconcile.
-     * 클라/서버 dim 동기화 위해 추가 비트.
+     * SmartMovingState bit 22. SM climb crawling state. Box +1 mixin offset applied.
+     * User-reported fix (X/Z pulling): 1m Y difference between client/server box during ICC active → server reconcile.
+     * Additional bit for client/server dimension synchronization.
      */
     public boolean isClimbCrawling;
 
     /**
-     * 🔴 (Phase 2 multi network 최적화) server-side broadcast dirty 검사용.
-     *   매 tick client 가 동일 state packet 보내도, server 가 마지막 broadcast 한 bits 와 비교 →
-     *   변경 시만 다른 client 에게 broadcast. trafic 80-90% 절약 (= 100 player hub 환경 등).
-     *   late join 처리: EntityTrackingEvents.START_TRACKING 시 lastBroadcastBits 를 신규 tracker 에게 replay.
+     * 🔴 (Phase 2 multi-network optimization) For server-side broadcast dirty check.
+     *   Even if client sends identical state packet every tick, server compares with last broadcast bits →
+     *   broadcasts to other clients only on change. Traffic savings of 80-90% (e.g. 100-player hub environments).
+     *   Late join handling: Replay lastBroadcastBits to new tracker at EntityTrackingEvents.START_TRACKING.
      */
     public long lastBroadcastBits = 0L;
 
-    // ── 인스턴스 관리 ─────────────────────────────────────────────
+    // ── Instance Management ─────────────────────────────────────────────
 
     private static final Map<UUID, SmartMovingServer> INSTANCES = new HashMap<>();
 
-    /** 플레이어의 SmartMovingServer 인스턴스를 반환한다. 없으면 새로 생성한다. */
+    /** Returns the player's SmartMovingServer instance. Creates new one if it doesn't exist. */
     public static SmartMovingServer get(ServerPlayer player) {
         return INSTANCES.computeIfAbsent(player.getUUID(), id -> new SmartMovingServer());
     }
 
-    /** 플레이어 접속 해제 시 인스턴스를 제거한다. */
+    /** Removes the instance when player disconnects. */
     public static void remove(ServerPlayer player) {
         INSTANCES.remove(player.getUUID());
     }
 
-    // ── 3-1 + 3-9: State 패킷 처리 ──────────────────────────────
+    // ── 3-1 + 3-9: State Packet Handling ──────────────────────────────
 
     /**
-     * State 패킷의 long 비트필드에서 서버가 필요한 비트만 추출한다.
-     * 원본 SmartMovingServer.processStatePacket() 이식.
+     * Extracts only the bits the server needs from the long bit field of State packet.
+     * Ported from original SmartMovingServer.processStatePacket().
      *
-     * 서버가 읽는 비트:
-     *   bit 12: isCrawlClimbing  (원본)
-     *   bit 13: isCrawling       (원본)
-     *   bit 14: isClimbing       (원본)
-     *   bit 15: isSmall          (원본)
-     *   bit 18: isCeilingClimbing (원본)
-     *   bit 31: isWallJumping    (원본)
-     *   bit 33: isSneakButtonPressed (원본)
+     * Bits read by server:
+     *   bit 12: isCrawlClimbing  (original)
+     *   bit 13: isCrawling       (original)
+     *   bit 14: isClimbing       (original)
+     *   bit 15: isSmall          (original)
+     *   bit 18: isCeilingClimbing (original)
+     *   bit 31: isWallJumping    (original)
+     *   bit 33: isSneakButtonPressed (original)
      *
-     * **포커스 #2.7 D-1 (세션 4)**: 클라/서버 POSE 완전 대칭화 — 5 비트 추가 디코딩.
-     * 원본 PacketStream 미사용 비트 (1.21.1 SmartMovingState 가 이미 인코딩) 를 서버에서
-     * 디코딩하여 sm_updatePose_server 가 클라와 동일 4 분기 처리 가능.
-     *   bit  9: isDiving        ★ 신규 (Phase D-1, POSE.SWIMMING 매핑)
-     *   bit 11: isSwimming      ★ 신규 (Phase D-1, POSE.SWIMMING)
-     *   bit 19: isLevitating    ★ 신규 (Phase D-1, POSE.SLIDING)
-     *   bit 20: isHeadJumping   ★ 신규 (Phase D-1, POSE.SLIDING)
-     *   bit 21: isSliding       ★ 신규 (Phase D-1, POSE.SLIDING)
+     * **Focus #2.7 D-1 (Session 4)**: Complete Client/Server POSE Symmetry — 5 Bits Added Decoding.
+     * Server decodes unused PacketStream bits (already encoded by 1.21.1 SmartMovingState)
+     * so sm_updatePose_server can handle identical 4-branch logic as client.
+     *   bit  9: isDiving        ★ New (Phase D-1, maps to POSE.SWIMMING)
+     *   bit 11: isSwimming      ★ New (Phase D-1, maps to POSE.SWIMMING)
+     *   bit 19: isLevitating    ★ New (Phase D-1, maps to POSE.SLIDING)
+     *   bit 20: isHeadJumping   ★ New (Phase D-1, maps to POSE.SLIDING)
+     *   bit 21: isSliding       ★ New (Phase D-1, maps to POSE.SLIDING)
      */
     public void processStatePacket(ServerPlayer player, long bits) {
-        // 🔴 fix #90 (2026-05-13, BUG: remote 측 벽 박은 후 slide→crawl 전환 시 모델 1m 잠긴 후 회복):
-        //   processStatePacket 시작 시 wasSL/wasCR 저장 — 끝에서 slide→crawl 자동 전환 매치 검사용.
+        // 🔴 fix #90 (2026-05-13, BUG: remote stuck against wall then slide→crawl transition model locks 1m then recovers):
+        //   Save wasSL/wasCR at start of processStatePacket — used to check auto slide→crawl transition match at end.
         boolean _wasSL_fix90 = this.isSliding;
         boolean _wasCR_fix90 = this.isCrawling;
-        // 🔵 fix #98-v2 (2026-05-14, BUG 3: REMOTE 콜리전 땅 닿기 전 헤드점프 끝남 + 착지 시 잠김):
-        //   사용자 지시 — server/self/remote 3측 동기화 검증 + 메모리 정독 결과.
-        //   메모리 핵심: feedback_server_side_state_push_mirror — "self side setPos 호출 발견 시
-        //     server side processStatePacket 안 동일 매치 분기에 미러링 호출 추가 의무".
-        //   self side standupIfPossible 의 standUp 분기 (= L3760, gap=0 시 setPos(getY()+1)) +
-        //     toSlidingOrCrawling 분기 + fix #88 resetHO 분기 모두 entity.y +1m push.
-        //   기존 server side: fix #90 (slide→crawl) 만 미러링. isHJ=true→false 미러링 누락 →
-        //     server.y broadcast = self.y c2s 동기화 시점 차이로 lerp 진행 → REMOTE.y < ground
-        //     (= 잠긴 시각) 또는 REMOTE.y > ground (= 공중에서 standing) BUG 발생.
-        //   fix: self side standUp 의 +1m push 가 server side 에도 동일 매핑.
+        // 🔵 fix #98-v2 (2026-05-14, BUG 3: REMOTE collision ground touch before head jump ends + lock on landing):
+        //   User instruction — verify 3-way sync server/self/remote + memory review results.
+        //   Memory key: feedback_server_side_state_push_mirror — "when self side setPos call detected,
+        //     must add mirror call in identical match branch in server side processStatePacket".
+        //   self side standupIfPossible standUp branch (= L3760, setPos(getY()+1) when gap=0) +
+        //     toSlidingOrCrawling branch + fix #88 resetHO branch all do entity.y +1m push.
+        //   Existing server side: only mirrors fix #90 (slide→crawl). Missing isHJ=true→false mirror →
+        //     server.y broadcast = self.y c2s sync timing difference causes lerp → REMOTE.y < ground
+        //     (= lock moment) or REMOTE.y > ground (= standing in air) BUG occurs.
+        //   fix: Identical mapping of +1m push from self side standUp to server side.
         boolean _wasHJ_fix98 = this.isHeadJumping;
-        // 🔵 fix #153 v2 (2026-05-22 복원): swim → crawl transition server mirror push.
-        //   log 실측: SERVER-CR tick=616 server.y=70 잔존 (= state packet 가 c2s movement 보다 먼저 처리).
-        //   self.y c2s = 71 (= setPos+1). state packet 처리 시 server.y = prev (= 70). mirror push 필요.
+        // 🔵 fix #153 v2 (2026-05-22 restored): swim → crawl transition server mirror push.
+        //   log measurement: SERVER-CR tick=616 server.y=70 persists (= state packet processed before c2s movement).
+        //   self.y c2s = 71 (= setPos+1). When processing state packet, server.y = prev (= 70). Mirror push needed.
         boolean _wasSwim_fix153 = this.isSwimming;
         boolean _wasDive_fix153 = this.isDiving;
 

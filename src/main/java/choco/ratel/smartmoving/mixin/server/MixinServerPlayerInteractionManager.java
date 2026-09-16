@@ -14,17 +14,17 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 서버측 블록 상호작용 — forceIsSneaking 오버라이드 훅.
+ * Server-side block interaction — forceIsSneaking override hook.
  *
- * 원본: SmartMovingCoreEventHandler가 ItemInWorldManager.activateBlockOrUseItem 시작/종료 시
- *       SmartMovingServer.beforeActivateBlockOrUseItem() / afterActivateBlockOrUseItem() 호출.
+ * Original: SmartMovingCoreEventHandler calls SmartMovingServer.beforeActivateBlockOrUseItem() /
+ *           afterActivateBlockOrUseItem() at ItemInWorldManager.activateBlockOrUseItem start/end.
  *
- * 원본 SmartMovingServer 본체:
+ * Original SmartMovingServer body:
  *   beforeActivateBlockOrUseItem() { forceIsSneaking = isSneakButtonPressed; }
  *   afterActivateBlockOrUseItem()  { forceIsSneaking = null; }
  *
- * 1.21.1 매핑: ItemInWorldManager.activateBlockOrUseItem → ServerPlayerInteractionManager.interactBlock.
- * 블록 상호작용 구간 동안 MixinEntity.sm_isSneaking 가 클라이언트 스니크 버튼 상태를 강제 반환.
+ * 1.21.1 mapping: ItemInWorldManager.activateBlockOrUseItem → ServerPlayerInteractionManager.interactBlock.
+ * During block interaction period, MixinEntity.sm_isSneaking forcibly returns client sneak button state.
  */
 @Mixin(ServerPlayerGameMode.class)
 public abstract class MixinServerPlayerInteractionManager {

@@ -86,39 +86,39 @@ public abstract class MixinLivingEntityClient {
             return;  // vanilla travel 본체 진행 (cancel 안 함)
         }
 
-        // [11-4] 비행 억제 — SM 비행 비활성화 시 vanilla creative 비행 motionY 감쇠
-        // 1.21.1: jumpMovementFactor 필드 없음 → getOffGroundSpeed() 메서드(PlayerEntity) (A-30 확인)
-        // C-41: getOffGroundSpeed() @HEAD Mixin으로 0.05F 반환하여 공중 이동 억제
+        // [11-4] Flying suppression — suppress vanilla creative flight motionY when SM flight disabled
+        // 1.21.1: No jumpMovementFactor field → getOffGroundSpeed() method(PlayerEntity) (verified A-30)
+        // C-41: getOffGroundSpeed() @HEAD Mixin returns 0.05F to suppress aerial movement
         if (player.getAbilities().flying && !cfg.fly) {
             Vec3 vel = player.getDeltaMovement();
             player.setDeltaMovement(vel.x, vel.y * 0.5999755859375D, vel.z);
         }
 
-        // [10-1] 점프 판정 — 수영 체크 전 매 틱 실행
+        // [10-1] Jump judgment — execute every tick before swimming check
         SmartMovingJumper.handleJumping(player, sm);
 
-        // 원본 SmartMovingSelf.superMoveEntityWithHeading L97-L100: 진입 직후 isSwimming/isDiving 스냅샷.
-        // handleSwimming 의 isFakeShallowWaterSneaking 판정(원본 L243) + fromSwimmingOrDiving 전환 감지에 사용.
+        // Original SmartMovingSelf.superMoveEntityWithHeading L97-L100: isSwimming/isDiving snapshot right after entry.
+        // Used in handleSwimming's isFakeShallowWaterSneaking judgment (original L243) + detect fromSwimmingOrDiving transition.
         boolean wasSwimming = sm.isSwimming_sm;
         boolean wasDiving   = sm.isDiving;
-        // 🔴 (2026-05-22) 사용자 보고 fix: 물 안 1칸 공간 swim 종료 시 자동 crawl 미작동.
-        //   log 실측 cause: 우리 매핑에서 dive → dipping 전환이 handleSwimming 안 발생 (= 같은 frame
-        //     sm.isDiving=true → false set). 다음 tick 진입 시 wasDive=false → wasShortInWater=false.
-        //   사용자 시나리오: 1칸 공간 안 isTouchingWater=true 잔존 (= vanilla 박스 일부 물 매치) →
-        //     handleSwim=true → dipping 매 tick 유지. 옆 물 사라짐 시 isTouchingWater=false → handleSwim=false
-        //     → resetSwimming → isDipping=false. 그 frame 의 wasShortInWater=false (= 직전 tick swim/dive
-        //     이미 false) → fromSwimmingOrDiving 분기 진입 X → 자동 crawl 미발동.
-        //   해결: wasShortInWater 식에 wasDipping 포함. isShortInWater 도 isDipping 포함 (= dipping 도중
-        //     매 frame 분기 진입 차단). 원본 spec 부분 확장 (= 원본 1.7.10 식 isSwim||isDive 만).
+        // 🔴 (2026-05-22) User report fix: Auto crawl doesn't trigger when exiting swim in 1-block space.
+        //   Log measurement cause: In our mapping, dive → dipping transition doesn't occur in handleSwimming (= same frame
+        //     sm.isDiving=true → false set). Next tick entry has wasDive=false → wasShortInWater=false.
+        //   User scenario: isTouchingWater=true persists inside 1-block space (= vanilla box partially in water) →
+        //     handleSwim=true → dipping maintained each tick. Water disappears on side, isTouchingWater=false → handleSwim=false
+        //     → resetSwimming → isDipping=false. That frame's wasShortInWater=false (= previous tick swim/dive
+        //     already false) → fromSwimmingOrDiving branch not entered → auto crawl doesn't trigger.
+        //   Fix: Include wasDipping in wasShortInWater expression. Also include isDipping in isShortInWater (= block branch entry
+        //     every frame during dipping). Extends original spec (= original 1.7.10 only isSwim||isDive).
         boolean wasDipping  = sm.isDipping;
         boolean wasShortInWater = wasSwimming || wasDiving || wasDipping;
-        // 🔴 fix #155 (2026-05-22): sliding rapid toggle 후 잠긴 visual 차단 — 매 tick 잠긴 검출.
-        //   log 실측: sliding rapid toggle → SlideToHeadJumping 자동 전환 → falling → 다음 ground 도달
-        //     → 박스 발 = ground - 1 안 박힘. fix #70 v4 (mustCrawl 식 안) 는 isCrawling 시점만 매치 →
-        //     handleCrash → toCrawling 호출 후 잠긴 cycle 발생 가능.
-        //   해결: sm_travel_client 진입 시 매 tick (isCrawling || isHeadJumping || isSliding) + onGround=true
-        //     시점 박스 ground 안 박힘 검출 → entity.y push + velocity Y/fallDistance reset.
-        //   가드: groundTop > bbMin + 0.005 (= 잠긴 detection) + groundTop <= bbMin + 1.0 (= 1칸 천장 매치 차단).
+        // 🔴 fix #155 (2026-05-22): Block locked visual after sliding rapid toggle — detect lock every tick.
+        //   Log measurement: sliding rapid toggle → SlideToHeadJumping auto-transition → falling → next ground reach
+        //     → box feet = ground - 1 stuck. fix #70 v4 (inside mustCrawl formula) only matches at isCrawling time →
+        //     handleCrash → toCrawling call after locked cycle possible.
+        //   Fix: Every tick on sm_travel_client entry, (isCrawling || isHeadJumping || isSliding) + onGround=true
+        //     time detect box stuck below ground → entity.y push + velocity Y/fallDistance reset.
+        //   Guard: groundTop > bbMin + 0.005 (= lock detection) + groundTop <= bbMin + 1.0 (= block 1-block ceiling match).
         if (player.onGround() && (sm.isCrawling || sm.isHeadJumping || sm.isSliding || sm.isClimbCrawling)) {
             net.minecraft.world.phys.AABB _stuckBb = player.getBoundingBox();
             double _stuckBbMin = _stuckBb.minY;
@@ -135,126 +135,126 @@ public abstract class MixinLivingEntityClient {
         }
         // 🔴 fix #155 끝.
 
-        // B-7a (세션 127): 원본 SmartMovingSelf L132 `isLiquidClimbing` 지역 변수 승격.
+        // B-7a (Session 127): Promote original SmartMovingSelf L132 `isLiquidClimbing` local variable.
         //   isLiquidClimbing = Config.isFreeClimbingEnabled() && sp.fallDistance <= 3.0
         //                   && wantClimbUp && sp.isCollidedHorizontally && !isDiving;
-        // updateSwimState L232 진입 조건 `!isLiquidClimbing` 항 활성화용 (B-7c 에서 복원).
+        // For enabling `!isLiquidClimbing` term in updateSwimState L232 entry condition (restore in B-7c).
         sm.isLiquidClimbing = (cfg.freeClimb && cfg.enabled)
                             && player.fallDistance <= 3.0
                             && sm.wantClimbUp
                             && player.horizontalCollision
                             && !sm.isDiving;
 
-        // [8-1] 매 틱 수영 상태 3분류 갱신
+        // [8-1] Update 3-tier swimming state every tick
         SmartMovingSwimmer.updateSwimState(player, sm);
 
-        // [8-2] 수중 이동 처리 — SM이 처리하면 vanilla travel() 취소
+        // [8-2] Underwater movement handling — cancel vanilla travel() if SM handles it
         if (SmartMovingSwimmer.handleSwimming(player, sm, movementInput, this.jumping,
                                                wasSwimming, wasDiving)) {
-            // 🔴 (2026-05-22) 사용자 보고 BUG fix: 물에 빠진 상태로 일반 벽 그랩 → 취소 시 isClimbing 잔존.
-            //   원인: 그랩 키 떼면 wantClimb=false → isLiquidClimbing=false → handleSwimming 처리 진입
-            //     → ci.cancel + return → 아래 G-01 reset (L172-, sm.isClimbing=false) 절대 도달 X
-            //     → 다음 tick handleSwimming 매치 cycle → isClimbing=true 영구 잔존
-            //     → sm_setAngles L424 (sm.isClimbing 우선순위) 매치 → sm_animateClimbing → 그랩 자세 잔존.
-            //   해결: swim 처리 시점 명시 resetClimbing() (= handleClimbing 안의 매 tick reset 와 등가).
-            //   회귀 차단: resetClimbing 자체가 그랩 클라이밍 완결 영역의 매 tick reset 인프라.
-            //     일반 벽 grab + ladder/vine grab 케이스 모두 swim 진입 전 / 진입 중에는 isClimbing=false
-            //     가 정상 (= swim 자세 그대로). reset 영향 = 잔존 cleanup.
+            // 🔴 (2026-05-22) User report BUG fix: isClimbing persists when releasing grab while in water.
+            //   Cause: Release grab key, wantClimb=false → isLiquidClimbing=false → handleSwimming entry
+            //     → ci.cancel + return → below G-01 reset (L172-, sm.isClimbing=false) never reached
+            //     → next tick handleSwimming match cycle → isClimbing=true permanently remains
+            //     → sm_setAngles L424 (sm.isClimbing priority) matches → sm_animateClimbing → grab pose remains.
+            //   Fix: Explicitly call resetClimbing() at swim handling point (= equivalent to every tick reset inside handleClimbing).
+            //   Regression prevention: resetClimbing itself is the every-tick reset infrastructure of grab climbing completion area.
+            //     Both normal wall grab + ladder/vine grab cases have isClimbing=false correct before/during swim entry
+            //     (= swim pose intact). reset effect = clean up persistence.
             sm.resetClimbing();
             ci.cancel();
             return;
         }
 
-        // [8-2b] lava 이동 처리 (Phase C-3, 포커스 #2.6 세션 4) — handleSwimming false 분기.
-        //   원본 SmartMovingSelf L578-L600 `handleLava` 1:1 이식.
-        //   진입 조건 (원본 L580): !isFlying && !handledSwimming && !isLiquidClimbing && isInLava
-        //   - lavaLikeWater=true (Creative): handleSwimming 이 lava 처리 → 여기 진입 X
-        //   - lavaLikeWater=false (Survival): handleSwimming 통과 → 여기 진입 → SM 자체 lava motion
-        //   부작용 0 (전수 조사 완료): swimUpward / damage / sound / particle 모두 travel() 외부
+        // [8-2b] Lava movement handling (Phase C-3, focus #2.6 session 4) — handleSwimming false branch.
+        //   Direct port of original SmartMovingSelf L578-L600 `handleLava` 1:1.
+        //   Entry condition (original L580): !isFlying && !handledSwimming && !isLiquidClimbing && isInLava
+        //   - lavaLikeWater=true (Creative): handleSwimming handles lava → don't enter here
+        //   - lavaLikeWater=false (Survival): handleSwimming passes → enter here → SM own lava motion
+        //   Side effects: 0 (full investigation complete): swimUpward / damage / sound / particle all outside travel()
         if (SmartMovingSwimmer.handleLava(player, sm, movementInput)) {
             ci.cancel();
             return;
         }
 
-        // 원본 handleLand L648: `!handledSwimming && !grabButton.Pressed` 조건에서 호출.
-        // 1.21.1 은 handleSwimming=false 도달 시점이 원본 `!handledSwimming` 대응 — 여기서 호출.
-        // grab 분기(원본 L1354 landMotionPost)는 현재 단일 호출 지점으로 통합(효과 동일).
+        // Original handleLand L648: Called under condition `!handledSwimming && !grabButton.Pressed`.
+        // 1.21.1 reaches handleSwimming=false point corresponding to original `!handledSwimming` — call here.
+        // grab branch (original L1354 landMotionPost) is now unified into single call point (same effect).
         sm.fromSwimmingOrDiving(player, wasShortInWater);
 
-        // [9-4] 슬라이딩 처리 — SM이 처리하면 vanilla travel() 취소
+        // [9-4] Sliding handling — cancel vanilla travel() if SM handles it
         if (SmartMovingSlider.handleSliding(player, sm)) {
             ci.cancel();
             return;
         }
 
-        // [10-4] 헤드점프 착지 감지 — 포즈 복원
-        // 🔴 BUG fix (2026-05-08, 헤드점프 인게임 검증 1차):
-        //   handleJumping (L98) 의 tryJump head 분기 발사 → 같은 tick 같은 함수 안의 본 가드
-        //   `onGround && isHeadJumping` 즉시 매치 → resetHeightOffset → isHeadJumping=false +
-        //   STANDING 복원 → 헤드점프 1 tick 도 못 살고 풀림 (사용자 보고 BUG: "잠깐 엎드렸다
-        //   바로 일어남"). vanilla travel 본체가 아직 적용 전이라 onGround=true 잔존 race.
-        //   fix: `&& sm.wasHeadJumping` — 직전 tick 에 이미 isHeadJumping=true 였을 때만 reset.
-        //   발사 tick 에는 wasHeadJumping=false 라 차단. 헤드점프 진행 중 onGround 도달 시
-        //   tickEssential 의 5-AND 재평가 + handleCrash + standupIfPossible 흐름이 처리 (B-24/B-N).
-        //   체크리스트 Phase I 별도 발견 (resetHeightOffset 5-AND 흐름과 중복) 일관 — L149 자체
-        //   제거는 dead code 분석 후 별도 사이클로 deferred.
+        // [10-4] Head jump landing detection — restore pose
+        // 🔴 BUG fix (2026-05-08, head jump in-game verification round 1):
+        //   handleJumping (L98) tryJump head branch fires → same tick same function in main guard
+        //   `onGround && isHeadJumping` immediately matches → resetHeightOffset → isHeadJumping=false +
+        //   restore STANDING → head jump dies after 1 tick (user report BUG: "briefly crouched
+        //   then immediately stand"). vanilla travel body not yet applied, onGround=true persists race.
+        //   fix: `&& sm.wasHeadJumping` — reset only when isHeadJumping was already true previous tick.
+        //   Fire tick has wasHeadJumping=false so blocked. If onGround reached during head jump,
+        //   tickEssential 5-AND re-evaluation + handleCrash + standupIfPossible flow handles it (B-24/B-N).
+        //   Checklist Phase I found separately (duplicate with resetHeightOffset 5-AND flow) consistent — L149 itself
+        //   removal deferred to separate cycle after dead code analysis.
         if (player.onGround() && sm.isHeadJumping && sm.wasHeadJumping) {
             SmartMovingJumper.resetHeightOffset(player, sm);
         }
 
-        // [10-5] 벽점프 처리 (클라이밍 전)
-        // ── 매 틱 벽점프 상태 리셋 (G-01) ─────────────────────────────────
-        // 원본: resetState() this.isWallJumping = false → handleWallJumping()이 조건 충족 시 재세팅
+        // [10-5] Wall jump handling (before climbing)
+        // ── Wall jump state reset every tick (G-01) ─────────────────────────────────
+        // Original: resetState() this.isWallJumping = false → handleWallJumping() re-sets if conditions met
         sm.isWallJumping = false;
-        // 원본 SmartMovingSelf L2863-2897: canWallJumping/wallJumpCount/triggerWallJumping/
-        // wantWallJumping 갱신을 handleWallJumping 진입 직전에 수행.
+        // Original SmartMovingSelf L2863-2897: Update canWallJumping/wallJumpCount/triggerWallJumping/
+        // wantWallJumping just before handleWallJumping entry.
         SmartMovingJumper.updateWallJumpState(player, sm);
         SmartMovingJumper.handleWallJumping(player, sm);
 
-        // ── 매 틱 클라이밍 상태 리셋 (G-01) ─────────────────────────────────
-        // 원본: SmartMovingSelf.resetClimbing() + resetState() 호출 (updateEntityActionState 상단)
-        // 클라이밍 표면을 벗어나도 상태가 true로 남는 버그 방지
-        // 🔴 사용자 보고 fix (grab climbing sneak hold 안 됨):
-        //   isClimbHolding 은 원본 resetClimbing() (L1474-L1486) reset 대상 아님 — 우리 G-01 reset
-        //   에 잘못 포함됨 → 매 tick false reset → wantClimbHolding 식 wch1 (`isClimbHolding && sneak`)
-        //   영원히 false → 자가 hold 메커니즘 (wouldWantClimb 가지 2 + wantClimbHolding 가지 1) 깨짐.
-        //   grab 떼면 hold 안 됨 → 사용자 보고 BUG. isClimbHolding reset 제거 = 원본 1:1.
+        // ── Climbing state reset every tick (G-01) ─────────────────────────────────
+        // Original: SmartMovingSelf.resetClimbing() + resetState() call (top of updateEntityActionState)
+        // Prevent state remaining true after leaving climbing surface
+        // 🔴 User report fix (grab climbing sneak hold doesn't work):
+        //   isClimbHolding is not a reset target in original resetClimbing() (L1474-L1486) — incorrectly
+        //   included in our G-01 reset → resets to false every tick → wantClimbHolding expression wch1 (`isClimbHolding && sneak`)
+        //   forever false → self-holding mechanism breaks (wouldWantClimb branch 2 + wantClimbHolding branch 1).
+        //   Release grab, hold doesn't work → user report BUG. Remove isClimbHolding reset = original 1:1.
         sm.isClimbing        = false;
-        // 🔴 isCrawlClimbing reset 제거 (사용자 보고 fix — 엎드린 채 grab climbing 단 1 tick 후 풀림):
-        //   원본 SmartMovingSelf.resetClimbing() (L1474-L1486) 은 isCrawlClimbing 미포함.
-        //   원본 식 (L2737) 첫 항 `(wasCrawling || isCrawlClimbing)` 의 OR 두 번째 항이 진입 후
-        //   `wasCrawling=false` 강제 (L2749-L2753 진입 엣지) 이후에도 식을 self-perpetuating 으로
-        //   유지하는 핵심 매커니즘. 매 tick reset 하면 자가유지 깨짐 → 1 tick 진입 후 즉시 풀림.
-        //   해제는 식 자체 (모든 5조건 풀리면 자연 false) + canStandUp 자동 해제 (L2744) +
-        //   ICC EXIT iccExitJustToCrawl 가드 로 충분. (2026-05-03)
+        // 🔴 Remove isCrawlClimbing reset (user report fix — grab climbing released after just 1 tick while crouched):
+        //   Original SmartMovingSelf.resetClimbing() (L1474-L1486) does not include isCrawlClimbing.
+        //   Original expression (L2737) first term `(wasCrawling || isCrawlClimbing)` OR second term maintains
+        //   expression self-perpetuating even after forced `wasCrawling=false` (L2749-L2753 entry edge).
+        //   This is key mechanism. Reset every tick breaks self-perpetuation → released immediately after 1 tick entry.
+        //   Release is handled by expression itself (naturally becomes false when all 5 conditions clear) + canStandUp auto-release (L2744) +
+        //   ICC EXIT iccExitJustToCrawl guard sufficient. (2026-05-03)
         // sm.isCrawlClimbing   = false;
         sm.isCeilingClimbing = false;
         sm.isClimbJumping    = false;
-        // 🔴 isClimbCrawling 은 SmartMovingClientState L1877 메인 식이 매 틱 갱신 + 진입/해제
-        //   엣지 (L1880-1908) 가 heightOffset 처리. G-01 강제 reset 하면 wasClimbCrawling 추적
-        //   불가 → 해제 엣지 미발동 → heightOffset=-1 잔존 → vanilla CROUCHING 자세에 박스
-        //   잔존이 결합되어 사용자 보고 "엎드리기" 자세. 원본 resetClimbing (L1474-1486) 도
-        //   isClimbCrawling 미포함 → 1:1 일치하도록 라인 삭제.
+        // 🔴 isClimbCrawling is updated by SmartMovingClientState L1877 main expression every tick + entry/release
+        //   edge (L1880-1908) handles heightOffset. Forced G-01 reset prevents wasClimbCrawling tracking
+        //   → release edge doesn't fire → heightOffset=-1 persists → combined with vanilla CROUCHING pose
+        //   box persistence becomes user report "crouching" pose. Original resetClimbing (L1474-1486) also
+        //   doesn't include isClimbCrawling → delete line for 1:1 match.
         // sm.isClimbCrawling   = false;
         sm.isClimbBackJumping = false;
 
-        // [11-5] SM 비행 물리 — isFlying && cfg.fly 시 pitch 방향 3D 이동
-        // 원본: handleAlternativeFlying() → !handledSwimming && !handledLava && isFlying && Config.isFlyingEnabled()
-        // 수영/슬라이딩이 이미 ci.cancel()로 반환됐으므로 이 지점 = !handledSwimming && !handledLava 조건 충족
+        // [11-5] SM flight physics — 3D movement in pitch direction when isFlying && cfg.fly
+        // Original: handleAlternativeFlying() → !handledSwimming && !handledLava && isFlying && Config.isFlyingEnabled()
+        // Swimming/sliding already returned with ci.cancel(), so this point = conditions !handledSwimming && !handledLava met
         if (SmartMovingFlyer.handleFlying(player, sm, movementInput, this.jumping)) {
             ci.cancel();
             return;
         }
 
-        // **포커스 #4 B-4 (세션 3) — 결함 #2 정정**: vanilla Creative 비행 + sprint+jump 가속.
-        // 원본 SmartMovingSelf L633-L640 `handleLand` 진입 시 `!handledAlternativeFlying` 분기:
+        // **Focus #4 B-4 (Session 3) — defect #2 correction**: vanilla Creative flight + sprint+jump acceleration.
+        // Original SmartMovingSelf L633-L640 `handleLand` entry `!handledAlternativeFlying` branch:
         //   if (esp.movementInput.jump && Config.isSprintingEnabled() && sprintButton.Pressed
         //       && sp.capabilities.isFlying)
         //       sp.motionY += sprintFactorLevitate * sprintFactorLevitateVertical;
         //
-        // 1.21.1 매핑 위치: Flyer.handleFlying 가 false 반환 후 (= SM 비행 비활성, vanilla
-        // Creative 비행 활성 가능 시점). cfg.sprint && abilities.flying && jumping && sprint 키.
-        // 매 tick 적용 — jump 키 hold 중 motionY 가속 (기본 1.5 * 0.185 = 0.2775F).
+        // 1.21.1 mapping location: After Flyer.handleFlying returns false (= SM flight inactive, vanilla
+        // Creative flight possibly active). cfg.sprint && abilities.flying && jumping && sprint key.
+        // Apply every tick — accelerate motionY while jump key held (default 1.5 * 0.185 = 0.2775F).
         if (cfg.sprint && this.jumping
                 && net.minecraft.client.Minecraft.getInstance().options.keySprint.isDown()
                 && player.getAbilities().flying) {
@@ -263,7 +263,7 @@ public abstract class MixinLivingEntityClient {
             player.setDeltaMovement(_v.x, _v.y + _boost, _v.z);
         }
 
-        // [5-1] 클라이밍 처리
+        // [5-1] Climbing handling
         Level world = player.level();
         boolean isSmall = sm.isSmall || sm.isCrawling;
 
@@ -275,26 +275,26 @@ public abstract class MixinLivingEntityClient {
         boolean[] feetVine  = {false};
         SmartMovingClimber.getOnLadderOrVine(player, world, isSmall, false, hands, feet, handsGap, feetGap, handsVine, feetVine);
 
-        // R-01: 클라이밍 타입을 State 패킷 인코딩용으로 저장
+        // R-01: Save climbing type for State packet encoding
         sm.actualHandsClimbType = hands[0].ordinal();
         sm.actualFeetClimbType  = feet[0].ordinal();
         sm.isHandsVineClimbing  = handsVine[0];
         sm.isFeetVineClimbing   = feetVine[0];
 
         boolean onClimbable = hands[0].isRelevant() || feet[0].isRelevant();
-        // 🔴 (2026-04-27) Free Climb (일반 벽 grab) 진입 게이트 — 사용자 보고
-        //   "그랩 키 클라이밍 작동 안 함" 의 핵심 원인.
-        //   원본 SmartMovingSelf L657 은 handleClimbing 무조건 호출. 그 안의 8방향
-        //   seekClimbGap 검사로 일반 벽도 detect → handsClimbing/feetClimbing 갱신.
-        //   우리는 onClimbable (사다리/덩굴 인접) 만 가드라 일반 벽에서 진입 불가.
-        //   sm.wantClimb 는 tickEssential L1262 에서 `freeClimb && enabled && wouldWantClimb`
-        //   (= grab 키 또는 자동사다리/덩굴 검증) 으로 매 tick 갱신. 추가하면 일반 벽에서도
-        //   handleClimbing 진입 → 안의 seekClimbGap 8방향 검사 발동 → Free Climb 정상.
+        // 🔴 (2026-04-27) Free Climb (normal wall grab) entry gate — user report
+        //   core cause of "grab key climbing doesn't work".
+        //   Original SmartMovingSelf L657 unconditionally calls handleClimbing. Inside it,
+        //   8-direction seekClimbGap check detects normal walls → updates handsClimbing/feetClimbing.
+        //   We only guard onClimbable (adjacent ladder/vine) so can't enter on normal wall.
+        //   sm.wantClimb is updated every tick in tickEssential L1262 as `freeClimb && enabled && wouldWantClimb`
+        //   (= grab key or auto ladder/vine check). Adding it allows handleClimbing entry on normal walls →
+        //   8-direction seekClimbGap check inside fires → Free Climb works normally.
         boolean wantFreeClimb = sm.wantClimb;
         if (!onClimbable && !sm.isCeilingClimbing && !wantFreeClimb) {
-            // 🔴 (2026-04-28) Land 분기 — 비행과 동일 패턴 (vanilla travel 통째로 cancel + SM 자체 식).
-            //   원본 SmartMovingSelf.handleLand + landMotion + setLandMotions 1:1 매핑.
-            //   사용자 의도 "비행처럼 1:1": vanilla 흐름 + 부분 inject 의 곱셈 누적 문제 근본 해결.
+            // 🔴 (2026-04-28) Land branch — same pattern as flying (cancel vanilla travel entirely + SM own expression).
+            //   Original SmartMovingSelf.handleLand + landMotion + setLandMotions 1:1 mapping.
+            //   User intent "1:1 like flying": Fundamentally solve vanilla flow + partial inject multiplication accumulation problem.
             SmartMovingMover.handleLand(player, sm, movementInput);
             ci.cancel();
             return;
@@ -303,46 +303,46 @@ public abstract class MixinLivingEntityClient {
         if (onClimbable || wantFreeClimb) SmartMovingClimber.handleClimbing(player, sm);
         SmartMovingClimber.handleCeilingClimbing(player, sm);
 
-        // 클라이밍 미발동 시도 land 분기로.
-        // 🔴 onClimbable 가드 추가 (사용자 보고: 사다리 등반 중 마우스 돌리거나 sneak hold +
-        //   마우스 돌림 → 훅 떨어짐). 원인: handleClimbing 의 wantClimbUp/Down 둘 다 false 시
-        //   isClimbing 갱신 X → 이 분기가 handleLand 호출 → 자유 낙하.
-        //   원본 SmartMovingSelf.landMotion (L757-794) 의 ladder/vine 가드는 isClimbing 무관
-        //   `if (isOnLadder || isOnVine)` 위치 기반 → 천천히 내려옴 (motion clamp + vertical
-        //   clamp -0.15*factor + sneak 시 motionY=0). 우리 매핑은 L342-363 onClimbable 분기에
-        //   동등 가드 보유. 즉 onClimbable=true 면 handleLand 차단하고 그 분기로 진행하면 됨.
+        // If climbing doesn't trigger, attempt land branch.
+        // 🔴 Add onClimbable guard (user report: while climbing ladder, rotate mouse or sneak hold +
+        //   rotate mouse → suddenly falls). Cause: When wantClimbUp/Down both false in handleClimbing,
+        //   isClimbing not updated → this branch calls handleLand → free fall.
+        //   Original SmartMovingSelf.landMotion (L757-794) ladder/vine guard independent of isClimbing
+        //   `if (isOnLadder || isOnVine)` position-based → descends slowly (motion clamp + vertical
+        //   clamp -0.15*factor + sneak motionY=0). Our mapping has equivalent guard in L342-363 onClimbable branch.
+        //   So if onClimbable=true block handleLand and proceed with that branch.
         if (!sm.isClimbing && !sm.isCeilingClimbing && !onClimbable) {
             SmartMovingMover.handleLand(player, sm, movementInput);
             ci.cancel();
             return;
         }
 
-        // 🔴 (2026-04-28) 원본 SmartMovingSelf.handleLand + landMotion 정밀 1:1 매핑.
-        //   원본 흐름:
-        //     1. landMotion (L675-810): horizontalDamping 결정 + moveFlying (movementInput → motion).
-        //     2. move (L655): vanilla move() — 위치 갱신.
-        //     3. handleClimbing (L657): motionY 새로 set.
+        // 🔴 (2026-04-28) Precise 1:1 mapping of original SmartMovingSelf.handleLand + landMotion.
+        //   Original flow:
+        //     1. landMotion (L675-810): Determine horizontalDamping + moveFlying (movementInput → motion).
+        //     2. move (L655): vanilla move() — update position.
+        //     3. handleClimbing (L657): Set motionY anew.
         //     4. handleCeilingClimbing.
         //     5. setLandMotions (L659): motionY -= 0.08, *= 0.98, horizontalDamping.
         //
-        //   우리는 HEAD inject 라 순서 변경:
-        //     a. handleClimbing (motionY set) — 이미 호출됨.
-        //     b. movementInput → motion (원본 L718 moveFlying 등가).
-        //     c. ladder/vine 시 motion clamp -0.15 ~ 0.15 (원본 L757-775).
-        //     d. notTotalFreeClimbing 시 fallDistance=0 + vertical clamp (원본 L776-781).
-        //     e. sneak 시 motionY=0 (원본 L782-794).
-        //     f. setLandMotions (원본 L1176-1182): motionY -= 0.08, *= 0.98, horizontal *= 0.91.
-        //     g. player.move (원본 L655 등가).
+        //   We have HEAD inject so order changes:
+        //     a. handleClimbing (set motionY) — already called.
+        //     b. movementInput → motion (equivalent to original L718 moveFlying).
+        //     c. On ladder/vine motion clamp -0.15 ~ 0.15 (original L757-775).
+        //     d. When notTotalFreeClimbing fallDistance=0 + vertical clamp (original L776-781).
+        //     e. On sneak motionY=0 (original L782-794).
+        //     f. setLandMotions (original L1176-1182): motionY -= 0.08, *= 0.98, horizontal *= 0.91.
+        //     g. player.move (equivalent to original L655).
 
-        // b. 🔴 (2026-04-28) 원본 L718 `sp.moveFlying(strafe, forward, rawSpeed * speedFactor)` 1:1.
-        //   기존 `0.1F` hardcoded 는 vanilla 1.21.1 walk 속도. 사용자 보고 "원본보다 빠름".
-        //   원본 식: rawSpeed * speedFactor.
+        // b. 🔴 (2026-04-28) 1:1 of original L718 `sp.moveFlying(strafe, forward, rawSpeed * speedFactor)`.
+        //   Existing hardcoded `0.1F` is vanilla 1.21.1 walk speed. User report "faster than original".
+        //   Original expression: rawSpeed * speedFactor.
         //     rawSpeed = onGround ? 0.1 * f3 : jumpMovementFactor / sprintDiv.
         //     speedFactor = configFactor * potionFactor * nonSlowFactor * slowFactor.
         //     + landMotion runFactor (isRunning && !isFast).
-        //     + !onGround 시 /= potionFactor.
+        //     + when !onGround /= potionFactor.
         //
-        //   handleLand 와 동일 식.
+        //   Same expression as handleLand.
         SmartMovingConfig cfg2 = SmartMovingConfig.Config;
         float climbSpeedFactor = SmartMovingMover.getConfigSpeedFactor(player, cfg2)
                 * SmartMovingMover.getPotionSpeedFactor(player)

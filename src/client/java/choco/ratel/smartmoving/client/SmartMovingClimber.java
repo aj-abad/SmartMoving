@@ -396,27 +396,27 @@ public final class SmartMovingClimber {
     }
 
     /**
-     * 원본: SmartMovingSelf.handleClimbing() — Free 모드 핵심 로직.
+     * Original: SmartMovingSelf.handleClimbing() — Free mode core logic.
      *
-     * 처리 순서:
-     * 1. exhaustion 체크
-     * 2. 8방향 탐색 (4방향 + 대각 4방향)
-     * 3. HandsClimbing/FeetClimbing 상태 집계
-     * 4. grab 키 + movementForward로 wantClimbUp/wantClimbDown 판정
-     * 5. setShouldClimbSpeed로 Y 속도 결정
-     * 6. fallDistance = 0 (낙하 데미지 방지)
+     * Processing order:
+     * 1. Check exhaustion
+     * 2. 8-direction search (4 orthogonal + 4 diagonal)
+     * 3. Aggregate HandsClimbing/FeetClimbing states
+     * 4. Determine wantClimbUp/wantClimbDown from grab key + movementForward
+     * 5. Determine Y velocity via setShouldClimbSpeed
+     * 6. fallDistance = 0 (prevent fall damage)
      */
     public static void handleClimbing(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
-        // B-14 (세션 57): 원본 L816 `resetClimbing()` 매 틱 리셋 이식.
-        // Standard/Simple/Smart/Free Base Climb 공통 — handleClimbing 진입 직후 무조건
-        // 10 등반 필드 false/0 리셋. 이후 분기에서 실제 값 재계산.
-        // B-21 (isCeilingClimbing 해제 엣지) 자동 해소.
+        // B-14 (session 57): Original L816 `resetClimbing()` reset every tick.
+        // Common to Standard/Simple/Smart/Free Base Climb — immediately after handleClimbing entry,
+        // always reset 10 climbing fields to false/0. Actual values recalculated in branches.
+        // B-21 (isCeilingClimbing release edge) automatically resolved.
         sm.resetClimbing();
 
-        // C-33: SM 독자 exhaustion 체크
-        // 원본: exhaustionAllowsClimbing = !enabled || (exhaustion<=stop && (wasClimbing||exhaustion<=start))
+        // C-33: SM-specific exhaustion check
+        // Original: exhaustionAllowsClimbing = !enabled || (exhaustion<=stop && (wasClimbing||exhaustion<=start))
         if (cfg.climbExhaustion) {
             boolean allowed = sm.exhaustion <= cfg.climbExhaustionStop
                     && (sm.wasClimbing || sm.exhaustion <= cfg.climbExhaustionStart);
@@ -424,12 +424,12 @@ public final class SmartMovingClimber {
         }
 
         if (!cfg.freeClimb && !cfg.simpleClimb && !cfg.smartClimb) {
-            // 🔴 사다리/덩굴 1-4: 원본 SmartMovingSelf L820-L823 Standard Base Climb 정밀 1:1.
-            //   원본: if(isStandardBaseClimb && isCollidedHorizontally && isOnLadderOrVine)
-            //           sp.motionY = 0.2 * getCombinedSpeedFactor();
-            //   isOnLadderOrVine 은 MixinLivingEntityClient onClimbable 가드로 내포.
-            //   원본은 motionY 직접 set (sm.isClimbing 갱신 없음) → setShouldClimbSpeed
-            //   호출 (relevant 가드 + isClimbing=true) 은 부수효과 발생 → 직접 set 으로 변경.
+            // 🔴 Ladder/vine 1-4: Original SmartMovingSelf L820-L823 Standard Base Climb precise 1:1.
+            //   Original: if(isStandardBaseClimb && isCollidedHorizontally && isOnLadderOrVine)
+            //               sp.motionY = 0.2 * getCombinedSpeedFactor();
+            //   isOnLadderOrVine is implied by MixinLivingEntityClient onClimbable guard.
+            //   Original directly sets motionY (no sm.isClimbing update) → setShouldClimbSpeed
+            //   call (with relevant guard + isClimbing=true) has side effects → changed to direct set.
             if (player.horizontalCollision) {
                 double combinedFactor = SmartMovingMover.getCombinedSpeedFactor(player, cfg);
                 Vec3 v = player.getDeltaMovement();
@@ -442,13 +442,13 @@ public final class SmartMovingClimber {
         Level world = player.level();
         boolean isSmall = sm.isSmall || sm.isCrawling;
 
-        // 8방향 탐색 결과 집계
+        // Aggregate 8-direction search results
         HandsClimbing handsClimbing = HandsClimbing.NONE;
         FeetClimbing  feetClimbing  = FeetClimbing.NONE;
         ClimbGap[] handsGap = {new ClimbGap()};
         ClimbGap[] feetGap  = {new ClimbGap()};
 
-        // 4방향(N/S/E/W) 탐색
+        // 4-direction (N/S/E/W) search
         HandsClimbing[] tempH = {HandsClimbing.NONE};
         FeetClimbing[]  tempF = {FeetClimbing.NONE};
         ClimbGap[] tempHG = {new ClimbGap()};
@@ -464,7 +464,7 @@ public final class SmartMovingClimber {
             feetClimbing = feetClimbing.max(tempF[0], feetGap, tempFG[0]);
         }
 
-        // 대각 4방향(NE/NW/SE/SW) 탐색 — isSmall 시 생략 (C-30, SmartMovingSelf.md 745줄 조건)
+        // 4 diagonal directions (NE/NW/SE/SW) search — omitted if isSmall (C-30, SmartMovingSelf.md line 745 condition)
         if (!isSmall) {
             int px = (int) Math.floor(player.getX());
             int py = (int) Math.floor(player.getY());
@@ -486,14 +486,14 @@ public final class SmartMovingClimber {
                             else feetClimbing = feetClimbing.max(FeetClimbing.SLOW_UP_WITH_HOLD_WITHOUT_HANDS, feetGap, gap);
                         }
                     } else if (state.getBlock() instanceof VineBlock) {
-                        // 원본 Orientation.hasVineOrientation(): 탐색 방향 == vine face 방향
-                        // PZ(동쪽) → East, NZ(서쪽) → West, ZP(남쪽) → South, ZN(북쪽) → North
+                        // Original Orientation.hasVineOrientation(): search direction == vine face direction
+                        // PZ(East) → East, NZ(West) → West, ZP(South) → South, ZN(North) → North
                         boolean hasFace = (d[0] > 0 && Boolean.TRUE.equals(state.getValue(VineBlock.EAST)))
                                        || (d[0] < 0 && Boolean.TRUE.equals(state.getValue(VineBlock.WEST)))
                                        || (d[1] > 0 && Boolean.TRUE.equals(state.getValue(VineBlock.SOUTH)))
                                        || (d[1] < 0 && Boolean.TRUE.equals(state.getValue(VineBlock.NORTH)));
-                        // 🔴 사다리/덩굴 1-1: 4방향 탐색과 동일하게 solid 뒤 블록 검증 추가
-                        //   (원본 SmartMovingBase L284: isRemoteSolid 체크). vine 이 매달릴 solid 벽 필수.
+                        // 🔴 Ladder/vine 1-1: Add solid block verification same as 4-direction search
+                        //   (original SmartMovingBase L284: isRemoteSolid check). Vine requires solid wall to hang from.
                         if (hasFace) {
                             BlockPos solidPos = new BlockPos(px + d[0] * 2, by, pz + d[1] * 2);
                             BlockState solidState = world.getBlockState(solidPos);
@@ -501,9 +501,9 @@ public final class SmartMovingClimber {
                                 ClimbGap gap = new ClimbGap(); gap.state = state;
                                 if (isHandsLevel) {
                                     handsClimbing = handsClimbing.max(HandsClimbing.UP, handsGap, gap);
-                                    // 🔴 사다리/덩굴 1-1 BUG: 대각 vine flag 갱신 누락 → 추가.
-                                    //   isHandsVineClimbing 가 4방향 탐색만 갱신되어 대각 vine 잡힘 시
-                                    //   isFacedToSolidVine / isVineAnyClimbing 오판정 → vine jump 등반 등 실패.
+                                    // 🔴 Ladder/vine 1-1 BUG: diagonal vine flag update missing → add.
+                                    //   isHandsVineClimbing only updated by 4-direction search, so when diagonal vine grabbed,
+                                    //   isFacedToSolidVine / isVineAnyClimbing misidentify → vine jump climbing fails.
                                     sm.isHandsVineClimbing = true;
                                 } else {
                                     feetClimbing = feetClimbing.max(FeetClimbing.SLOW_UP_WITH_HOLD_WITHOUT_HANDS, feetGap, gap);
@@ -516,12 +516,12 @@ public final class SmartMovingClimber {
             }
         }
 
-        // B-19a4 (세션 108): Orientation.seekClimbGap 기반 8방향 탐색 → ClientState 필드 5 대입.
-        // 원본 SmartMovingSelf L926-L961 (Free Climb preferClimb 블록) 이식.
-        // **B-19 도미노 해소 완결** — B-17 (isCrawlClimbing) / B-18 (isClimbCrawling) /
-        // B-16c (wouldWantClimb 4-OR) 공식이 실제 값 기반 평가 활성화.
-        // 기존 getOnLadderOrVine 결과 변수 (handsClimbing/feetClimbing) 는 속도 결정에
-        // 계속 사용됨 — 이 블록은 필드 대입만 추가 (동작 영향 최소).
+        // B-19a4 (Session 108): 8-direction search based on Orientation.seekClimbGap → assign 5 ClientState fields.
+        // Ported from original SmartMovingSelf L926-L961 (Free Climb preferClimb block).
+        // **B-19 domino chain completed** — B-17 (isCrawlClimbing) / B-18 (isClimbCrawling) /
+        // B-16c (wouldWantClimb 4-OR) formula now evaluates based on actual values.
+        // Existing getOnLadderOrVine result variables (handsClimbing/feetClimbing) continue to be used for speed determination
+        // — this block only adds field assignment (minimal behavioral impact).
         {
             double id = player.getX();
             double jd = player.getBoundingBox().minY;
@@ -529,36 +529,36 @@ public final class SmartMovingClimber {
             int ix = (int) Math.floor(id);
             int iz = (int) Math.floor(kd);
 
-            // 원본 L922-L925: rotation 정규화 (0 ~ 360F)
+            // Original L922-L925: normalize rotation (0 ~ 360F)
             float rotation = player.getYRot() % 360F;
             if (rotation < 0) rotation += 360F;
 
-            // 원본 L918: isSmallClimbing = isCrawling || isSliding
+            // Original L918: isSmallClimbing = isCrawling || isSliding
             boolean isSmallClimbing = sm.isCrawling || sm.isSliding;
 
-            // 원본 L919-L920: `isClimbCrawling || isCrawlClimbing || isSmallClimbing → jd += -1D`
-            //   ★ jd 자체에 보정. jh 는 jd 의존이라 자동으로 -2 보정됨 (= jh = (jd-1)*2+1 = jh_orig-2).
-            // 🔴 jd 누락 fix (사용자 보고 — 크롤 클라이밍 끊김, 2026-05-03):
-            //   기존 매핑 = `jh += -2D` 만 (jd 보정 누락). seekClimbGap 인자 jd 가 보정 안 된 채
-            //   전달 → grip 검사 박스 발 위치 잘못 → handsClimbing=NONE → isClimbing=false →
-            //   isCrawlClimbing 식 풀림 + ICC EXIT entity.y +1m → 사용자 시점 점프 (= 끊김).
-            //   원본 1:1 = jd 자체 보정 → seekClimbGap 인자 jd / jh 둘 다 정확.
+            // Original L919-L920: `isClimbCrawling || isCrawlClimbing || isSmallClimbing → jd += -1D`
+            //   ★ Adjust jd itself. jh depends on jd, so it's automatically adjusted by -2 (= jh = (jd-1)*2+1 = jh_orig-2).
+            // 🔴 jd missing fix (user report — crawl climbing interrupted, 2026-05-03):
+            //   Previous mapping = `jh += -2D` only (jd adjustment missing). seekClimbGap argument jd passed
+            //   without adjustment → grip check box foot position wrong → handsClimbing=NONE → isClimbing=false →
+            //   isCrawlClimbing formula cleared + ICC EXIT entity.y +1m → player POV jump (= interruption).
+            //   Original 1:1 = adjust jd itself → seekClimbGap arguments jd / jh both accurate.
             if (sm.isClimbCrawling || sm.isCrawlClimbing || isSmallClimbing) {
                 jd += -1D;
             }
             double jh = jd * 2D + 1;
 
-            // 🔴 (2026-04-27) 원본 SmartMovingSelf L928-961 정밀 1:1 매핑:
-            //   원본은 main handsClimbing/feetClimbing 와 inout 변수가 동일 (별도 NONE 시작 후
-            //   inout[0] 에 대입). 우리는 inout 만 NONE 시작 → 8방향 결과 main 에 누적 안 됨
-            //   → setShouldClimbSpeed 결정 시 일반 벽 인식 못 함 → 사용자 보고 "grab 키 정지".
-            //   해결: inout 시작값을 main (getOnLadderOrVine 결과) 으로 + 8방향 후 main 갱신.
+            // 🔴 (2026-04-27) Original SmartMovingSelf L928-961 precise 1:1 mapping:
+            //   Original: main handsClimbing/feetClimbing and inout variables are identical (separate NONE start,
+            //   then assign to inout[0]). We start inout only as NONE → 8-direction results not accumulated in main
+            //   → setShouldClimbSpeed decision cannot recognize general walls → user report "grab key stuck".
+            //   Solution: initialize inout start value as main (getOnLadderOrVine result) + update main after 8-direction search.
             HandsClimbing[] inoutH = { handsClimbing };
             FeetClimbing[]  inoutF = { feetClimbing };
             ClimbGap outHandsGap = handsGap[0];
             ClimbGap outFeetGap  = feetGap[0];
 
-            // 원본 L937-L940: 4방향 (PZ/NZ/ZP/ZN) seekClimbGap 호출
+            // Original L937-L940: call seekClimbGap in 4 directions (PZ/NZ/ZP/ZN)
             Orientation.PZ.seekClimbGap(rotation, world, ix, id, jh, iz, kd,
                     sm.isClimbCrawling, sm.isCrawlClimbing, isSmallClimbing,
                     inoutH, inoutF, outHandsGap, outFeetGap);
@@ -572,18 +572,18 @@ public final class SmartMovingClimber {
                     sm.isClimbCrawling, sm.isCrawlClimbing, isSmallClimbing,
                     inoutH, inoutF, outHandsGap, outFeetGap);
 
-            // 원본 L942-L943: 4방향 후 main 변수로 다시 가져오기
+            // Original L942-L943: retrieve main variables after 4-direction search
             handsClimbing = inoutH[0];
             feetClimbing  = inoutF[0];
             handsGap[0]   = outHandsGap;
             feetGap[0]    = outFeetGap;
 
-            // 원본 L945-L947: 4방향 결과 → ClientState 필드 3 대입
+            // Original L945-L947: 4-direction results → assign 3 ClientState fields
             sm.isNeighborClimbing = handsClimbing.isRelevant() || feetClimbing.isRelevant();
             sm.hasNeighborClimbGap = outHandsGap.canStand || outFeetGap.canStand;
             sm.hasNeighborClimbCrawlGap = outHandsGap.mustCrawl || outFeetGap.mustCrawl;
 
-            // 원본 L949-L955: isSmallClimbing 아닐 때 대각 4방향 (PP/NP/NN/PN) 추가 탐색
+            // Original L949-L955: when not isSmallClimbing, perform additional diagonal 4-direction search (PP/NP/NN/PN)
             if (!isSmallClimbing) {
                 Orientation.PP.seekClimbGap(rotation, world, ix, id, jh, iz, kd,
                         sm.isClimbCrawling, sm.isCrawlClimbing, isSmallClimbing,
@@ -599,31 +599,31 @@ public final class SmartMovingClimber {
                         inoutH, inoutF, outHandsGap, outFeetGap);
             }
 
-            // 원본 L957-L958: 8방향 후 main 변수로 다시 가져오기
+            // Original L957-L958: retrieve main variables after 8-direction search
             handsClimbing = inoutH[0];
             feetClimbing  = inoutF[0];
             handsGap[0]   = outHandsGap;
             feetGap[0]    = outFeetGap;
 
-            // 원본 L960-L961: 8방향 합산 결과 → ClientState 필드 2 대입
+            // Original L960-L961: 8-direction combined results → assign 2 ClientState fields
             sm.hasClimbGap = outHandsGap.canStand || outFeetGap.canStand;
             sm.hasClimbCrawlGap = outHandsGap.mustCrawl || outFeetGap.mustCrawl;
-            // 🔴 fix #79 (BUG #4, 2026-05-11, 사용자 보고 "ladder/vine grab 진입 범위 = 자동 진입 범위"):
-            //   자동 진입 (isFacedToLadder/Vine) = `getOnLadderOrVine(faceOnly=true)` = 사용자 위치 자체만.
-            //     (인접 검사는 vanilla 동작 1:1 위해 비활성, L297-305 메모.)
-            //   grab 진입 = handleClimbing 8방향 seekClimbGap → hasHalfHold/hasBottomHold 안
-            //     remoteLadderClimbing/baseVineClimbing/remoteVineClimbing → **인접 1칸 ladder/vine 매치**.
-            //   → grab 진입 범위 = 자동 진입 범위 + 인접 1칸 (사용자 보고 "1칸 더 앞").
+            // 🔴 fix #79 (BUG #4, 2026-05-11, user report "ladder/vine grab entry range = auto entry range"):
+            //   Auto entry (isFacedToLadder/Vine) = `getOnLadderOrVine(faceOnly=true)` = player position only.
+            //     (adjacent check disabled for 1:1 vanilla behavior, L297-305 memo.)
+            //   Grab entry = handleClimbing 8-direction seekClimbGap → inside hasHalfHold/hasBottomHold
+            //     remoteLadderClimbing/baseVineClimbing/remoteVineClimbing → **adjacent 1-block ladder/vine match**.
+            //   → grab entry range = auto entry range + adjacent 1 block (user report "1 block further ahead").
             //
-            //   사용자 의도: ladder/vine 에 대한 grab 진입 범위 = 자동 진입 범위와 일치.
-            //   (일반 솔리드 = 반블록/계단/wall 등 grab climbing 은 별개, 8방향 인접 매치 유지.)
+            //   User intent: grab entry range for ladder/vine = match auto entry range.
+            //   (general solid = half-block/stair/wall etc. grab climbing is separate, maintain 8-direction adjacent match.)
             //
-            //   해결: 8방향 결과 중 grip 매치된 block 이 ladder/vine + facedLadder/Vine=false 시
-            //     → 결과 무효화 (handsClimbing/feetClimbing/Gap/vine flag reset).
-            //     → 일반 솔리드 매치 (block 이 ladder/vine 아님) 는 그대로 = 회귀 X.
+            //   Solution: when grip-matched block in 8-direction results is ladder/vine + facedLadder/Vine=false
+            //     → invalidate results (handsClimbing/feetClimbing/Gap/vine flag reset).
+            //     → general solid match (block is not ladder/vine) remains = no regression.
             //
-            //   dump 검증 ([BUG4-DBG]): BUG 시나리오 (Phase C/D, px=73 pz=-29/-28) 에서
-            //     `facedLadder=false facedVine=false hEdge/fEdge=ladder/vine` 직접 확인.
+            //   Dump validation ([BUG4-DBG]): in BUG scenario (Phase C/D, px=73 pz=-29/-28)
+            //     directly confirmed `facedLadder=false facedVine=false hEdge/fEdge=ladder/vine`.
             boolean _facedLadderOrVine = isFacedToLadder(player, sm.isClimbCrawling)
                                        || isFacedToSolidVine(player, sm.isClimbCrawling);
             if (!_facedLadderOrVine) {
@@ -654,14 +654,14 @@ public final class SmartMovingClimber {
             }
         }
 
-        // **포커스 #3 B-7 (세션 6)**: 원본 L963-L976 누락 2 분기 이식 (★ #3 감사 발견).
-        // 원본 SmartMovingSelf L963-L976 — 8방향 탐색 후 클라이밍 상태 보정.
+        // **Focus #3 B-7 (Session 6)**: port 2 missing branches from original L963-L976 (★ #3 credits found).
+        // Original SmartMovingSelf L963-L976 — adjust climbing state after 8-direction search.
         {
             int ix2 = (int) Math.floor(player.getX());
             int jd2 = (int) Math.floor(player.getBoundingBox().minY);
             int iz2 = (int) Math.floor(player.getZ());
 
-            // 원본 L963-L970: BottomHold + 위 2 블록 ladder + 옆 2 블록 비고체 → handsClimbing 해제
+            // Original L963-L970: BottomHold + ladder 2 blocks above + non-solid 2 blocks to side → release handsClimbing
             //   if (handsClimbing == BottomHold && Orientation.isLadder(world.getBlock(i, j+2, k))) {
             //     ladderOrientation = getKnownLadderOrientation(...);
             //     remote_i = i + ladderOrientation._i; remote_k = k + ladderOrientation._k;
@@ -669,7 +669,7 @@ public final class SmartMovingClimber {
             //         && !world.getBlock(remote_i, j+1, remote_k).isSolid())
             //         handsClimbing = None;
             //   }
-            // RedPower 와이어 / 복층 사다리 특수 케이스. 1.21.1 isSolid 매핑 = state.isSolidBlock().
+            // RedPower wire / multi-layer ladder special case. 1.21.1 isSolid mapping = state.isSolidBlock().
             if (handsClimbing == HandsClimbing.BOTTOM_HOLD
                     && Orientation.isLadder(world.getBlockState(new BlockPos(ix2, jd2 + 2, iz2)))) {
                 Orientation ladderOrientation = Orientation.getKnownLadderOrientation(
@@ -687,8 +687,8 @@ public final class SmartMovingClimber {
                 }
             }
 
-            // 원본 L972-L976: !grabPressed && handsClimbing==Up && feetClimbing==None →
-            //   주변 공기 + !horizontalCollision 시 handsClimbing 해제 (스티키 클라이밍 방지).
+            // Original L972-L976: !grabPressed && handsClimbing==Up && feetClimbing==None →
+            //   release handsClimbing when surrounding air + !horizontalCollision (prevent sticky climbing).
             if (!SmartMovingKeys.grab.isDown()
                     && handsClimbing == HandsClimbing.UP
                     && feetClimbing == FeetClimbing.NONE) {
@@ -700,7 +700,7 @@ public final class SmartMovingClimber {
             }
         }
 
-        // 클라이밍 가능한 표면이 없으면 처리하지 않음
+        // Do not process if there is no climbable surface
         if (!handsClimbing.isRelevant() && !feetClimbing.isRelevant()) {
             return;
         }

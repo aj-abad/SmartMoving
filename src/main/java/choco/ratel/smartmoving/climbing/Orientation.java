@@ -31,75 +31,75 @@ import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.level.block.state.properties.WallSide;
 
 /**
- * 원본 `net.smart.moving.Orientation` (SmartMoving 1.7.10) 1:1 이식.
+ * Direct 1:1 port of original `net.smart.moving.Orientation` (SmartMoving 1.7.10).
  *
- * **B-19a0 (세션 90) 범위**: 기본 구조 — 9 상수 + `_i`/`_k` + 각도 판정 헬퍼 + `rotate` +
- * `getOrientation` + `getClimbingOrientations` + `getHorizontalBorderGap`.
+ * **B-19a0 (session 90) scope**: Core structure — 9 constants + `_i`/`_k` + angle judgment helpers +
+ * `rotate` + `getOrientation` + `getClimbingOrientations` + `getHorizontalBorderGap`.
  *
- * **추후 서브 원자 범위 (미포함)**:
- *   * B-19a1: `SmartMovingContext` 헬퍼 (isOnLadderOrVine / isOnOpenTrapDoor / isRope /
+ * **Future sub-atomic scopes (not included)**:
+ *   * B-19a1: `SmartMovingContext` helpers (isOnLadderOrVine / isOnOpenTrapDoor / isRope /
  *     isOnWallRope / isBaseAccessible / isFullAccessible / isFullExtentAccessible /
- *     isJustLowerHalfExtentAccessible / isFullEmpty / isSolid) 이식
- *   * B-19a2: `isLadderSubstitute` 본체 + `hasHalfHold` / `hasBottomHold` — gap 1-5 계산 +
- *     `ClimbGap.canStand/mustCrawl` 설정 핵심
- *   * B-19a3: `handsClimbing()` / `feetClimbing()` 판정 메서드
- *   * B-19a4: `seekClimbGap` 메서드 + Climber.handleClimbing 연결
+ *     isJustLowerHalfExtentAccessible / isFullEmpty / isSolid) port
+ *   * B-19a2: `isLadderSubstitute` core + `hasHalfHold` / `hasBottomHold` — gap 1-5 calculation +
+ *     `ClimbGap.canStand/mustCrawl` setting essentials
+ *   * B-19a3: `handsClimbing()` / `feetClimbing()` judgment methods
+ *   * B-19a4: `seekClimbGap` method + Climber.handleClimbing connection
  *
- * B-19a0 는 `SmartMovingContext` 확장 없이 독립 클래스. B-19a1 완료 시
- * `extends SmartMovingContext` 재도입 + `isTunnelAhead` / `getKnownLadderOrientation` /
- * `isFeetLadderSubstitute` / `isHandsLadderSubstitute` / `baseVineClimbing` 등 추가.
+ * B-19a0 is a standalone class without extending `SmartMovingContext`. Upon B-19a1 completion,
+ * `extends SmartMovingContext` will be reintroduced + `isTunnelAhead` / `getKnownLadderOrientation` /
+ * `isFeetLadderSubstitute` / `isHandsLadderSubstitute` / `baseVineClimbing` etc. will be added.
  *
- * **원본 근거**: `.tmp_research/Orientation.java.md` L37-L205 + L998-L1085.
+ * **Original reference**: `.tmp_research/Orientation.java.md` L37-L205 + L998-L1085.
  */
 public class Orientation {
 
-    // ── 9 방향 상수 (원본 L39-L49) ──────────────────────────────────────────
+    // ── 9 Directional Constants (original L39-L49) ──────────────────────────
 
-    /** 원본 L39 — 중앙 (기본 값). rotate 에서 제외. */
+    /** Original L39 — Center (default value). Excluded from rotate. */
     public static final Orientation ZZ = new Orientation(0, 0);
 
-    /** 원본 L41 — +X 방향 (East). */
+    /** Original L41 — +X direction (East). */
     public static final Orientation PZ = new Orientation(1, 0);
-    /** 원본 L42 — +Z 방향 (South). */
+    /** Original L42 — +Z direction (South). */
     public static final Orientation ZP = new Orientation(0, 1);
-    /** 원본 L43 — -X 방향 (West). */
+    /** Original L43 — -X direction (West). */
     public static final Orientation NZ = new Orientation(-1, 0);
-    /** 원본 L44 — -Z 방향 (North). */
+    /** Original L44 — -Z direction (North). */
     public static final Orientation ZN = new Orientation(0, -1);
 
-    /** 원본 L46 — +X+Z 대각 (SE). */
+    /** Original L46 — +X+Z diagonal (SE). */
     public static final Orientation PP = new Orientation(1, 1);
-    /** 원본 L47 — -X-Z 대각 (NW). */
+    /** Original L47 — -X-Z diagonal (NW). */
     public static final Orientation NN = new Orientation(-1, -1);
-    /** 원본 L48 — +X-Z 대각 (NE). */
+    /** Original L48 — +X-Z diagonal (NE). */
     public static final Orientation PN = new Orientation(1, -1);
-    /** 원본 L49 — -X+Z 대각 (SW). */
+    /** Original L49 — -X+Z diagonal (SW). */
     public static final Orientation NP = new Orientation(-1, 1);
 
-    // ── Meta / 내부 상수 (원본 L51-L63) ─────────────────────────────────────
+    // ── Meta / Internal Constants (original L51-L63) ─────────────────────────
 
-    /** 원본 L51 — 미설정 (기본). */
+    /** Original L51 — Unset (default). */
     public static final int DefaultMeta = -1;
-    /** 원본 L52 — 덩굴이 정면에 있는 경우. */
+    /** Original L52 — Vine is in front. */
     public static final int VineFrontMeta = 0;
-    /** 원본 L53 — 덩굴이 측면에 있는 경우. */
+    /** Original L53 — Vine is on side. */
     public static final int VineSideMeta = 1;
 
-    /** 원본 L55-L59 — 수직 탐색 오프셋 (top=+2, middle=+1, base=0, sub=-1, subSub=-2). */
+    /** Original L55-L59 — Vertical search offset (top=+2, middle=+1, base=0, sub=-1, subSub=-2). */
     protected static final int top    =  2;
     protected static final int middle =  1;
     protected static final int base   =  0;
     protected static final int sub    = -1;
     protected static final int subSub = -2;
 
-    /** 원본 L61-L63 — 잡기 종류. */
+    /** Original L61-L63 — Grab types. */
     protected static final int NoGrab     = 0;
     protected static final int HalfGrab   = 1;
     protected static final int AroundGrab = 2;
 
-    // ── Orthogonals HashSet (원본 L65-L73) ──────────────────────────────────
+    // ── Orthogonals HashSet (original L65-L73) ──────────────────────────────
 
-    /** 원본 L65-L73 — 4 직교 방향 HashSet. 정적 초기화. */
+    /** Original L65-L73 — 4 orthogonal directions HashSet. Static initialization. */
     public static final HashSet<Orientation> Orthogonals = new HashSet<>();
 
     static {
@@ -109,32 +109,32 @@ public class Orientation {
         Orthogonals.add(ZN);
     }
 
-    // ── 인스턴스 필드 (원본 L75-L79) ────────────────────────────────────────
+    // ── Instance Fields (original L75-L79) ────────────────────────────────
 
-    /** 원본 L75 — X 오프셋 (-1/0/+1). */
+    /** Original L75 — X offset (-1/0/+1). */
     protected int _i;
-    /** 원본 L75 — Z 오프셋 (-1/0/+1). */
+    /** Original L75 — Z offset (-1/0/+1). */
     protected int _k;
 
     /**
-     * 외부 패키지 접근용 X 오프셋 getter.
-     * **포커스 #3 B-7 (세션 6)**: SmartMovingClimber 의 L963-L976 BottomHold ladder
-     *   2-level 체크 이식 시 `ladderOrientation._i` 접근 필요 → public getter 추가.
+     * X offset getter for external package access.
+     * **Focus #3 B-7 (session 6)**: When porting BottomHold ladder 2-level check from SmartMovingClimber
+     *   L963-L976, `ladderOrientation._i` access needed → public getter added.
      */
     public int getOffsetI() { return _i; }
 
-    /** 외부 패키지 접근용 Z 오프셋 getter (포커스 #3 B-7 세션 6). */
+    /** Z offset getter for external package access (Focus #3 B-7 session 6). */
     public int getOffsetK() { return _k; }
-    /** 원본 L76 — 대각 여부 (`_i != 0 && _k != 0`). */
+    /** Original L76 — Is diagonal (`_i != 0 && _k != 0`). */
     private boolean _isDiagonal;
-    /** 원본 L77 — 방향 각도 (도 단위, 0-360). */
+    /** Original L77 — Direction angle (in degrees, 0-360). */
     private float _directionAngle;
-    /** 원본 L78 — 등반 가능 최소 각도. */
+    /** Original L78 — Minimum climbable angle. */
     private float _mimimumClimbingAngle;
-    /** 원본 L79 — 등반 가능 최대 각도. */
+    /** Original L79 — Maximum climbable angle. */
     private float _maximumClimbingAngle;
 
-    // ── 생성자 (원본 L81-L88) ───────────────────────────────────────────────
+    // ── Constructor (original L81-L88) ──────────────────────────────────
 
     private Orientation(int i, int k) {
         _i = i;
@@ -144,21 +144,21 @@ public class Orientation {
         setClimbingAngles();
     }
 
-    // ── 각도 계산 (원본 L998-L1062) ─────────────────────────────────────────
+    // ── Angle Calculation (original L998-L1062) ────────────────────────────
 
     /**
-     * 원본 L998-L1037 `setClimbingAngles()` — `_i`/`_k` 조합별 방향 각도 스위치.
-     * 원본 기준 좌표계: +X = West(NZ), +Z = South(ZP), 0도 = South.
+     * Original L998-L1037 `setClimbingAngles()` — Direction angle switch by `_i`/`_k` combination.
+     * Original reference coordinate system: +X = West(NZ), +Z = South(ZP), 0° = South.
      *
-     *   (-1,-1)=NN → 135도
-     *   (-1, 0)=NZ →  90도
-     *   (-1,+1)=NP →  45도
-     *   ( 0,-1)=ZN → 180도
-     *   ( 0, 0)=ZZ → 0~360 (전체)
-     *   ( 0,+1)=ZP →   0도
-     *   (+1,-1)=PN → 225도
-     *   (+1, 0)=PZ → 270도
-     *   (+1,+1)=PP → 315도
+     *   (-1,-1)=NN → 135°
+     *   (-1, 0)=NZ →  90°
+     *   (-1,+1)=NP →  45°
+     *   ( 0,-1)=ZN → 180°
+     *   ( 0, 0)=ZZ → 0~360 (all)
+     *   ( 0,+1)=ZP →   0°
+     *   (+1,-1)=PN → 225°
+     *   (+1, 0)=PZ → 270°
+     *   (+1,+1)=PP → 315°
      */
     private boolean setClimbingAngles() {
         switch (_i) {

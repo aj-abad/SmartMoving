@@ -261,22 +261,22 @@ public abstract class MixinPlayerEntityModelClient {
         HumanoidArm mainArm = player.getMainArm();
         ModelPart arm = (mainArm == HumanoidArm.LEFT) ? this.leftArm : this.rightArm;
 
-        // 🔴 fix #190 (2026-05-28): 원본 SmartMovingModel.animateWorkingBody (L667-673) 의
-        //   `if(isStandard)` 가드 1:1 매핑. SM phase 시 vanilla body sway 식 SKIP.
+        // 🔴 fix #190 (2026-05-28): 1:1 mapping of original SmartMovingModel.animateWorkingBody (L667-673)
+        //   `if(isStandard)` guard. SKIP vanilla body sway formula in SM phase.
         //
-        // 사용자 보고 (fix #189 후): "SM 중 팔 휘두를 때 몸통이 흔들린다. 원래 안 흔들림".
-        // 원본 fact: SmartMovingModel.animateWorkingBody → isStandard=false 시 vanilla
-        //   body sway 식 SKIP. 대신 animateNonStandardWorking 호출 (= 어깨 90° 직립만,
-        //   body.yaw 변경 X).
-        // animateWorkingArms 는 별도 가드 `isStandard || isWorking()` → SM phase + swing
-        //   시도 호출 (= preferredArm.pitch/yaw/roll 식은 그대로 적용).
+        // User report (after fix #189): "Body sways when arm swings during SM. Originally didn't".
+        // Original fact: SmartMovingModel.animateWorkingBody → when isStandard=false SKIP vanilla
+        //   body sway formula. Instead call animateNonStandardWorking (= only shoulder 90° upright,
+        //   body.yaw unchanged).
+        // animateWorkingArms has separate guard `isStandard || isWorking()` → call attempted in SM phase + swing
+        //   (= preferredArm.pitch/yaw/roll formulas applied as-is).
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         boolean anySmState = sm.isFlying || sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isRopeSliding || sm.isClimbJumping
                 || sm.doFallingAnimation || sm.isAngleJumping();
 
-        // animateWorkingBody (1.7.10 SR L298-304, 1.12.2 SR L401-406): isStandard 시만.
+        // animateWorkingBody (1.7.10 SR L298-304, 1.12.2 SR L401-406): only in isStandard.
         //   angle = sin(sqrt(swing) * 2π) * 0.2
         //   body.yaw += angle
         //   leftArm.pitch += angle
@@ -287,8 +287,8 @@ public abstract class MixinPlayerEntityModelClient {
         }
 
         // animateWorkingArms (1.7.10 SR L306-315, 1.12.2 SR L408-416):
-        //   isStandard || isWorking() (= swing>0) → SM phase + swing 시도 적용.
-        //   f6 = 1 - (1-swing)^3                  ← cubic (vanilla 1.21.1 는 quartic)
+        //   isStandard || isWorking() (= swing>0) → attempt apply in SM phase + swing.
+        //   f6 = 1 - (1-swing)^3                  ← cubic (vanilla 1.21.1 is quartic)
         //   f7 = sin(f6 * π)
         //   f8 = sin(swing * π) * -(head.pitch - 0.7) * 0.75
         //   preferredArm.pitch -= f7 * 1.2 + f8
@@ -302,10 +302,10 @@ public abstract class MixinPlayerEntityModelClient {
         arm.yRot  += Mth.sin(Mth.sqrt(swing) * WHOLE) * 0.4F;
         arm.zRot -= Mth.sin(swing * HALF) * 0.4F;
 
-        ci.cancel(); // vanilla quartic 식 + arm.pivot 어깨 sway + arm.yaw 일괄 += body.yaw 차단
+        ci.cancel(); // block vanilla quartic formula + arm.pivot shoulder sway + arm.yaw batch += body.yaw
     }
 
-    // ── [12-1] setAngles Mixin (TAIL — vanilla 애니메이션 완료 후 SM이 덮어씀) ──
+    // ── [12-1] setAngles Mixin (TAIL — SM overwrites after vanilla animation completes) ──
 
     @Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/HumanoidRenderState;)V",
             at = @At("TAIL"))
@@ -313,7 +313,7 @@ public abstract class MixinPlayerEntityModelClient {
             HumanoidRenderState renderState,
             CallbackInfo ci) {
         // 🔴 (2026-05-05 Phase 1-A) AbstractClientPlayerEntity = local + remote.
-        //   다른 player render 시 SM 자세 적용을 위해 가드 확장.
+        //   Guard expanded to apply SM pose when rendering other players.
         if (!(renderState instanceof AvatarRenderState avatarState)
                 || !((Object) avatarState instanceof SmartMovingAvatarRenderState smartState)) return;
         AbstractClientPlayer player = smartState.sm_getPlayer();
@@ -325,44 +325,44 @@ public abstract class MixinPlayerEntityModelClient {
         float headYaw = renderState.yRot;
         float headPitch = renderState.xRot;
 
-        // 🔴 (Phase 2 multi BUG-13) firstPersonArmRender 가드를 reset chunk 후로 이동.
-        //   기존: 진입 즉시 return → reset chunk skip → 다른 player 의 ModelPart 변경
-        //         (arm.roll, scales, leg.roll 등) 잔존 → 본인 1인칭 손에 leak.
-        //   변경: reset chunk 적용 후 SM 분기 진입 직전 가드 → 1인칭 손 render 시도 reset 적용 →
-        //         ModelPart 가 default 로 → 본인 1인칭 손 정상 자세.
+        // 🔴 (Phase 2 multi BUG-13) Move firstPersonArmRender guard after reset chunk.
+        //   Previous: return immediately on entry → skip reset chunk → changes from other players' ModelParts
+        //             (arm.roll, scales, leg.roll, etc.) linger → leak to own first-person hand.
+        //   Change: apply reset chunk then guard before entering SM branch → attempt reset in first-person hand render →
+        //           ModelPart becomes default → own first-person hand normal pose.
 
-        // 🔴 sneaking 원복 — HEAD 에서 임시 false 로 set 한 값을 vanilla setAngles 종료 직후
-        //   복구. 같은 프레임 내 layer renderer (cape/armor) 가 copyBipedStateTo 등으로
-        //   sneaking 을 참조해도 entity 의 실제 pose 와 일관 유지.
-        //   (조건 무관 무조건 set — HEAD 에서 항상 원본 저장하므로 안전.)
+        // 🔴 restore sneaking — restore value temporarily set to false in HEAD right after vanilla setAngles ends.
+        //   Even if layer renderer (cape/armor) in same frame references sneaking via copyBipedStateTo etc.,
+        //   maintain consistency with entity's actual pose.
+        //   (always set regardless of condition — always save original in HEAD so safe.)
         renderState.isCrouching = smOriginalSneakingForFalling;
 
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
-        // ── [8-3][6-4] SM 활성 상태에서 leaningPitch 강제 0 ─────────────────
-        // leaningPitch > 0이면 setupTransforms Branch 2(-90° X회전)와
-        // setAngles Step 13(수영 팔 애니메이션)이 활성화된다. SM 상태에서는 억제.
-        // BUG-7 (세션 36): flyingCreative 에 Config.enabled 가드 추가.
-        //   기존: vanilla `player.getAbilities().flying` 만 → SM disabled 시에도 anySmState true →
-        //   sm_animateFlying 호출 + reset 인프라 작동 → SM 비행 애니메이션 잔존 (= 토글 무용지물).
-        //   해결: cfgEnabled && capabilities.flying 으로 변경 (SM enabled 일 때만 SM 비행 처리).
-        // 🔴 (2026-05-05) self → Config.enabled / remote → 항상 true.
+        // ── [8-3][6-4] Force leaningPitch to 0 when SM active ─────────────────
+        // When leaningPitch > 0, setupTransforms Branch 2(-90° X rotation) and
+        // setAngles Step 13 (swimming arm animation) are activated. Suppress in SM state.
+        // BUG-7 (session 36): Add Config.enabled guard to flyingCreative.
+        //   Previous: only vanilla `player.getAbilities().flying` → even when SM disabled anySmState true →
+        //   call sm_animateFlying + reset infrastructure operates → SM flying animation lingers (= toggle useless).
+        //   Solution: change to cfgEnabled && capabilities.flying (only process SM flying when SM enabled).
+        // 🔴 (2026-05-05) self → Config.enabled / remote → always true.
         boolean cfgEnabled = choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player);
-        // 🔴 (Phase 1-A) 다른 player 도 비행 자세 적용 위해 sm.isFlying 사용.
-        //   이전 `player.getAbilities().flying` 은 Mojang datatracker 가 다른 player 에 미동기화
-        //   → 다른 player 항상 false → sm_animateFlying 미호출 BUG. sm.isFlying 은
-        //   server-relay sync 정상 (= local + remote 모두).
+        // 🔴 (Phase 1-A) Use sm.isFlying to apply flying pose to other players too.
+        //   Previous `player.getAbilities().flying` not synced by Mojang datatracker to other players
+        //   → other players always false → sm_animateFlying not called BUG. sm.isFlying is
+        //   properly server-relay synced (= both local + remote).
         boolean flyingCreative = cfgEnabled && sm.isFlying;
-        // 🔴 (2026-04-27): falling 도 anySmState 에 포함 — vanilla animateArms 가 swing 시
-        //   body.yaw 흔들리는 효과 (사용자 보고 "공중 낙하 휘두름 시 몸통 움찔움찔") 를 reset
-        //   인프라로 cancel. 진입 조건은 if-else 체인 falling 가드 (아래) 와 동일.
-        // 🔴 (Phase 2 multi BUG-1) fallDistance 직접 검사 → sm.doFallingAnimation (server-relay sync).
+        // 🔴 (2026-04-27): falling also included in anySmState — cancel via reset
+        //   infrastructure the body.yaw wobble effect from vanilla animateArms during swing (user report "air fall swing body jitter").
+        //   Entry condition same as if-else chain falling guard (below).
+        // 🔴 (Phase 2 multi BUG-1) Direct fallDistance check → sm.doFallingAnimation (server-relay sync).
         boolean isFallingForReset = cfgEnabled && sm.doFallingAnimation;
-        // 🔴 늘어진/휘어진 덩굴 (weeping_vines / twisting_vines) 시 사다리 자세 애니메이션 적용.
-        //   사용자 의도: SM 자유 클라이밍 / 자동 진입 / sneak hold 등 기능 일체 적용 안 함.
-        //   vanilla 1.21.1 사다리 등반 동작 그대로 (sm_travel_client 의 vanilla bypass 유지).
-        //   애니메이션만 sm_animateClimbing (isHandsVineClimbing=false → 사다리 자세) 호출.
-        //   매 frame block 검사 (player 위치).
+        // 🔴 weeping/twisting vines climbing apply ladder climbing pose animation.
+        //   User intent: don't apply SM free climbing / auto enter / sneak hold etc. features at all.
+        //   Keep vanilla 1.21.1 ladder climbing motion as-is (maintain sm_travel_client vanilla bypass).
+        //   Only call animation sm_animateClimbing (isHandsVineClimbing=false → ladder pose).
+        //   Check block every frame (at player position).
         boolean isWeepingTwistingVines = false;
         if (cfgEnabled) {
             Block blockAtPos = player.level().getBlockState(player.blockPosition()).getBlock();
@@ -370,8 +370,8 @@ public abstract class MixinPlayerEntityModelClient {
                     || blockAtPos == Blocks.WEEPING_VINES_PLANT
                     || blockAtPos == Blocks.TWISTING_VINES
                     || blockAtPos == Blocks.TWISTING_VINES_PLANT);
-            // 🔴 사용자 보고 fix (2026-05-04 — "비행 중 vine 애니메이션 안 나오게"):
-            //   비행 중 vine 자세 적용 X → 비행 자세 (= isFlying 분기) 진입.
+            // 🔴 User report fix (2026-05-04 — "don't show vine animation during flying"):
+            //   Don't apply vine pose during flying → enter flying pose (= isFlying branch).
             if (isWeepingTwistingVines && sm.isFlying) {
                 isWeepingTwistingVines = false;
             }
@@ -382,17 +382,17 @@ public abstract class MixinPlayerEntityModelClient {
                 || sm.isCrawling || sm.isSliding || sm.isHeadJumping || flyingCreative
                 || isFallingForReset
                 || isWeepingTwistingVines
-                || sm.isAngleJumping();   // 🔴 (2026-04-27) angle jump 시 reset 인프라 활성화 —
-                                          // head.pivotZ/body.yaw/head.roll/arm.pivot 0 reset →
-                                          // 이전 SM 분기 잔존 + vanilla animateArms swing body.yaw 흔들림 cancel.
+                || sm.isAngleJumping();   // 🔴 (2026-04-27) activate reset infrastructure during angle jump —
+                                          // reset head.pivotZ/body.yaw/head.roll/arm.pivot to 0 →
+                                          // cancel previous SM branch linger + vanilla animateArms swing body.yaw wobble.
         if (anySmState) renderState.swimAmount = 0f;
 
-        // 🔴 D-4 종료 엣지 cleanup (사용자 보고 — 등반 종료 후 standing 시 몸통 앞으로 빠진 잔존):
-        //   D-4 분기 진입 시 set 한 모든 노드 pivotZ=-6 가 등반 종료 시 reset 안 됨.
-        //   이전 frame climbing 상태 추적 → 종료 엣지 (true → false) 한 번 명시 cleanup.
-        //   leg.pivotX 도 sm_animateClimbing 진입부에서 ±2.0 로 set 됐으므로 vanilla default
-        //   ±1.9 로 복원 (1.21.1 PlayerEntityModel layer definition 의 정의 값).
-        // 🔴 weeping/twisting vines 도 cleanup 추적 — 종료 시 leg.pivotX/Y / pivotZ vanilla 복원.
+        // 🔴 D-4 exit edge cleanup (user report — body pulled forward lingering after climbing ends):
+        //   All nodes' pivotZ=-6 set on D-4 branch entry don't reset when climbing ends.
+        //   Track previous frame climbing state → once on exit edge (true → false) explicit cleanup.
+        //   leg.pivotX also set to ±2.0 on sm_animateClimbing entry so restore to vanilla default
+        //   ±1.9 (defined value in 1.21.1 PlayerEntityModel layer definition).
+        // 🔴 weeping/twisting vines also track cleanup — restore leg.pivotX/Y / pivotZ to vanilla on exit.
         boolean smIsClimbingNow = sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || isWeepingTwistingVines;
         if (sm.smWasClimbingForCleanup && !smIsClimbingNow) {
@@ -404,25 +404,25 @@ public abstract class MixinPlayerEntityModelClient {
             leftLeg.z  = 0f;
             rightLeg.x = -1.9f;
             leftLeg.x  =  1.9f;
-            // D-4 leg.pivotY 정정 매핑 (12*cos(0.5)≈10.529) → vanilla default 12 reset.
+            // D-4 leg.pivotY correction mapping (12*cos(0.5)≈10.529) → reset to vanilla default 12.
             rightLeg.y = 12f;
             leftLeg.y  = 12f;
-            // 🔴 사용자 보고 fix (2026-05-04 — "사다리/덩굴 sneak+s 후 다시 붙으면 가끔 팔 짧아짐"):
-            //   sm_animateClimbing 의 isHandsVineClimbing 분기 (L591) = setArmScales(abs(cos), abs(cos)) →
-            //   arm yScale 변경. vine 종료 시 vanilla setAngles 가 yScale reset 안 함 → 잔존.
-            //   isFeetVineClimbing 분기 (L631) 의 setLegScales 도 동일 패턴.
-            //   fix: 클라이밍 종료 엣지 cleanup 에 scale reset 추가 (= 1.0 default 복원).
+            // 🔴 User report fix (2026-05-04 — "ladder/vine sneak+s then reattach sometimes arm shortens"):
+            //   sm_animateClimbing isHandsVineClimbing branch (L591) = setArmScales(abs(cos), abs(cos)) →
+            //   changes arm yScale. When vine ends vanilla setAngles doesn't reset yScale → lingers.
+            //   isFeetVineClimbing branch (L631) setLegScales same pattern.
+            //   fix: add scale reset to climbing exit edge cleanup (= restore 1.0 default).
             setArmScales(rightArm, leftArm, 1f, 1f);
             setLegScales(rightLeg, leftLeg, 1f, 1f);
         }
         sm.smWasClimbingForCleanup = smIsClimbingNow;
 
-        // 🔴 isCrawling 종료 cleanup (사용자 보고 fix — "엎드린 상태에서 벗어났을 때 잔존", 2026-05-03):
-        //   sm_animateCrawling 가 set 한 vanilla 비-reset 값들 (head.pivotZ, head.roll, body.yaw/roll,
-        //   leg.roll, arm.yaw/roll, scales) 종료 엣지 한 번 vanilla default reset.
-        //   메모리 `feedback_animation_porting.md` 의 잘못된 패턴 (pivotY/leg.pivotZ 무조건 reset)
-        //   회피 — sneaking 시 vanilla 가 set 하는 값 (pivotY 3.2 등) 안 건드림.
-        //   D-4 cleanup 패턴 그대로 따름 (= 종료 엣지 한 번만 적용).
+        // 🔴 isCrawling exit cleanup (user report fix — "linger when exiting prone state", 2026-05-03):
+        //   Vanilla non-reset values set by sm_animateCrawling (head.pivotZ, head.roll, body.yaw/roll,
+        //   leg.roll, arm.yaw/roll, scales) reset once to vanilla default on exit edge.
+        //   Avoid wrong pattern from memory `feedback_animation_porting.md` (unconditionally reset pivotY/leg.pivotZ)
+        //   — don't touch values set by vanilla during sneaking (pivotY 3.2, etc.).
+        //   Follow D-4 cleanup pattern as-is (= apply only once on exit edge).
         if (sm.smWasCrawlingForCleanup && !sm.isCrawling) {
             head.z = 0f;
             head.zRot   = 0f;
@@ -434,25 +434,26 @@ public abstract class MixinPlayerEntityModelClient {
             leftArm.yRot   = 0f;
             rightArm.zRot = 0f;
             leftArm.zRot  = 0f;
-            // scales = 1.0 (default) 복원 — sm_animateCrawling 의 setLegScales/setArmScales cancel
+            // restore scales = 1.0 (default) — cancel sm_animateCrawling setLegScales/setArmScales
             setLegScales(rightLeg, leftLeg, 1f, 1f);
             setArmScales(rightArm, leftArm, 1f, 1f);
         }
         sm.smWasCrawlingForCleanup = sm.isCrawling;
-        // pivot/yaw/roll reset 인프라 (B-9/B-11/B-13 부속): vanilla setAngles 는
-        //   head/body pivotZ, body.yaw, head.roll 을 매 프레임 reset 하지 않는다
-        //   (sneak 분기는 leg.pivotZ 만 변경 / body.yaw 는 animateArms 안
-        //   handSwingProgress > 0 분기에서만 설정 / head.roll 은 vanilla 미사용).
-        //   이전 sm 분기의 변경이 다음 분기까지 누적되는 위험을 막기 위해 SM 분기 진입
-        //   직전 또는 SM disabled 전환 시 (BUG-7) vanilla 기본값(0) 으로 reset.
-        //   anySmState 외 (!cfgEnabled) 도 포함: SM disabled 시 잔존 SM 변경 정리.
-        // 🔴 (Phase 2 multi BUG-8) anySmState/cfgEnabled 가드 제거 — 매 frame 무조건 reset.
-        //   원인: PlayerEntityModel single instance — A 의 SM 분기에서 변경된 ModelPart field 가
-        //         B 의 setAngles 진입 시 잔존 → 사용자 보고 "a 가 엎드릴 때 b 도 같은 자세".
-        //         가드 (anySmState || !cfgEnabled) 가 self only 검증 → multi 환경 leak.
-        //   해결: 가드 제거. SM 분기 진입 안 한 player 의 setAngles 도 매번 reset → leak 차단.
-        //         vanilla standing 자세에서도 head.pivotZ=0/body.pivotZ=0/body.yaw=0/head.roll=0 default 유지 →
-        //         vanilla 영향 없음. arm.pivot 기본값 ±5/0 도 vanilla setAngles Step 4 의 default.
+        // pivot/yaw/roll reset infrastructure (B-9/B-11/B-13 dependent): vanilla setAngles doesn't
+        //   reset head/body pivotZ, body.yaw, head.roll every frame
+        //   (sneak branch only changes leg.pivotZ / body.yaw only set in animateArms
+        //   handSwingProgress > 0 branch / head.roll unused in vanilla).
+        //   To prevent changes from previous SM branch accumulating to next branch,
+        //   reset to vanilla default (0) right before entering SM branch or
+        //   on SM disabled transition (BUG-7). Include (!cfgEnabled) beyond anySmState:
+        //   clean up lingering SM changes when SM disabled.
+        // 🔴 (Phase 2 multi BUG-8) Remove anySmState/cfgEnabled guards — unconditionally reset every frame.
+        //   Root cause: PlayerEntityModel single instance — ModelPart field changed in A's SM branch
+        //              lingers when B's setAngles entered → user report "when a crouches b has same pose".
+        //              Guard (anySmState || !cfgEnabled) validates self only → leak in multi environment.
+        //   Solution: remove guard. Reset every time even for players' setAngles not entering SM branch → block leak.
+        //             even vanilla standing pose maintains head.pivotZ=0/body.pivotZ=0/body.yaw=0/head.roll=0 default →
+        //             no vanilla effect. arm.pivot defaults ±5/0 are also vanilla setAngles Step 4 defaults.
         head.z = 0f;
         body.z = 0f;
         head.zRot   = 0f;
@@ -460,15 +461,15 @@ public abstract class MixinPlayerEntityModelClient {
         leftLeg.zRot  = 0f;
         setLegScales(rightLeg, leftLeg, 1f, 1f);
         setArmScales(rightArm, leftArm, 1f, 1f);
-        // 🔴 fix #180 v2 (2026-05-27, dump 분석 + 사용자 의문 (4) 반영):
-        //   기존 매 frame 무조건 reset 이 vanilla animateArms 의 swing 효과 cancel:
+        // 🔴 fix #180 v2 (2026-05-27, dump analysis + user question (4) reflected):
+        //   Previous unconditional reset every frame cancels vanilla animateArms swing effect:
         //     - body.yaw = sin(sqrt(swing)*2π) * 0.2 → 0 cancel.
         //     - arm.pivotX = -cos(body.yaw)*5 → -5 cancel.
         //     - arm.pivotZ = sin(body.yaw)*5 → 0 cancel.
         //     - arm.roll = sin(swing*π) * -0.4 → 0 cancel.
-        //   사용자 verbatim "STAND swing 도 좀 이상" + "그냥 vanilla 기본으로 두자" → reset 인프라가
-        //     vanilla 정상 swing 깨뜨림. 해결: self + swing 시 swing 영향 항목만 reset skip.
-        //   multi leak 방어 — swing X frame 에서 자연 reset.
+        //   User verbatim "STAND swing also weird" + "just keep vanilla default" → reset infrastructure
+        //     breaks normal vanilla swing. Solution: when self + swing skip reset only for swing-affected items.
+        //   Multi leak defense — naturally resets in frames without swing.
         boolean preserveSwing = player.attackAnim > 0F
                 && net.minecraft.client.Minecraft.getInstance().player == player;
         if (!preserveSwing) {

@@ -14,17 +14,17 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 슬라이딩 팔 회전 매핑 fix (2026-05-04):
- *   원본 1.7.10 YZX 매트릭스 = R_x(pitch) * R_z(roll) * R_y(yaw).
- *   1.21.1 ModelPart.rotate 는 ZYX hardcoded = R_z * R_y * R_x.
- *   원본 yaw=-π/2 정확히 ZYX gimbal lock 영역 → JOML getEulerAnglesZYX 분해
- *   부정확 → qDiff angle = π (정반대 회전) → 자세 가운데 모임 + 위아래 흔들림 X.
+ * Sliding arm rotation mapping fix (2026-05-04):
+ *   Original 1.7.10 YZX matrix = R_x(pitch) * R_z(roll) * R_y(yaw).
+ *   1.21.1 ModelPart.rotate is ZYX hardcoded = R_z * R_y * R_x.
+ *   Original yaw=-π/2 exactly ZYX gimbal lock region → JOML getEulerAnglesZYX decomposition
+ *   inaccurate → qDiff angle = π (opposite rotation) → pose converges + no up/down wobble.
  *
- *   가이드라인 (memory feedback_zxy_zyx_rotation_order.md):
- *     "큰 yaw (±π/2 이상) 경로에선 quaternion 분해 헬퍼 사용 금지"
+ *   Guideline (memory feedback_zxy_zyx_rotation_order.md):
+ *     "Do not use quaternion decomposition helper for large yaw (±π/2 or more) paths"
  *
- *   해결: ModelPart.rotate HEAD inject + cancel + 의도 q 직접 적용.
- *         sm_overrideQuat 가 null 이면 vanilla 동작 유지 (영향 없음).
+ *   Solution: ModelPart.rotate HEAD inject + cancel + apply intended q directly.
+ *            if sm_overrideQuat is null, maintain vanilla behavior (no impact).
  */
 @Environment(EnvType.CLIENT)
 @Mixin(ModelPart.class)

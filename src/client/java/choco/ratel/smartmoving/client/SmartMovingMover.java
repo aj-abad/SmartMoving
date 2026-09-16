@@ -132,14 +132,14 @@ public final class SmartMovingMover {
         //   Separate in landMotion L712: isRunning && !isFast multiplies runFactor (1.3).
         float speedFactor = 1.0F;
         if (sm.isFast) {
-            // 원본: !isLevitating ? sprintFactor : sprintFactorLevitate. Levitate 는 SmartMovingFlyer 에서 별도 처리.
+            // Original: !isLevitating ? sprintFactor : sprintFactorLevitate. Levitate handled separately in SmartMovingFlyer.
             speedFactor *= cfg.sprintFactor;  // 1.5
         }
-        // 🔴 원본 SmartMovingSelf L203-205: isClimbing 시 _freeClimbingHorizontalSpeedFactor 곱.
-        //   원본 가드 `if(moveStrafing != 0F || moveForward != 0F)` 는 movementInput 정보 필요.
-        //   우리 호출자의 climbSpeedFactor 는 updateVelocity(speed, movementInput) 매개로만
-        //   motion 에 영향 → 입력 0 시 곱셈 결과 무관. 가드 생략해도 동일 효과.
-        //   사용자 보고 #2/#5: 우리 코드에 이 곱셈 누락 → fence/iron_bars 등반·횡이동 속도 원본과 다름.
+        // 🔴 Original SmartMovingSelf L203-205: multiply by _freeClimbingHorizontalSpeedFactor when isClimbing.
+        //   Original guard `if(moveStrafing != 0F || moveForward != 0F)` requires movementInput info.
+        //   Our caller's climbSpeedFactor affects motion only via updateVelocity(speed, movementInput) parameter
+        //   → when input is 0, multiplication result is irrelevant. Guard omission has same effect.
+        //   User report #2/#5: this multiplication missing in our code → fence/iron_bars climb/strafe speed differs from original.
         if (sm.isClimbing) {
             speedFactor *= cfg.freeClimbingHorizontalSpeedFactor;
         }
@@ -147,29 +147,28 @@ public final class SmartMovingMover {
     }
 
     /**
-     * 감속 입력 배율 (크롤링/스니킹/천장클라이밍).
-     * 팩터들은 순서대로 누적 곱셈 적용.
+     * Slow input multiplier (crawling/sneaking/ceiling climbing).
+     * Factors are applied as cumulative multiplication in order.
      *
-     * 🔴 fix (third-party gun mod compatibility, 2026-09-13): item-use 항 제거.
+     * 🔴 fix (third-party gun mod compatibility, 2026-09-13): removed item-use clause.
      *
-     * 이전엔 여기서 `if (player.isUsingItem()) f *= 0.2F` 로 아이템 사용 중 감속을 자체
-     * 하드코딩했음. 이는 위 sneak 항목의 "BUG-sneak속도" (MixinClientPlayerEntity 참고)
-     * 와 같은 계열의 이중 감속 버그: vanilla `LocalPlayer.modifyInput()` 가 `isUsingItem()`
-     * 시 이미 해당 아이템의 실제 `DataComponents.USE_EFFECTS` → `speedMultiplier()` 를
-     * xxa/zza 에 곱해 놓고 (LivingEntity.aiStep: L3055 applyInput → L3101 movementInput 구성
-     * → L3109 travel() 호출), 그 movementInput 이 그대로 sm_travel_client 의 HEAD 를 거쳐
-     * handleLand/climbing/swimming 까지 전달됨. 여기서 하드코딩 0.2F 를 또 곱하면:
-     *   1. 이중 적용 — vanilla 몫 × SM 몫 (기본 아이템 기준 0.2×0.2=0.04, 즉 vanilla 활
-     *      당길 때 예상보다 훨씬 심하게 감속).
-     *   2. 아이템별 실제 배율 무시 — 모든 아이템이 무조건 0.2배 취급됨. 총기 mod 처럼
-     *      아이템마다 다른 `speedMultiplier` (예: 0.8/0.9/1.0 — 1.0 은 "조준 중에도 감속
-     *      없음"을 의도한 값) 를 등록해 둔 경우, 그 값이 완전히 무시되고 전부 균일하게
-     *      과하게 느려짐 (감속이 아예 없어야 할 아이템까지 0.2배로 묶임).
+     * Previously, item use slowdown was self-hardcoded here with `if (player.isUsingItem()) f *= 0.2F`.
+     * This is the same type of double slowdown bug as "BUG-sneak speed" above (see MixinClientPlayerEntity):
+     * vanilla `LocalPlayer.modifyInput()` already multiplies item's actual `DataComponents.USE_EFFECTS`
+     * → `speedMultiplier()` to xxa/zza when `isUsingItem()` (LivingEntity.aiStep: L3055 applyInput
+     * → L3101 movementInput construction → L3109 travel() call), and that movementInput passes directly
+     * through sm_travel_client's HEAD to handleLand/climbing/swimming. Multiplying hardcoded 0.2F again here causes:
+     *   1. Double application — vanilla portion × SM portion (for default items 0.2×0.2=0.04, i.e., far more
+     *      slowdown than expected when drawing vanilla bow).
+     *   2. Ignores per-item actual multiplier — all items treated uniformly as 0.2x. When gun mods
+     *      register different per-item `speedMultiplier` (e.g., 0.8/0.9/1.0 — 1.0 intended as
+     *      "no slowdown while aiming"), that value is completely ignored and all uniformly over-slowed
+     *      (items that should have no slowdown are locked at 0.2x).
      *
-     * sneak 은 vanilla `isMovingSlowly()` 자체를 sm_blockVanillaSlowDown 로 차단해 이중
-     * 적용을 막지만, item-use 감속은 `isMovingSlowly()` 와 무관한 별도 vanilla 분기라 그
-     * 차단이 적용되지 않음 — 따라서 vanilla 쪽을 막는 대신 SM 쪽 재적용을 제거해 vanilla
-     * 계산(이미 movementInput 에 반영됨) 하나만 남긴다.
+     * Sneak is blocked via vanilla `isMovingSlowly()` itself with sm_blockVanillaSlowDown to prevent
+     * double application, but item-use slowdown is a separate vanilla branch unrelated to `isMovingSlowly()`
+     * so that block doesn't apply — therefore, instead of blocking vanilla side, remove SM's reapplication
+     * to leave only vanilla calculation (already reflected in movementInput).
      */
     public static float getSlowInputSpeedFactor(LocalPlayer player, SmartMovingClientState sm,
                                                  SmartMovingConfig cfg) {
@@ -181,9 +180,9 @@ public final class SmartMovingMover {
     }
 
     /**
-     * 최종 속도 팩터 = 4단계 곱셈.
-     * 호출 위치: travel() SM 파이프라인 내 각 handle*() 메서드에서 speedFactor 계산 시.
-     * B-6 (세션 26): getConfigSpeedFactor 시그니처 변경에 따른 player 전달.
+     * Final speed factor = 4-stage multiplication.
+     * Call location: in each handle*() method within travel() SM pipeline when calculating speedFactor.
+     * B-6 (session 26): player parameter passed due to getConfigSpeedFactor signature change.
      */
     public static float getSpeedFactor(LocalPlayer player, SmartMovingClientState sm,
                                         SmartMovingConfig cfg) {
@@ -193,37 +192,37 @@ public final class SmartMovingMover {
              * getSlowInputSpeedFactor(player, sm, cfg);
     }
 
-    // ── 상수 (원본 SmartMovingContext.java) ───────────────────────────────
+    // ── Constants (original SmartMovingContext.java) ──────────────────────
     private static final float HORIZONTAL_GROUND_DAMPING       = 0.546F;
     private static final float HORIZONTAL_AIR_DAMPING          = 0.91F;
     private static final float HORIZONTAL_AIRODYNAMIC_DAMPING  = 0.999F;
 
-    // ── isRunning (원본 SmartMovingSelf.isRunning) ────────────────────────
+    // ── isRunning (original SmartMovingSelf.isRunning) ───────────────────
     /**
-     * 원본 `SmartMovingSelf.isRunning()` (L3239-3242) 1:1:
+     * Original `SmartMovingSelf.isRunning()` (L3239-3242) 1:1:
      *   `return sp.isSprinting() && !isFast && (sp.onGround || vanilla())`.
      *
-     * cfg.run 체크는 호출 측 (handleLand L712) 에서 별도로 수행 — 원본과 동일.
+     * cfg.run check is performed separately by the caller (handleLand L712) — same as original.
      */
     public static boolean isRunning(LocalPlayer player, SmartMovingClientState sm,
                                      SmartMovingConfig cfg) {
         return player.isSprinting() && !sm.isFast && (player.onGround() || sm.vanilla());
     }
 
-    // ── 11-2: handleLand (원본 superMoveEntityWithHeading + landMotion + setLandMotions) ──
+    // ── 11-2: handleLand (original superMoveEntityWithHeading + landMotion + setLandMotions) ──
 
     /**
-     * 🔴 (2026-04-28) 원본 SmartMovingSelf.superMoveEntityWithHeading + landMotion +
-     *   setLandMotions 통째로 1:1 매핑.
+     * 🔴 (2026-04-28) Original SmartMovingSelf.superMoveEntityWithHeading + landMotion +
+     *   setLandMotions complete 1:1 mapping.
      *
-     * 원본 흐름 (`SmartMovingSelf.handleLand` L633-663):
-     *   1. landMotion (L675-810): horizontalDamping 결정 + moveFlying (movementInput → motion).
-     *   2. move (L655): vanilla move() 호출.
-     *   3. handleClimbing (L657): motionY 조정 (별도 분기에서 호출).
+     * Original flow (`SmartMovingSelf.handleLand` L633-663):
+     *   1. landMotion (L675-810): determine horizontalDamping + moveFlying (movementInput → motion).
+     *   2. move (L655): call vanilla move().
+     *   3. handleClimbing (L657): adjust motionY (called in separate branch).
      *   4. setLandMotions (L1176-1182): motionY -= 0.08, *= 0.98, motionX/Z *= damping.
      *
-     * 비행과 동일 패턴 — vanilla travel 통째로 cancel + SM 자체 식 적용.
-     * @return true = SM 처리 완료 (호출 측 ci.cancel 대상).
+     * Same pattern as flying — cancel vanilla travel entirely + apply SM's own formula.
+     * @return true = SM processing complete (target for caller's ci.cancel).
      */
     public static boolean handleLand(LocalPlayer player, SmartMovingClientState sm,
                                       Vec3 movementInput) {
@@ -233,7 +232,7 @@ public final class SmartMovingMover {
         float moveStrafing = (float) movementInput.x;
         float moveForward  = (float) movementInput.z;
 
-        // 원본 superMoveEntityWithHeading L119-130: speedFactor 계산.
+        // Original superMoveEntityWithHeading L119-130: speedFactor calculation.
         float speedFactor = getConfigSpeedFactor(player, cfg)
                 * getPotionSpeedFactor(player)
                 * getNonSlowInputSpeedFactor(player, sm, cfg);
@@ -245,35 +244,35 @@ public final class SmartMovingMover {
             speedFactor *= slowFactor;
         }
 
-        // 원본 landMotion L677-690: horizontalDamping 결정 + L686-687 sprintJumpVertical.
+        // Original landMotion L677-690: determine horizontalDamping + L686-687 sprintJumpVertical.
         float horizontalDamping;
         if (player.onGround() && (!sm.isJumping || sm.vanilla())) {
             BlockState below = player.level().getBlockState(player.getOnPos());
             float slip = below.getBlock().getFriction();
             horizontalDamping = slip > 0F ? slip * HORIZONTAL_AIR_DAMPING
                                           : HORIZONTAL_GROUND_DAMPING;
-            // 원본 L686-687: jump 키 hold + isFast 시 sprintJumpVerticalFactor 적용.
+            // Original L686-687: apply sprintJumpVerticalFactor when jump key held + isFast.
             boolean jumpKeyPressed = Minecraft.getInstance().options.keyJump.isDown();
             if (jumpKeyPressed && sm.isFast) {
                 speedFactor *= cfg.sprintJumpVerticalFactor;
             }
         } else if (sm.isAerodynamic) {
-            // 🔴 fix #46 (2026-05-09, 사용자 보고 "원본은 점프강화 fox 시 착지까지 쭉, 우리는 끊김"):
-            //   원본 SmartMovingSelf.landMotion L752-753:
+            // 🔴 fix #46 (2026-05-09, user report "original continuous until landing with jump-boosted fox, ours cuts off"):
+            //   Original SmartMovingSelf.landMotion L752-753:
             //     else if (isAerodynamic) horizontalDamping = HorizontalAirodynamicDamping;  // 0.999F
             //     else                    horizontalDamping = HorizontalAirDamping;          // 0.91F
-            //   우리 매핑은 air 분기 항상 0.91 → fox movement 자동 전환 (SlideToHeadJumping) 발동
-            //   직후 isAerodynamic=true 이지만 우리 매핑 0.91 그대로 → 매 tick × 0.91 → ~24 tick (1.2s)
-            //   에 motion 거의 0 → 사용자 인지 "어디 부딪히지도 않았는데 끊김".
-            //   원본 0.999F → 매 tick 99.9% 유지 → 거의 감속 X → "착지할 때까지 쭉".
+            //   Our mapping always uses 0.91 in air branch → after fox movement auto-switch (SlideToHeadJumping) triggers,
+            //   isAerodynamic=true but our mapping stays at 0.91 → multiply by 0.91 each tick → ~24 ticks (1.2s)
+            //   motion nearly 0 → user perceives "cuts off without hitting anything".
+            //   Original 0.999F → maintains 99.9% each tick → almost no slowdown → "continues until landing".
             horizontalDamping = HORIZONTAL_AIRODYNAMIC_DAMPING;
         } else {
             horizontalDamping = HORIZONTAL_AIR_DAMPING;
         }
 
-        // 원본 landMotion L703-706: jump control factor.
-        // Phase F 1:1 정정: 원본 L705 `Config.enabled && ...` 가드 명시 추가 (cosmetic — 함수 시작
-        //   `if (!cfg.enabled) return false` 로 이미 함수 단위 가드, 동작 동일).
+        // Original landMotion L703-706: jump control factor.
+        // Phase F 1:1 correction: explicitly added original L705 `Config.enabled && ...` guard (cosmetic — function start
+        //   already has `if (!cfg.enabled) return false` guard at function level, same behavior).
         if (sm.isHeadJumping) {
             speedFactor *= cfg.headJumpControlFactor;
         } else if (cfg.enabled && !player.onGround()
@@ -281,78 +280,78 @@ public final class SmartMovingMover {
             speedFactor *= cfg.jumpControlFactor;
         }
 
-        // 원본 landMotion L708-709: rawSpeed.
+        // Original landMotion L708-709: rawSpeed.
         float f3 = 0.1627714F / (horizontalDamping * horizontalDamping * horizontalDamping);
         float rawSpeed;
         if (player.onGround()) {
-            // 🔴 fix #50 (2026-05-10, 사용자 100m 정확 측정 + 1.12.2 SMReboot 코드 line-by-line 비교):
+            // 🔴 fix #50 (2026-05-10, user precise 100m measurement + 1.12.2 SMReboot code line-by-line comparison):
             //   sm_original 1.7.10 SmartMovingSelf L709: rawSpeed = 0.1F × f3 (base hardcode).
             //   1.12.2 SMReboot SMSelf.java L682:        rawSpeed = getLandMovementFactor() × f3.
-            //   = vanilla bl() = attribute getValue() = SPEED multiplier 반영된 값.
+            //   = vanilla bl() = attribute getValue() = value with SPEED multiplier reflected.
             //
-            //   사용자 측정 환경 검증:
-            //   - vanilla SPEED LV3 sprint+W: 1.7.10=11.06s / 1.21.1=11.11s (= vanilla 식 일치).
-            //   - SM SPEED LV3 sprint+W:      1.7.10/1.12.2=5.96s / 1.21.1 우리=9.70s.
-            //   - 1.12.2 SMReboot 식 적용 시: rawSpeed=0.208×1.0/1.3=0.16, speedFactor=2.4,
-            //     ADD=0.376, preMove=0.829, 100m=6.03s ↔ 측정 5.96s 일치 (오차 ±0.07s).
+            //   User measurement environment verification:
+            //   - vanilla SPEED LV3 sprint+W: 1.7.10=11.06s / 1.21.1=11.11s (= matches vanilla formula).
+            //   - SM SPEED LV3 sprint+W:      1.7.10/1.12.2=5.96s / 1.21.1 ours=9.70s.
+            //   - When applying 1.12.2 SMReboot formula: rawSpeed=0.208×1.0/1.3=0.16, speedFactor=2.4,
+            //     ADD=0.376, preMove=0.829, 100m=6.03s ↔ measured 5.96s matches (error ±0.07s).
             //
-            //   sm_original 의 0.1F hardcode 식 = 잘못된 reference (= 다른 release/fork 기반).
-            //   사용자 1.7.10/1.12.2 측정 환경 = 1.12.2 SMReboot 식 = SPEED multiplier 가
-            //   rawSpeed 와 speedFactor (getPotionSpeedFactor) 양쪽 반영 (= double-apply 의도).
+            //   sm_original's 0.1F hardcode formula = incorrect reference (= based on different release/fork).
+            //   User 1.7.10/1.12.2 measurement environment = 1.12.2 SMReboot formula = SPEED multiplier
+            //   applies to both rawSpeed and speedFactor (getPotionSpeedFactor) (= double-apply intended).
             //
-            //   변경: 0.1F → player.getMovementSpeed() (= vanilla 1.21.1 attribute = 0.208).
+            //   Change: 0.1F → player.getMovementSpeed() (= vanilla 1.21.1 attribute = 0.208).
             rawSpeed = player.getSpeed() * f3;
-            // 🔴 fix #50: 1.12.2 SMReboot L683 sprint 약분 추가 (ground 분기만).
-            //   원본: float rawSpeed = sp.isSprinting() ? f4 / 1.3F : f4;
-            //   air 분기는 fix #45 의 0.02F hardcode 유지 (= 1.7.10 vanilla sprint 결과식 1:1).
+            // 🔴 fix #50: add sprint reduction from 1.12.2 SMReboot L683 (ground branch only).
+            //   Original: float rawSpeed = sp.isSprinting() ? f4 / 1.3F : f4;
+            //   Air branch keeps 0.02F hardcode from fix #45 (= 1.7.10 vanilla sprint result formula 1:1).
             if (player.isSprinting()) rawSpeed /= 1.3F;
         } else {
-            // 🔴 fix #45 (2026-05-09, 사용자 보고 "기본 여우무빙도 달라" / "신속 sprint 속도도 달라"):
-            //   원본 SmartMovingSelf L709: rawSpeed = jumpMovementFactor / (sprint ? 1.3 : 1).
-            //   vanilla 1.7.10 EntityPlayer.onLivingUpdate 가 sprint 시 jumpMovementFactor 를
-            //   0.02 + 0.02×0.3 = 0.026 으로 설정 → SM 이 1.3 으로 나눠 정상화 → 결과 항상 0.02.
-            //   vanilla 1.21.1 에는 jumpMovementFactor field 자체가 없어 우리는 0.02 hardcoded 후
-            //   sprint 시 1.3 으로 또 나눠 0.01538 (= 23% 적음) → air 가속 부족 → headjump/fox 거리 짧음.
-            //   해결: 1.7.10 결과식과 동일하게 항상 0.02. sprint 보너스는 SM 자체 sprintFactor 로 대체.
+            // 🔴 fix #45 (2026-05-09, user report "even basic fox movement differs" / "speed sprint speed differs"):
+            //   Original SmartMovingSelf L709: rawSpeed = jumpMovementFactor / (sprint ? 1.3 : 1).
+            //   vanilla 1.7.10 EntityPlayer.onLivingUpdate sets jumpMovementFactor to
+            //   0.02 + 0.02×0.3 = 0.026 on sprint → SM normalizes by dividing by 1.3 → always results 0.02.
+            //   vanilla 1.21.1 has no jumpMovementFactor field, so we hardcoded 0.02 then
+            //   divide by 1.3 on sprint yielding 0.01538 (= 23% less) → insufficient air acceleration → shorter headjump/fox distance.
+            //   Solution: always 0.02 same as 1.7.10 result formula. Sprint bonus replaced by SM's own sprintFactor.
             rawSpeed = 0.02F;
         }
 
-        // 원본 landMotion L712-713: isRunning && !isFast 시 runFactor 곱.
-        // (원본 runFactorLevitate 는 levitate 시만 사용 — land 분기 무관, runFactor 만)
+        // Original landMotion L712-713: multiply runFactor when isRunning && !isFast.
+        // (Original runFactorLevitate used only on levitate — unrelated to land branch, just runFactor)
         if (cfg.run && isRunning(player, sm, cfg) && !sm.isFast) {
             speedFactor *= cfg.runFactor;
         }
 
-        // 🔴 fix #51 (2026-05-10, 사용자 1.7.10/1.12.2 SmartMoving 측정 + 코드 line-by-line 비교):
+        // 🔴 fix #51 (2026-05-10, user 1.7.10/1.12.2 SmartMoving measurement + code line-by-line comparison):
         //   1.7.10 sm_original SmartMovingSelf.landMotion L714-716:
         //     if (!sp.onGround) speedFactor /= getPotionSpeedFactor();
-        //   1.12.2 SMReboot SMSelf.landMotion: 이 식 자체가 없음.
-        //   사용자 측정 환경 = 1.7.10 + 1.12.2 Forge SmartMoving = 1.12.2 SMReboot 식.
-        //   → 분기 제거. (= 우리 매핑이 따르던 1.7.10 sm_original 가 잘못된 reference).
+        //   1.12.2 SMReboot SMSelf.landMotion: this formula itself is absent.
+        //   User measurement environment = 1.7.10 + 1.12.2 Forge SmartMoving = 1.12.2 SMReboot formula.
+        //   → Remove branch. (= the 1.7.10 sm_original our mapping followed is incorrect reference).
         //
-        //   영향: 헤드점프/여우무빙 air 진행 시 SPEED multiplier 가 air 가속에 반영.
-        //   - SPEED LV3 (= 1.6 multiplier): air ADD 1.62배 증가.
-        //   - SPEED LV5 (= 2.0 multiplier): air ADD 2.0배 증가.
-        //   - SPEED LV10 (= 3.0 multiplier): air ADD 3.0배 증가.
-        //   fix #50 (ground rawSpeed) 와 의도 1:1: SPEED multiplier 가 ground/air 양쪽
-        //   에 반영되는 1.12.2 SMReboot 식 1:1 매핑.
+        //   Impact: SPEED multiplier applies to air acceleration during headjump/fox movement.
+        //   - SPEED LV3 (= 1.6 multiplier): air ADD increases 1.62x.
+        //   - SPEED LV5 (= 2.0 multiplier): air ADD increases 2.0x.
+        //   - SPEED LV10 (= 3.0 multiplier): air ADD increases 3.0x.
+        //   Intent 1:1 with fix #50 (ground rawSpeed): 1.12.2 SMReboot formula 1:1 mapping where
+        //   SPEED multiplier applies to both ground/air.
         //
-        //   사용자 보고 "Jump Boost (= SPEED) 계열 시 거리 극명한 차이" + "여우무빙
-        //   거리 1.7.10/1.12.2 더 멀리" 보고와 정확 일치.
+        //   User report "pronounced distance difference with Jump Boost (= SPEED) series" + "fox
+        //   distance 1.7.10/1.12.2 goes further" report exactly matches.
 
-        // 원본 L718: moveFlying(strafe, forward, rawSpeed * speedFactor) — motion 에 ADD.
+        // Original L718: moveFlying(strafe, forward, rawSpeed * speedFactor) — ADD to motion.
         applyLandMoveFlying(player, moveStrafing, moveForward, rawSpeed * speedFactor);
 
-        // 원본 L655: vanilla move() — 위치 갱신.
+        // Original L655: vanilla move() — update position.
         player.move(MoverType.SELF, player.getDeltaMovement());
 
-        // 원본 setLandMotions L1176-1182: motionY -= 0.08, *= 0.98, motionX/Z *= damping.
+        // Original setLandMotions L1176-1182: motionY -= 0.08, *= 0.98, motionX/Z *= damping.
         Vec3 vel = player.getDeltaMovement();
         double newY = (vel.y - 0.08D) * 0.98D;
         double newX = vel.x * horizontalDamping;
         double newZ = vel.z * horizontalDamping;
 
-        // vanilla LivingEntity.travel 마지막의 작은 motion 0 clamp (= 잔존 motion 정리).
+        // vanilla LivingEntity.travel's small motion 0 clamp at end (= cleanup residual motion).
         if (Math.abs(newX) < 0.003D) newX = 0.0D;
         if (Math.abs(newY) < 0.003D) newY = 0.0D;
         if (Math.abs(newZ) < 0.003D) newZ = 0.0D;
@@ -363,12 +362,12 @@ public final class SmartMovingMover {
     }
 
     /**
-     * 🔴 fix #49 (2026-05-09, 사용자 보고 "신속 sprint 속도 원본과 달라"):
-     *   원본 SmartMovingSelf.landMotion L718 `sp.moveFlying(strafe, forward, rawSpeed*speedFactor)`
-     *   는 **3-인자 vanilla EntityLivingBase.moveFlying** 호출. `SmartMovingBase.moveFlying`
-     *   5-인자 버전 (= sqrt(sqrt) 정규화) 와 다름.
+     * 🔴 fix #49 (2026-05-09, user report "speed sprint velocity differs from original"):
+     *   Original SmartMovingSelf.landMotion L718 `sp.moveFlying(strafe, forward, rawSpeed*speedFactor)`
+     *   calls **3-argument vanilla EntityLivingBase.moveFlying**. Different from `SmartMovingBase.moveFlying`
+     *   5-argument version (= sqrt(sqrt) normalization).
      *
-     *   vanilla 1.7.10 EntityLivingBase.moveFlying 식 (= land 분기 1:1):
+     *   vanilla 1.7.10 EntityLivingBase.moveFlying formula (= land branch 1:1):
      *     f3 = strafe² + forward²;
      *     if (f3 >= 0.0001F) {
      *         f3 = sqrt(f3); if (f3 < 1.0F) f3 = 1.0F;
@@ -379,9 +378,9 @@ public final class SmartMovingMover {
      *         motionZ += forward*cos + strafe*sin;
      *     }
      *
-     *   기존 우리 매핑은 `total2 = sqrt(sqrt(diffX²+diffZ²))` 추가 정규화 → W만 누름 시
-     *   motion ADD = `speed × 0.98 / sqrt(0.98) ≈ speed × 0.99` (= 1% 더 큼). 매 tick 누적
-     *   → 사용자 보고 "신속 sprint 속도 다름". Fix #49 = 단순 ADD 로 정정.
+     *   Our previous mapping had additional `total2 = sqrt(sqrt(diffX²+diffZ²))` normalization → when only W pressed,
+     *   motion ADD = `speed × 0.98 / sqrt(0.98) ≈ speed × 0.99` (= 1% larger). Cumulates each tick
+     *   → user report "speed sprint velocity differs". Fix #49 = corrected to simple ADD.
      */
     private static void applyLandMoveFlying(LocalPlayer player,
                                              float moveStrafing, float moveForward, float speed) {

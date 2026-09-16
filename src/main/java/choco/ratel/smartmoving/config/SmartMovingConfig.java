@@ -500,44 +500,44 @@ public class SmartMovingConfig {
      */
     public float freeBothLadderClimbUpSpeedFactor = 1.43F;
     /**
-     * 원본 SmartMovingConfig L104 `_freeBaseLadderClimb = Modified().key("move.climb.free.base.ladder")`
+     * Original SmartMovingConfig L104 `_freeBaseLadderClimb = Modified().key("move.climb.free.base.ladder")`
      * (Modified type default = false). isTotalFreeLadderClimb() = isFreeBaseClimb && _freeBaseLadderClimb.
-     * MixinLivingEntityClient.travel 의 notTotalFreeClimbing 가드에서 사용:
-     *   true → 사다리에서 motion clamp / fallDistance reset / sneak hold 미적용 (vanilla 자유 매달림).
-     *   false (default) → SM 보호 매달림 (clamp + hold 적용).
+     * Used in notTotalFreeClimbing guard of MixinLivingEntityClient.travel:
+     *   true → no motion clamp / fallDistance reset / sneak hold on ladder (vanilla free hanging).
+     *   false (default) → SM protected hanging (clamp + hold applied).
      */
     public boolean freeBaseLadderClimb = false;
     /**
-     * 원본 SmartMovingConfig L105 `_freeBaseVineClimb = Modified().key("move.climb.free.base.vine").defaults(true, _pre_sm_1_11)`
+     * Original SmartMovingConfig L105 `_freeBaseVineClimb = Modified().key("move.climb.free.base.vine").defaults(true, _pre_sm_1_11)`
      * (current default = false, pre 1.11 default true). isTotalFreeVineClimb() = isFreeBaseClimb && _freeBaseVineClimb.
      */
     public boolean freeBaseVineClimb = false;
     /**
-     * 원본 SmartMovingConfig L129 `_freeClimbingOrthogonalDirectionAngle` Positive — 기본값 `90F`.
-     * "클라이밍 N/S/E/W 붙잡기 각도(도)". `Orientation.setClimbingAngles` 가 orthogonal 방향
-     * (PZ/NZ/ZP/ZN) 의 등반 유효 각도 범위를 계산할 때 사용. 기본값 90F → 각 방향마다 ±45도
-     * 범위 내 시선일 때 등반 가능. B-19a0 (세션 90).
+     * Original SmartMovingConfig L129 `_freeClimbingOrthogonalDirectionAngle` Positive — default `90F`.
+     * "Climbing N/S/E/W grip angle (degrees)". Used by `Orientation.setClimbingAngles` to calculate
+     * valid climbing angle range for orthogonal directions (PZ/NZ/ZP/ZN). Default 90F → climbing possible
+     * when looking within ±45 degree range for each direction. B-19a0 (session 90).
      */
     /**
-     * 원본 SmartMovingConfig L123 `_freeFenceClimbing = Unmodified("move.climb.free.fence")` — 기본값 `true`.
+     * Original SmartMovingConfig L123 `_freeFenceClimbing = Unmodified("move.climb.free.fence")` — default `true`.
      * (Properties.java L171-172: Unmodified type → default true)
-     * "펜스 타기 허용" 옵션. `Orientation.hasHalfHold` / `hasBottomHold` 에서 펜스/벽 기반
-     * grab 경로 활성화 게이트. fence 자체 등반 + 위 잡기 둘 다 이 게이트로 제어됨.
+     * "Allow fence climbing" option. Activation gate for fence/wall-based grab paths in
+     * `Orientation.hasHalfHold` / `hasBottomHold`. Both fence self-climbing and top grip are controlled by this gate.
      */
     public boolean freeFenceClimbing = true;
     public float freeClimbingOrthogonalDirectionAngle = 90F;
     /**
-     * 원본 SmartMovingConfig L130 `_freeClimbingDiagonalDirectionAngle` Positive — 기본값 `80F`.
-     * "클라이밍 NE/NW/SE/SW 붙잡기 각도(도)". `Orientation.setClimbingAngles` 가 diagonal 방향
-     * (PP/NN/PN/NP) 의 등반 유효 각도 범위를 계산할 때 사용. 기본값 80F → 각 대각 방향마다 ±40도.
-     * B-19a0 (세션 90).
+     * Original SmartMovingConfig L130 `_freeClimbingDiagonalDirectionAngle` Positive — default `80F`.
+     * "Climbing NE/NW/SE/SW grip angle (degrees)". Used by `Orientation.setClimbingAngles` to calculate
+     * valid climbing angle range for diagonal directions (PP/NN/PN/NP). Default 80F → climbing possible
+     * within ±40 degree range for each diagonal direction. B-19a0 (session 90).
      */
     public float freeClimbingDiagonalDirectionAngle = 80F;
     public float ceilingClimbingSpeedFactor = 0.2F;
-    // 원본: Config._freeClimbFallDamageStartDistance = 2F, _freeClimbFallDamageFactor = 2F
+    // Original: Config._freeClimbFallDamageStartDistance = 2F, _freeClimbFallDamageFactor = 2F
     public float freeClimbFallDamageStartDistance = 2.0F;
     public float freeClimbFallDamageFactor        = 2.0F;
-    // 원본: Options._climbJumpBackHeadOnGrab — false=grabNotPressed시 headJump, true=grabbed시 headJump
+    // Original: Options._climbJumpBackHeadOnGrab — false=headJump when grabNotPressed, true=headJump when grabbed
     public boolean climbJumpBackHead = false;
     public boolean climbExhaustion = false;
     public float climbExhaustionStart = 60F;
@@ -552,212 +552,211 @@ public class SmartMovingConfig {
     public boolean dive = true;
     public float diveSpeedFactor = 1F;
     /**
-     * 원본: _swimDownOnSneak = Unmodified("move.swim.down.sneak") → 기본값 true
-     * true → 수영 중 스니크 시 하강. SmartMovingSelf wouldWantSneak 및 swimDown 계산에 사용.
+     * Original: _swimDownOnSneak = Unmodified("move.swim.down.sneak") → default true
+     * true → descend when sneaking while swimming. Used in SmartMovingSelf wouldWantSneak and swimDown calculation.
      */
     public boolean swimDownOnSneak = true;
     /**
-     * 원본: _diveDownOnSneak = Unmodified("move.dive.down.sneak") → 기본값 true
-     * true → 잠수 중 스니크 시 하강. SmartMovingSelf wouldWantSneak 및 diveDown 계산에 사용.
+     * Original: _diveDownOnSneak = Unmodified("move.dive.down.sneak") → default true
+     * true → descend when sneaking while diving. Used in SmartMovingSelf wouldWantSneak and diveDown calculation.
      */
     public boolean diveDownOnSneak = true;
     /**
-     * 원본: _lavaLikeWater = Creative("move.lava.water") → Survival 기본 false / Creative 기본 true.
+     * Original: _lavaLikeWater = Creative("move.lava.water") → Survival default false / Creative default true.
      *
-     * 🔴 (2026-05-22) 사용자 명시: "Survival 도 Creative 와 같게 해줄 수 있나?"
-     *   → 기본값 false → true 변경. config 파일 사용자 false override 시 overload(player)
-     *     로 Creative 만 활성 (= 원본 spec 부분 매핑 유지).
-     *   = 기본 동작 = 모든 모드 lava swim 활성. config 로 끄기 가능.
+     * RED (2026-05-22) User explicit: "Can Survival be the same as Creative?"
+     *   → default false → changed to true. When config file user overrides to false, overload(player)
+     *     activates Creative only (= maintains partial original spec mapping).
+     *   = default behavior = all modes lava swim enabled. Can be disabled via config.
      *
-     * 소비처:
-     *   - `Swimmer.updateSwimState` 진입 조건 (원본 L232 `Config.isLavaLikeWaterEnabled() &&
-     *     sp.handleLavaMovement()`) — B-7c 에서 복원.
-     *   - `ClientState.getLiquidBorder` lava 분기 (원본 SmartMovingBase L140/L144) — 현재 0F
-     *     근사 (§7 B-42c 근사 (2)). 이 필드 활성 후 lava border 계산 복원 가능 (B-7b 후속).
-     * B-7b (세션 127).
+     * Consumers:
+     *   - `Swimmer.updateSwimState` entry condition (original L232 `Config.isLavaLikeWaterEnabled() &&
+     *     sp.handleLavaMovement()`) — restored in B-7c.
+     *   - `ClientState.getLiquidBorder` lava branch (original SmartMovingBase L140/L144) — currently 0F
+     *     approximation (§7 B-42c approximation (2)). Lava border calculation restorable after activating this field (B-7b follow-up).
+     * B-7b (session 127).
      */
     public boolean lavaLikeWater = true;
     /**
-     * 원본: `_lavaSwimParticlePeriodFactor = PositiveFactor("move.lava.swim.particle.period.factor")
+     * Original: `_lavaSwimParticlePeriodFactor = PositiveFactor("move.lava.swim.particle.period.factor")
      *   .defaults(4F)` (SmartMovingConfig L164).
-     * lava 수영 시 splash/bubble 파티클 생성 주기 배수.
-     * 공식 (원본 SmartMoving.java L123): `maxSpawnSwimmingParticle = factor × 0.01F`.
-     * `spawnSwimmingParticle += horizontalSpeedSquare` 가 임계 초과 시 파티클 생성.
-     *   - water (`_swimParticlePeriodFactor`, default `1F`): 임계 `0.01`
-     *   - lava (이 필드, default `4F`): 임계 `0.04` → water 대비 4배 드물게 생성.
-     * 1.21.1 사용처: 0건 (`spawnSwimmingParticle` 시스템 자체 미이식). 미래 SM 자체 파티클
-     *   시스템 이식 시 `_swimParticlePeriodFactor` 와 함께 활용. 포커스 #2.6 A-5 (세션 2).
+     * Multiplier for splash/bubble particle spawn period when swimming in lava.
+     * Formula (original SmartMoving.java L123): `maxSpawnSwimmingParticle = factor × 0.01F`.
+     * Particles spawned when `spawnSwimmingParticle += horizontalSpeedSquare` exceeds threshold.
+     *   - water (`_swimParticlePeriodFactor`, default `1F`): threshold `0.01`
+     *   - lava (this field, default `4F`): threshold `0.04` → 4x less frequently than water.
+     * 1.21.1 usage: 0 instances (`spawnSwimmingParticle` system not ported). When porting future SM particle
+     *   system, use together with `_swimParticlePeriodFactor`. Focus #2.6 A-5 (session 2).
      */
     public float lavaSwimParticlePeriodFactor = 4F;
     /**
-     * 원본: _runOnSprintRelease = _sprintKeyReleaseAction.is("run").and(_run)
-     *   → _sprintKeyReleaseAction 기본값 "run" + _run 기본 true → 기본 true.
-     * sprint 해제 엣지 (원본 L2702-L2704) 시 `setSprinting(runOnSprintRelease ||
-     * wasRunningWhenSprintStarted)` 적용. B-48b-dep (세션 131).
+     * Original: _runOnSprintRelease = _sprintKeyReleaseAction.is("run").and(_run)
+     *   → _sprintKeyReleaseAction default "run" + _run default true → default true.
+     * Applied on sprint release edge (original L2702-L2704): `setSprinting(runOnSprintRelease ||
+     * wasRunningWhenSprintStarted)`. B-48b-dep (session 131).
      */
     public boolean runOnSprintRelease = true;
     /**
-     * 원본: _walkOnSprintRelease = _sprintKeyReleaseAction.is("walk").andNot(_runOnSprintRelease)
-     *   → "walk" 기본 아님 → 기본 false. 두 필드는 상호 배타적.
-     * sprintKeyStopPressed 엣지 (원본 L2706) 시 `setSprinting(false)` 강제.
-     * B-48b-dep (세션 131).
+     * Original: _walkOnSprintRelease = _sprintKeyReleaseAction.is("walk").andNot(_runOnSprintRelease)
+     *   → "walk" not default → default false. Two fields are mutually exclusive.
+     * Forces `setSprinting(false)` on sprintKeyStopPressed edge (original L2706).
+     * B-48b-dep (session 131).
      */
     public boolean walkOnSprintRelease = false;
     /**
-     * 원본: _levitateSmall = Unmodified("move.levitate.small") → 기본값 true.
-     * "standard flying small size" 옵션. vanilla creative flying 이 SM flying 비활성
-     * 상태일 때 isLevitating 전환 엣지 (원본 L2516-L2522) + mustCrawl=false 조건
-     * (원본 L2404) 에서 사용.
-     * B-51 (세션 133).
+     * Original: _levitateSmall = Unmodified("move.levitate.small") → default true.
+     * "standard flying small size" option. Used in isLevitating transition edge (original L2516-L2522) when vanilla creative flying enters SM flying disabled state + mustCrawl=false condition
+     * (original L2404).
+     * B-51 (session 133).
      */
     public boolean levitateSmall = true;
 
     // ── Jumping ─────────────────────────────────────────────────
-    // === Jump base factor (원본 SmartMovingConfig L228-L231) ===
-    // 원본 L228: _jumpControlFactor = DecreasingFactor("move.jump.control.factor").defaults(1F)
-    //   공중 점프 제어 이동 factor (>= 0, <= 1). DecreasingFactor 기본 1F.
+    // === Jump base factor (original SmartMovingConfig L228-L231) ===
+    // Original L228: _jumpControlFactor = DecreasingFactor("move.jump.control.factor").defaults(1F)
+    //   in-air jump control movement factor (>= 0, <= 1). DecreasingFactor default 1F.
     public float jumpControlFactor = 1F;
-    // 원본 L230: _jumpHorizontalFactor = IncreasingFactor("move.jump.horizontal.factor")
-    //   tryJump getJumpHorizontalFactor 의 base factor (>= 1). IncreasingFactor 기본 1F.
+    // Original L230: _jumpHorizontalFactor = IncreasingFactor("move.jump.horizontal.factor")
+    //   base factor for tryJump getJumpHorizontalFactor (>= 1). IncreasingFactor default 1F.
     public float jumpHorizontalFactor = 1F;
-    // 원본 L231: _jumpVerticalFactor = PositiveFactor("move.jump.vertical.factor")
-    //   tryJump getJumpVerticalFactor 의 base factor (>= 0). PositiveFactor 기본 1F.
+    // Original L231: _jumpVerticalFactor = PositiveFactor("move.jump.vertical.factor")
+    //   base factor for tryJump getJumpVerticalFactor (>= 0). PositiveFactor default 1F.
     public float jumpVerticalFactor = 1F;
 
-    // === Speed 별 Jump 활성 + factor (원본 SmartMovingConfig L233-L251) ===
-    // 원본 L234: _standJump = Unmodified("move.jump.stand") → 기본 true
-    //   isJumpingEnabled(speed=Standing, type) 분기 진입.
+    // === Speed-based Jump enable + factor (original SmartMovingConfig L233-L251) ===
+    // Original L234: _standJump = Unmodified("move.jump.stand") → default true
+    //   isJumpingEnabled(speed=Standing, type) branch entry.
     public boolean standJump = true;
-    // 원본 L235: _standJumpVerticalFactor = PositiveFactor("move.jump.stand.vertical.factor")
-    //   Standing 점프 vertical factor (>= 0). PositiveFactor 기본 1F.
-    //   주: Stand 는 horizontal 없음 — getJumpHorizontalFactor 에서 speed=Standing 시 *0F.
+    // Original L235: _standJumpVerticalFactor = PositiveFactor("move.jump.stand.vertical.factor")
+    //   Standing jump vertical factor (>= 0). PositiveFactor default 1F.
+    //   Note: Standing has no horizontal — getJumpHorizontalFactor multiplies by 0F when speed=Standing.
     public float standJumpVerticalFactor = 1F;
 
-    // 원본 L237: _sneakJump = Unmodified("move.jump.sneak") → 기본 true
+    // Original L237: _sneakJump = Unmodified("move.jump.sneak") → default true
     public boolean sneakJump = true;
-    // 원본 L238: _sneakJumpHorizontalFactor = IncreasingFactor("move.jump.sneak.horizontal.factor")
-    //   Sneaking 점프 horizontal factor (>= 1). IncreasingFactor 기본 1F.
+    // Original L238: _sneakJumpHorizontalFactor = IncreasingFactor("move.jump.sneak.horizontal.factor")
+    //   Sneaking jump horizontal factor (>= 1). IncreasingFactor default 1F.
     public float sneakJumpHorizontalFactor = 1F;
-    // 원본 L239: _sneakJumpVerticalFactor = PositiveFactor("move.jump.sneak.vertical.factor")
-    //   Sneaking 점프 vertical factor (>= 0). PositiveFactor 기본 1F.
+    // Original L239: _sneakJumpVerticalFactor = PositiveFactor("move.jump.sneak.vertical.factor")
+    //   Sneaking jump vertical factor (>= 0). PositiveFactor default 1F.
     public float sneakJumpVerticalFactor = 1F;
 
-    // 원본 L241: _walkJump = Unmodified("move.jump.walk") → 기본 true
+    // Original L241: _walkJump = Unmodified("move.jump.walk") → default true
     public boolean walkJump = true;
-    // 원본 L242: _walkJumpHorizontalFactor = IncreasingFactor("move.jump.walk.horizontal.factor")
-    //   Walking 점프 horizontal factor (>= 1). IncreasingFactor 기본 1F.
+    // Original L242: _walkJumpHorizontalFactor = IncreasingFactor("move.jump.walk.horizontal.factor")
+    //   Walking jump horizontal factor (>= 1). IncreasingFactor default 1F.
     public float walkJumpHorizontalFactor = 1F;
-    // 원본 L243: _walkJumpVerticalFactor = PositiveFactor("move.jump.walk.vertical.factor")
-    //   Walking 점프 vertical factor (>= 0). PositiveFactor 기본 1F.
+    // Original L243: _walkJumpVerticalFactor = PositiveFactor("move.jump.walk.vertical.factor")
+    //   Walking jump vertical factor (>= 0). PositiveFactor default 1F.
     public float walkJumpVerticalFactor = 1F;
 
-    // 원본 L245: _runJump = Unmodified("move.jump.run") → 기본 true
+    // Original L245: _runJump = Unmodified("move.jump.run") → default true
     public boolean runJump = true;
-    // 원본 L246: _runJumpHorizontalFactor = IncreasingFactor("move.jump.run.horizontal.factor").defaults(2F) ★ 오버라이드
-    //   Running 점프 horizontal factor (>= 1). 기본 2F (sprint 와 동일).
+    // Original L246: _runJumpHorizontalFactor = IncreasingFactor("move.jump.run.horizontal.factor").defaults(2F) ★ override
+    //   Running jump horizontal factor (>= 1). Default 2F (same as sprint).
     public float runJumpHorizontalFactor = 2F;
-    // 원본 L247: _runJumpVerticalFactor = PositiveFactor("move.jump.run.vertical.factor")
-    //   Running 점프 vertical factor (>= 0). PositiveFactor 기본 1F.
+    // Original L247: _runJumpVerticalFactor = PositiveFactor("move.jump.run.vertical.factor")
+    //   Running jump vertical factor (>= 0). PositiveFactor default 1F.
     public float runJumpVerticalFactor = 1F;
 
-    // 원본 L249: _sprintJump = Unmodified("move.jump.sprint") → 기본 true
+    // Original L249: _sprintJump = Unmodified("move.jump.sprint") → default true
     public boolean sprintJump = true;
-    // 원본 L250: _sprintJumpHorizontalFactor = IncreasingFactor("move.jump.sprint.horizontal.factor").defaults(2F) ★ 오버라이드
-    //   Sprinting 점프 horizontal factor (>= 1). 기본 2F.
+    // Original L250: _sprintJumpHorizontalFactor = IncreasingFactor("move.jump.sprint.horizontal.factor").defaults(2F) ★ override
+    //   Sprinting jump horizontal factor (>= 1). Default 2F.
     public float sprintJumpHorizontalFactor = 2F;
-    // 원본 L251: _sprintJumpVerticalFactor = PositiveFactor("move.jump.sprint.vertical.factor")
-    //   Sprinting 점프 vertical factor (>= 0). PositiveFactor 기본 1F.
+    // Original L251: _sprintJumpVerticalFactor = PositiveFactor("move.jump.sprint.vertical.factor")
+    //   Sprinting jump vertical factor (>= 0). PositiveFactor default 1F.
     public float sprintJumpVerticalFactor = 1F;
 
-    // 원본: _wallUpJump = Unmodified("move.jump.wall") → 기본값 true
+    // Original: _wallUpJump = Unmodified("move.jump.wall") → default true
     public boolean wallUpJump = true;
-    // 원본: _wallHeadJump = Unmodified("move.jump.wall.head") → 기본값 true
+    // Original: _wallHeadJump = Unmodified("move.jump.wall.head") → default true
     public boolean wallHeadJump = true;
-    // 원본: _wallUpJumpFallMaximumDistance = Positive(...).defaults(2F)
+    // Original: _wallUpJumpFallMaximumDistance = Positive(...).defaults(2F)
     public float wallUpJumpFallMaximumDistance = 2F;
-    // 원본: _wallHeadJumpFallMaximumDistance = Positive(...).defaults(3F)
+    // Original: _wallHeadJumpFallMaximumDistance = Positive(...).defaults(3F)
     public float wallHeadJumpFallMaximumDistance = 3F;
-    // 원본: _wallUpJumpOrthogonalTolerance = Positive(...).defaults(5F)
+    // Original: _wallUpJumpOrthogonalTolerance = Positive(...).defaults(5F)
     public float wallUpJumpOrthogonalTolerance = 5F;
-    // 원본: _wallUpJumpVerticalFactor = DecreasingFactor(...).defaults(0.4F)
+    // Original: _wallUpJumpVerticalFactor = DecreasingFactor(...).defaults(0.4F)
     // tryJump(WallUp, angle!=null): verticalMotion = -0.078 + 0.498 * wallUpJumpVerticalFactor
     public float wallUpJumpVerticalFactor = 0.4F;
-    // 원본: _wallHeadJumpVerticalFactor = DecreasingFactor(...).defaults(0.3F)
+    // Original: _wallHeadJumpVerticalFactor = DecreasingFactor(...).defaults(0.3F)
     // tryJump(WallHead): verticalMotion = -0.078 + 0.498 * (wallUpJumpVerticalFactor + wallHeadJumpVerticalFactor)
     public float wallHeadJumpVerticalFactor = 0.3F;
-    // 원본: _wallUpJumpHorizontalFactor = DecreasingFactor(...).defaults(0.15F)
+    // Original: _wallUpJumpHorizontalFactor = DecreasingFactor(...).defaults(0.15F)
     public float wallUpJumpHorizontalFactor = 0.15F;
-    // 원본: _wallHeadJumpHorizontalFactor = DecreasingFactor(...).defaults(0.15F)
+    // Original: _wallHeadJumpHorizontalFactor = DecreasingFactor(...).defaults(0.15F)
     public float wallHeadJumpHorizontalFactor = 0.15F;
-    // === ChargeUp 필드 (원본 SmartMovingConfig L254-L257) ===
-    // 원본 L254: _jumpCharge = Unmodified("move.jump.charge") → 기본 true
+    // === ChargeUp fields (original SmartMovingConfig L254-L257) ===
+    // Original L254: _jumpCharge = Unmodified("move.jump.charge") → default true
     public boolean jumpCharge = true;
-    // 원본 L255: _jumpChargeMaximum = Positive("move.jump.charge.maximum").defaults(20F)
-    //   ChargeUp 최대 카운트 (틱당 1 증가, >= 0).
+    // Original L255: _jumpChargeMaximum = Positive("move.jump.charge.maximum").defaults(20F)
+    //   ChargeUp maximum count (increment 1 per tick, >= 0).
     public float jumpChargeMaximum = 20F;
-    // 원본 L256: _jumpChargeFactor = IncreasingFactor("move.jump.charge.factor").defaults(1.3F)
-    //   ChargeUp 완충 시 점프 속도 배율 (>= 1).
+    // Original L256: _jumpChargeFactor = IncreasingFactor("move.jump.charge.factor").defaults(1.3F)
+    //   ChargeUp full charge jump speed multiplier (>= 1).
     public float jumpChargeFactor = 1.3F;
-    // 원본 L257: _jumpChargeCancelOnSneakRelease = Modified("move.jump.charge.sneak.release.cancel") → 기본 false (Modified)
-    //   true=sneak 키 떼면 차징 점프 발동, false=sneak 키 떼면 차징 취소.
+    // Original L257: _jumpChargeCancelOnSneakRelease = Modified("move.jump.charge.sneak.release.cancel") → default false (Modified)
+    //   true=execute charge jump when releasing sneak key, false=cancel charge when releasing sneak key.
     public boolean jumpChargeCancelOnSneakRelease = false;
     public boolean headJump = true;
     public float headJumpControlFactor = 0.2F;
     public float headJumpChargeMaximum = 10F;
-    // === Angle (Forward/Side/Back) 점프 (원본 SmartMovingConfig L268-L271 + 전방 확장) ===
-    // 전용 dodge 키의 전방 입력. 기존 원본 설정에는 없으므로 기본 true인 확장 옵션.
+    // === Angle (Forward/Side/Back) jumps (original SmartMovingConfig L268-L271 + forward extension) ===
+    // Forward input for dedicated dodge key. Not in original config, extension option default true.
     public boolean angleJumpForward = true;
-    // 원본 L268: _angleJumpSide = Unmodified("move.jump.angle.side") → 기본 true
+    // Original L268: _angleJumpSide = Unmodified("move.jump.angle.side") → default true
     public boolean angleJumpSide = true;
-    // 원본 L269: _angleJumpBack = Unmodified("move.jump.angle.back") → 기본 true
+    // Original L269: _angleJumpBack = Unmodified("move.jump.angle.back") → default true
     public boolean angleJumpBack = true;
-    // 원본 L270: _angleJumpHorizontalFactor = PositiveFactor(...).defaults(0.3F).defaults(0.4F, _sm_1_3)
-    //   ★ _sm_1_3 이상 오버라이드 = 0.4F (이전 0.3F 는 sm_1_3 미만 — 1.7.10 은 sm_1_3 이후라 0.4F 채택).
+    // Original L270: _angleJumpHorizontalFactor = PositiveFactor(...).defaults(0.3F).defaults(0.4F, _sm_1_3)
+    //   ★ Override for _sm_1_3 and later = 0.4F (previous 0.3F for sm_1_3 before — 1.7.10 is after sm_1_3 so use 0.4F).
     public float angleJumpHorizontalFactor = 0.4F;
-    // 원본 L271: _angleJumpVerticalFactor = PositiveFactor(...).defaults(0.2F)
+    // Original L271: _angleJumpVerticalFactor = PositiveFactor(...).defaults(0.2F)
     public float angleJumpVerticalFactor = 0.2F;
 
-    // === ClimbUp 점프 (원본 SmartMovingConfig L273-L276) ===
-    // 원본 L274: _climbUpJump = Unmodified("move.jump.climb.up") → 기본 true
+    // === ClimbUp jumps (original SmartMovingConfig L273-L276) ===
+    // Original L274: _climbUpJump = Unmodified("move.jump.climb.up") → default true
     public boolean climbUpJump = true;
-    // 원본 L275: _climbUpJumpVerticalFactor = DecreasingFactor("move.jump.climb.up.vertical.factor")
-    //   ClimbUp 점프 vertical factor (>= 0, <= 1). DecreasingFactor 기본 1F.
+    // Original L275: _climbUpJumpVerticalFactor = DecreasingFactor("move.jump.climb.up.vertical.factor")
+    //   ClimbUp jump vertical factor (>= 0, <= 1). DecreasingFactor default 1F.
     public float climbUpJumpVerticalFactor = 1F;
-    // 원본 L276: _climbUpJumpHandsOnlyVerticalFactor = DecreasingFactor(...).defaults(0.8F) ★
-    //   ClimbUp Hands-only 추가 vertical factor (>= 0, <= 1). 기본 0.8F.
+    // Original L276: _climbUpJumpHandsOnlyVerticalFactor = DecreasingFactor(...).defaults(0.8F) ★
+    //   ClimbUp Hands-only additional vertical factor (>= 0, <= 1). Default 0.8F.
     //   getJumpVerticalFactor(speed, ClimbUpHandsOnly) = ... × (climbUpJumpVerticalFactor × climbUpJumpHandsOnlyVerticalFactor).
     public float climbUpJumpHandsOnlyVerticalFactor = 0.8F;
 
-    // === ClimbBackUp 점프 (원본 SmartMovingConfig L278-L283) ===
-    // 원본 L279: _climbBackUpJump = Unmodified("move.jump.climb.back.up") → 기본 true
+    // === ClimbBackUp jumps (original SmartMovingConfig L278-L283) ===
+    // Original L279: _climbBackUpJump = Unmodified("move.jump.climb.back.up") → default true
     public boolean climbBackUpJump = true;
-    // 원본 L280: _climbBackUpJumpVerticalFactor = DecreasingFactor(...).defaults(0.2F).defaults(1F, _pre_sm_3_1) ★
-    //   ClimbBackUp vertical factor (>= 0, <= 1). 0.2F (sm_3_1 이상). _pre_sm_3_1 만 1F — 1.7.10 은 sm_3_1 이후라 0.2F 채택.
+    // Original L280: _climbBackUpJumpVerticalFactor = DecreasingFactor(...).defaults(0.2F).defaults(1F, _pre_sm_3_1) ★
+    //   ClimbBackUp vertical factor (>= 0, <= 1). 0.2F (sm_3_1 and later). Only _pre_sm_3_1 is 1F — 1.7.10 is after sm_3_1 so use 0.2F.
     public float climbBackUpJumpVerticalFactor = 0.2F;
-    // 원본 L281: _climbBackUpJumpHorizontalFactor = DecreasingFactor(...).defaults(0.3F).defaults(1F, _pre_sm_3_1) ★
-    //   ClimbBackUp horizontal factor (>= 0, <= 1). 0.3F (sm_3_1 이상). _pre_sm_3_1 만 1F.
+    // Original L281: _climbBackUpJumpHorizontalFactor = DecreasingFactor(...).defaults(0.3F).defaults(1F, _pre_sm_3_1) ★
+    //   ClimbBackUp horizontal factor (>= 0, <= 1). 0.3F (sm_3_1 and later). Only _pre_sm_3_1 is 1F.
     public float climbBackUpJumpHorizontalFactor = 0.3F;
-    // 원본 L282: _climbBackUpJumpHandsOnlyVerticalFactor = DecreasingFactor(...).defaults(0.8F) ★
-    //   ClimbBackUp Hands-only 추가 vertical factor (>= 0, <= 1). 기본 0.8F.
+    // Original L282: _climbBackUpJumpHandsOnlyVerticalFactor = DecreasingFactor(...).defaults(0.8F) ★
+    //   ClimbBackUp Hands-only additional vertical factor (>= 0, <= 1). Default 0.8F.
     public float climbBackUpJumpHandsOnlyVerticalFactor = 0.8F;
-    // 원본 L283: _climbBackUpJumpHandsOnlyHorizontalFactor = DecreasingFactor("move.jump.climb.back.up.hands.only.horizontal.factor")
-    //   ClimbBackUp Hands-only 추가 horizontal factor (>= 0, <= 1). DecreasingFactor 기본 1F.
+    // Original L283: _climbBackUpJumpHandsOnlyHorizontalFactor = DecreasingFactor("move.jump.climb.back.up.hands.only.horizontal.factor")
+    //   ClimbBackUp Hands-only additional horizontal factor (>= 0, <= 1). DecreasingFactor default 1F.
     public float climbBackUpJumpHandsOnlyHorizontalFactor = 1F;
 
-    // === ClimbBackHead 점프 (원본 SmartMovingConfig L285-L290) — 구조 ClimbBackUp 와 동일 ===
-    // 원본 L286: _climbBackHeadJump = Unmodified("move.jump.climb.back.head") → 기본 true
+    // === ClimbBackHead jumps (original SmartMovingConfig L285-L290) — structure identical to ClimbBackUp ===
+    // Original L286: _climbBackHeadJump = Unmodified("move.jump.climb.back.head") → default true
     public boolean climbBackHeadJump = true;
-    // 원본 L287: _climbBackHeadJumpVerticalFactor = DecreasingFactor(...).defaults(0.2F).defaults(1F, _pre_sm_3_1) ★
-    //   ClimbBackHead vertical factor (>= 0, <= 1). 0.2F (sm_3_1 이상). _pre_sm_3_1 만 1F.
+    // Original L287: _climbBackHeadJumpVerticalFactor = DecreasingFactor(...).defaults(0.2F).defaults(1F, _pre_sm_3_1) ★
+    //   ClimbBackHead vertical factor (>= 0, <= 1). 0.2F (sm_3_1 and later). Only _pre_sm_3_1 is 1F.
     public float climbBackHeadJumpVerticalFactor = 0.2F;
-    // 원본 L288: _climbBackHeadJumpHorizontalFactor = DecreasingFactor(...).defaults(0.3F).defaults(1F, _pre_sm_3_1) ★
-    //   ClimbBackHead horizontal factor (>= 0, <= 1). 0.3F (sm_3_1 이상). _pre_sm_3_1 만 1F.
+    // Original L288: _climbBackHeadJumpHorizontalFactor = DecreasingFactor(...).defaults(0.3F).defaults(1F, _pre_sm_3_1) ★
+    //   ClimbBackHead horizontal factor (>= 0, <= 1). 0.3F (sm_3_1 and later). Only _pre_sm_3_1 is 1F.
     public float climbBackHeadJumpHorizontalFactor = 0.3F;
-    // 원본 L289: _climbBackHeadJumpHandsOnlyVerticalFactor = DecreasingFactor(...).defaults(0.8F) ★
-    //   ClimbBackHead Hands-only 추가 vertical factor (>= 0, <= 1). 기본 0.8F.
+    // Original L289: _climbBackHeadJumpHandsOnlyVerticalFactor = DecreasingFactor(...).defaults(0.8F) ★
+    //   ClimbBackHead Hands-only additional vertical factor (>= 0, <= 1). Default 0.8F.
     public float climbBackHeadJumpHandsOnlyVerticalFactor = 0.8F;
-    // 원본 L290: _climbBackHeadJumpHandsOnlyHorizontalFactor = DecreasingFactor("move.jump.climb.back.head.hands.only.horizontal.factor")
-    //   ClimbBackHead Hands-only 추가 horizontal factor (>= 0, <= 1). DecreasingFactor 기본 1F.
+    // Original L290: _climbBackHeadJumpHandsOnlyHorizontalFactor = DecreasingFactor("move.jump.climb.back.head.hands.only.horizontal.factor")
+    //   ClimbBackHead Hands-only additional horizontal factor (>= 0, <= 1). DecreasingFactor default 1F.
     public float climbBackHeadJumpHandsOnlyHorizontalFactor = 1F;
 
     /**

@@ -31,7 +31,7 @@ import java.util.UUID;
 @Environment(EnvType.CLIENT)
 public final class SmartMovingClientState {
 
-    // ── 4-1: Jump-related fields ──────────────────────────────────────────
+    // -- 4-1: Jump-related fields --------------------------------------------------
 
     /** Execute jump on next processing tick */
     public boolean jumpPending;
@@ -956,28 +956,28 @@ public final class SmartMovingClientState {
     public boolean smCrawlMode = false;
 
     /**
-     * 🔴 (2026-05-04) crawl-climbing 의 bodyAngleX fade lerp 보간용 prev field.
-     *   원본 ModelRotationRenderer.GetIntermediateAngle 식 (= prev + (target - prev) * deltaT * 0.2F)
-     *   적용. height 변화 (= smallOverGroundHeight 매 tick 갱신) 의 시각 부드러움 추가.
+     * 🔴 (2026-05-04) crawl-climbing bodyAngleX fade lerp interpolation prev field.
+     *   Apply original ModelRotationRenderer.GetIntermediateAngle formula (= prev + (target - prev) * deltaT * 0.2F).
+     *   Adds visual smoothness to height change (= smallOverGroundHeight updated each tick).
      */
     public float smCrawlClimbBodyAngleXFaded = Float.NaN;
     public float smCrawlClimbFadeTimePrev = Float.NaN;
 
-    // 🔴 (2026-05-04) 사용자 보고 fix — "다리가 살짝 땅으로 잠김":
-    //   bodyAngleX 만 fade 시 legAngleX = QUARTER - bodyAngleX 식 → bodyAngleX=0 시작 시
-    //   legAngleX = π/4 = 큰 앞쪽 회전 → leg vertex 박스 침투.
-    //   fix: legAngleX/legAngleZ 도 별도 fade 적용 → prev=0 시작 → 점진적 target 도달.
+    // 🔴 (2026-05-04) user report fix — "legs slightly locked in ground":
+    //   when only bodyAngleX fades, legAngleX = QUARTER - bodyAngleX formula → when bodyAngleX=0 start
+    //   legAngleX = π/4 = large forward rotation → leg vertex box penetration.
+    //   fix: also apply separate fade to legAngleX/legAngleZ → start prev=0 → gradually reach target.
     public float smCrawlClimbLegAngleXFaded = Float.NaN;
     public float smCrawlClimbLegAngleXFadeTimePrev = Float.NaN;
     public float smCrawlClimbLegAngleZFaded = Float.NaN;
     public float smCrawlClimbLegAngleZFadeTimePrev = Float.NaN;
 
     /**
-     * 🔴 (Phase 2 multi BUG-11) remote 측 비행 종료 edge 감지용. self 측은 자체 처리 (standUp setPos), remote 만.
-     *   비행 종료 시 self standUp setPos(y+1) → server broadcast → remote 측 entity.y server-sync.
-     *   단 server-relay SM packet (= sm.isFlying=false) 와 vanilla EntityPositionS2CPacket timing 차이로
-     *   sm.isFlying=false sync 후 entity.y server-sync 까지 lag → 그 사이 lerp 진행 → 모델 땅 아래.
-     *   해결: 비행 종료 후 N tick 동안 매 tick 큰 dy 감지 → lastRenderY/prevY 즉시 동기화.
+     * 🔴 (Phase 2 multi BUG-11) remote side flight exit edge detection. self side own handling (standUp setPos), remote only.
+     *   When flight ends self standUp setPos(y+1) → server broadcast → remote side entity.y server-sync.
+     *   However server-relay SM packet (= sm.isFlying=false) timing difference with vanilla EntityPositionS2CPacket
+     *   lag between sm.isFlying=false sync and entity.y server-sync → lerp progresses in between → model below ground.
+     *   Solution: after flight ends detect large dy each tick for N ticks → immediately sync lastRenderY/prevY.
      */
     public boolean smPrevWasFlyingForLerpFix = false;
     public int smFlyingExitYSyncTicks = 0;
