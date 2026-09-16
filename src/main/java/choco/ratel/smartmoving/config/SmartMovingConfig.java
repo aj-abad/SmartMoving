@@ -9,34 +9,34 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * SmartMoving 설정 파일 로드/저장.
- * 원본 net.smart.properties 시스템을 java.util.Properties로 단순화.
- * 설정 파일: config/smart_moving_options.properties
+ * SmartMoving configuration file load/save.
+ * Original net.smart.properties system simplified to java.util.Properties.
+ * Config file: config/smart_moving_options.properties
  */
 public class SmartMovingConfig {
 
-    // ── 버전 (config_system.md: SmartMovingConfig._sm_current = "3.2" → 1.21.1 포트는 "1.0") ──
+    // ── Version (config_system.md: SmartMovingConfig._sm_current = "3.2" → 1.21.1 port is "1.0") ──
     public static final String SM_VERSION = "1.0";
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Phase B (포커스 #2.5) — Jumper 판정 헬퍼 정적 인프라
-    // 원본 SmartMovingClientConfig L172-L192 (Speed/Type 상수) +
-    //      SmartMovingSelf L2148-L2163 (getJumpSpeed 헬퍼).
+    // Phase B (focus #2.5) — Jumper determination helper static infrastructure
+    // Original SmartMovingClientConfig L172-L192 (Speed/Type constants) +
+    //      SmartMovingSelf L2148-L2163 (getJumpSpeed helper).
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // === Speed 상수 (원본 SmartMovingClientConfig L172-L176, B-2) ===
-    //   getJumpSpeed 반환 + isJumpingEnabled / getJumpHorizontalFactor /
-    //   getJumpVerticalFactor / getMaxHorizontalMotion 의 speed 파라미터 도메인.
+    // === Speed constants (original SmartMovingClientConfig L172-L176, B-2) ===
+    //   getJumpSpeed return + isJumpingEnabled / getJumpHorizontalFactor /
+    //   getJumpVerticalFactor / getMaxHorizontalMotion speed parameter domain.
     public static final int SPEED_SPRINTING = 0;
     public static final int SPEED_RUNNING   = 1;
     public static final int SPEED_WALKING   = 2;
     public static final int SPEED_SNEAKING  = 3;
     public static final int SPEED_STANDING  = 4;
 
-    // === Jump Type 상수 (원본 SmartMovingClientConfig L178-L192, B-2.5) ===
+    // === Jump Type constants (original SmartMovingClientConfig L178-L192, B-2.5) ===
     //   tryJump / isJumpingEnabled / getJumpHorizontalFactor / getJumpVerticalFactor /
-    //   getMaxHorizontalMotion / getHeadJumpFactor 의 type 파라미터 도메인 (15종).
-    //   주: 1.21.1 SmartMovingJumper 의 기존 jumpType 상수와 매핑 정렬은 Phase E 에서 처리.
+    //   getMaxHorizontalMotion / getHeadJumpFactor type parameter domain (15 types).
+    //   Note: Mapping alignment with 1.21.1 SmartMovingJumper existing jumpType constants is handled in Phase E.
     public static final int JUMP_TYPE_UP                     = 0;
     public static final int JUMP_TYPE_CHARGE_UP              = 1;
     public static final int JUMP_TYPE_ANGLE                  = 2;
@@ -54,9 +54,9 @@ public class SmartMovingConfig {
     public static final int JUMP_TYPE_WALL_HEAD_SLIDE        = 14;
 
     /**
-     * Phase B-1 — getJumpSpeed 헬퍼.
+     * Phase B-1 — getJumpSpeed helper.
      *
-     * 원본 `SmartMovingSelf.java` L2148-L2163 (1:1 번역):
+     * Original `SmartMovingSelf.java` L2148-L2163 (1:1 translation):
      * <pre>
      * private static int getJumpSpeed(boolean isStanding, boolean isSneaking,
      *                                 boolean isRunning, boolean isSprinting, Float angle) {
@@ -70,10 +70,10 @@ public class SmartMovingConfig {
      * }
      * </pre>
      *
-     * angle != null (사이드/백 점프) 일 때 sprint/run 게이팅을 강제로 끄고 sneaking/standing
-     * /walking 로만 판정 — 원본 의도: angle 점프는 항상 base speed 로 분류.
+     * When angle != null (side/back jump) forcibly disable sprint/run gating and only determine by sneaking/standing
+     * /walking — original intent: angle jumps are always classified as base speed.
      *
-     * 호출처: tryJump (Phase D-4) — `int speed = getJumpSpeed(sm.isStanding, sm.isSlow,
+     * Call site: tryJump (Phase D-4) — `int speed = getJumpSpeed(sm.isStanding, sm.isSlow,
      *                                                          isRunning, sm.isFast, angle);`
      */
     public static int getJumpSpeed(boolean isStanding, boolean isSneaking,
@@ -91,10 +91,10 @@ public class SmartMovingConfig {
     /**
      * Phase B-3 — isJumpingEnabled(speed, type).
      *
-     * 원본 `SmartMovingClientConfig.java` L194-L227 (1:1 번역):
+     * Original `SmartMovingClientConfig.java` L194-L227 (1:1 translation):
      * <pre>
      * public boolean isJumpingEnabled(int speed, int type) {
-     *     if (!enabled)                                  return true;   // SM 비활성 = vanilla 동작 = 모두 허용
+     *     if (!enabled)                                  return true;   // SM disabled = vanilla behavior = allow all
      *     if (type == ChargeUp)                          return _jumpCharge.value;
      *     if (type == SlideDown)                         return _slide.value;
      *     if (type == ClimbUp || type == ClimbUpHandsOnly)             return _climbUpJump.value;
@@ -107,14 +107,14 @@ public class SmartMovingConfig {
      *     else if (speed == Walking)                     return _walkJump.value;
      *     else if (speed == Sneaking)                    return _sneakJump.value;
      *     else if (speed == Standing)                    return _standJump.value;
-     *     return true;   // type=Up/HeadUp/Angle/WallUpSlide/WallHeadSlide & speed 분기 미통과 시
+     *     return true;   // type=Up/HeadUp/Angle/WallUpSlide/WallHeadSlide & speed branch not matched
      * }
      * </pre>
      *
-     * 원본 의도: !enabled (SM 비활성) → 모든 점프 vanilla 위임 (true). type 우선 분기 →
-     * speed 분기 → fallthrough true.
+     * Original intent: !enabled (SM disabled) → delegate all jumps to vanilla (true). type priority branch →
+     * speed branch → fallthrough true.
      *
-     * 호출처: tryJump (Phase D-4) — `boolean enabled = cfg.isJumpingEnabled(speed, type);`
+     * Call site: tryJump (Phase D-4) — `boolean enabled = cfg.isJumpingEnabled(speed, type);`
      */
     public boolean isJumpingEnabled(int speed, int type) {
         if (!enabled)
@@ -153,22 +153,22 @@ public class SmartMovingConfig {
     /**
      * Phase B-6 — getMaxHorizontalMotion(speed, type, inWater).
      *
-     * 원본 `SmartMovingClientConfig.java` L508-L525 (1:1 번역):
+     * Original `SmartMovingClientConfig.java` L508-L525 (1:1 translation):
      * <pre>
      * public float getMaxHorizontalMotion(int speed, int type, boolean inWater) {
-     *     float maxMotion = 0.117852041920949F;   // 육상 base (vanilla 기본 수평 속도 한계)
+     *     float maxMotion = 0.117852041920949F;   // ground base (vanilla default horizontal speed limit)
      *     if (!enabled) return speed == Running ? maxMotion * 1.3F : maxMotion;
-     *     if (inWater) maxMotion = 0.07839602977037292F;   // 수중 덮어쓰기
+     *     if (inWater) maxMotion = 0.07839602977037292F;   // water override
      *     if (speed == Sprinting)  maxMotion *= _sprintFactor.value;
      *     else if (speed == Running)   maxMotion *= _runFactor.value;
      *     else if (speed == Sneaking)  maxMotion *= _sneakFactor.value;
-     *     return maxMotion;   // Walking/Standing 분기 없음 — base 그대로
+     *     return maxMotion;   // no Walking/Standing branch — base as-is
      * }
      * </pre>
      *
-     * @param type 사용되지 않음 (원본도 `@SuppressWarnings("unused")` — 시그니처 호환만 유지).
+     * @param type unused (original also `@SuppressWarnings("unused")` — signature compatibility only).
      *
-     * 호출처: tryJump (Phase D-8) — `maxHorizontalMotion = (double) cfg.getMaxHorizontalMotion(speed, type, inWater) * SmartMovingMover.getCombinedSpeedFactor(player, cfg);`
+     * Call site: tryJump (Phase D-8) — `maxHorizontalMotion = (double) cfg.getMaxHorizontalMotion(speed, type, inWater) * SmartMovingMover.getCombinedSpeedFactor(player, cfg);`
      */
     @SuppressWarnings("unused")
     public float getMaxHorizontalMotion(int speed, int type, boolean inWater) {

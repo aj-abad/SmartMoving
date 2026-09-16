@@ -22,54 +22,55 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import choco.ratel.smartmoving.climbing.CeilingClimbBlocks;
 
 /**
- * 클라이언트 측 클라이밍 물리 로직.
- * 원본: SmartMovingBase / SmartMovingSelf의 클라이밍 관련 메서드 이식.
+ * Client-side climbing physics logic.
+ * Original: Ported climbing-related methods from SmartMovingBase / SmartMovingSelf.
  *
- * 포함 항목:
- *   1-7: getOnLadderOrVine() — 사다리/넝쿨 탐색
- *   7-1: 클라이밍 속도 상수
+ * Contents:
+ *   1-7: getOnLadderOrVine() — ladder/vine detection
+ *   7-1: climbing speed constants
  *   7-2: setShouldClimbSpeed() / handleClimbing()
  *   7-3: handleCeilingClimbing()
  */
 @Environment(EnvType.CLIENT)
 public final class SmartMovingClimber {
 
-    // ── 7-1: 클라이밍 속도 상수 ─────────────────────────────────────────
-    // 원본: SmartMovingContext 정적 상수
+    // ── 7-1: Climbing speed constants ──────────────────────────────────────
+    // Original: SmartMovingContext static constants
 
-    /** 빠른 상승 (FAST_UP 상태) */
+    /** Fast climbing (FAST_UP state) */
     public static final double FAST_UP_MOTION        = 0.2D;
-    /** 크롤 갭 진입 시 속도 상한 */
+    /** Speed cap when entering crawl gap */
     public static final double CATCH_CRAWL_GAP_MOTION = 0.17D;
-    /** 중간 상승 */
+    /** Medium climbing */
     public static final double MEDIUM_UP_MOTION       = 0.14D;
-    /** 느린 상승 */
+    /** Slow climbing */
     public static final double SLOW_UP_MOTION         = 0.1D;
-    /** 제자리 유지 (홀딩) */
+    /** Stationary hold (holding) */
     public static final double HOLD_MOTION            = 0.08D;
-    /** 천천히 하강 */
+    /** Slow descending */
     public static final double SINK_DOWN_MOTION       = 0.05D;
-    /** 사다리 아래로 내려가기 */
+    /** Descending ladder */
     public static final double CLIMB_DOWN_MOTION      = 0.01D;
-    /** 넝쿨 당기기 moveForward 값 */
+    /** Vine pulling moveForward value */
     public static final float  CLIMB_PULL_MOTION      = 0.3F;
 
     private SmartMovingClimber() {}
 
-    // ── B-16a: isFacedToLadder / isFacedToSolidVine (세션 69) ─────────────
+    // ── B-16a: isFacedToLadder / isFacedToSolidVine (session 69) ──────────
 
     /**
-     * 원본 SmartMovingBase L184-L186 `isFacedToLadder(boolean isSmall)`:
+     * Original SmartMovingBase L184-L186 `isFacedToLadder(boolean isSmall)`:
      *   return getOnLadder(1, true, isSmall) > 0;
      *   where getOnLadder(maxResult, faceOnly=true, isSmall) =
      *     getOnLadderOrVine(maxResult, faceOnly=true, onlyLadder=true, onlyVine=false, isSmall)
      *
-     * 1.21.1 `getOnLadderOrVine` 은 ladder/vine 필터 파라미터가 없어 둘 다 감지하나
-     * `out_handsVine[0]` / `out_feetVine[0]` 플래그로 vine 여부 구분 가능 → **ladder 만 선택**
-     * (vine 제외) 하는 근사 이식. `faceOnly=true` 로 플레이어 정면 4방향 중 바라보는 방향만 탐색.
+     * 1.21.1 `getOnLadderOrVine` has no ladder/vine filter parameters, so it detects both,
+     * but `out_handsVine[0]` / `out_feetVine[0]` flags allow distinguishing vine → approximation
+     * **selects ladder only** (excluding vine). `faceOnly=true` searches only the direction
+     * player is facing among 4 orthogonal directions.
      *
-     * 사용처: `wouldWantClimb` 4-OR 의 3번째 분기 (원본 L2471) — 자동 사다리 진입.
-     * B-16a (세션 69).
+     * Usage: 3rd branch of `wouldWantClimb` 4-OR (original L2471) — automatic ladder entry.
+     * B-16a (session 69).
      */
     public static boolean isFacedToLadder(LocalPlayer player, boolean isSmall) {
         Level world = player.level();
@@ -80,19 +81,19 @@ public final class SmartMovingClimber {
         boolean[]  hv = {false};
         boolean[]  fv = {false};
         getOnLadderOrVine(player, world, isSmall, true, h, f, hg, fg, hv, fv);
-        // 근사: ladder 전용 필터 불가능 → relevant 이면서 vine 아닌 경우만 ladder.
+        // Approximation: ladder-only filter unavailable → select only relevant cases without vine.
         return (h[0].isRelevant() && !hv[0]) || (f[0].isRelevant() && !fv[0]);
     }
 
     /**
-     * 원본 SmartMovingBase L209-L312 `getOnLadder(maxResult, faceOnly, isSmall)` 1:1.
+     * Original SmartMovingBase L209-L312 `getOnLadder(maxResult, faceOnly, isSmall)` 1:1.
      *   = getOnLadderOrVine(maxResult, faceOnly, ladder=true, vine=false, isSmall).
      *
-     * 사다리 카운트 반환 (최대 maxResult 까지). setOnlyShouldClimbSpeed (사다리/덩굴 통합 1-2)
-     * 의 MediumUpMotion 분기에서 호출 — ladder 1개 시 freeOneLadderClimbUpSpeedFactor (1.0153),
-     * 2개 시 freeBothLadderClimbUpSpeedFactor (1.43) 곱.
+     * Returns ladder count (up to maxResult). Called from setOnlyShouldClimbSpeed's (ladder/vine
+     * unified 1-2) MediumUpMotion branch — 1 ladder applies freeOneLadderClimbUpSpeedFactor
+     * (1.0153), 2+ ladders apply freeBothLadderClimbUpSpeedFactor (1.43).
      *
-     * 사용자 의도 "원본 사다리 기능을 일반 덩굴에도 동일 적용" — ladder 외 VineBlock 도 카운트.
+     * User intent: "apply original ladder behavior equally to regular vines" — also count VineBlocks.
      */
     public static int getOnLadderOrVineCount(LocalPlayer player, int maxResult,
                                              boolean faceOnly, boolean isSmall) {
@@ -112,7 +113,7 @@ public final class SmartMovingClimber {
         for (int j = minj; j <= maxj; j++) {
             if (result >= maxResult) return result;
 
-            // 중심 위치 LadderBlock 또는 VineBlock
+            // Center position LadderBlock or VineBlock
             BlockState centerState = world.getBlockState(new BlockPos(px, j, pz));
             Direction localLadderFacing = null;
             if (centerState.getBlock() instanceof LadderBlock) {
@@ -121,7 +122,7 @@ public final class SmartMovingClimber {
                     result++;
                 }
             } else if (centerState.getBlock() instanceof VineBlock) {
-                // 사용자 의도: 일반 덩굴도 사다리와 동일 카운트.
+                // User intent: regular vines counted same as ladder.
                 if (facedDir == null) {
                     result++;
                 }

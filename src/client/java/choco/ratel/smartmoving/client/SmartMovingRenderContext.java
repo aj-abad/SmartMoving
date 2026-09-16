@@ -4,22 +4,22 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 
 /**
- * 클라이언트 렌더 스레드에서 공유되는 일시적 컨텍스트 플래그.
+ * Temporary context flag shared in client render thread.
  *
- * 1.21.1 의 1인칭 손은 PlayerEntityRenderer.renderArm 안에서
+ * 1.21.1's first-person arm in PlayerEntityRenderer.renderArm calls
  *   model.setAngles(player, 0,0,0,0,0)
- * 를 호출 → SM 의 sm_setAngles HEAD/TAIL inject 가 발동해 손/팔 자세를 SM 분기로
- * 덮어씀 → 1인칭 손이 사라지거나 이상한 자세로 보이는 BUG.
+ * → SM's sm_setAngles HEAD/TAIL inject triggers, overwriting arm/hand pose with SM branch
+ * → First-person arm disappears or appears in strange pose BUG.
  *
- * renderArm HEAD/RETURN 에서 firstPersonArmRender 플래그를 set/clear → sm_setAngles
- * HEAD 와 TAIL 가 진입 직후 플래그 검사 후 early return → 1인칭 손은 항상 vanilla
- * 기본 자세 유지 (3인칭 / 타인 시점 SM 애니메이션은 영향 없음).
+ * Set/clear firstPersonArmRender flag in renderArm HEAD/RETURN → sm_setAngles
+ * HEAD and TAIL check flag after entry and early return → first-person arm always maintains vanilla
+ * default pose (third-person / other player's perspective SM animation unaffected).
  *
- * 클라이언트는 단일 렌더 스레드 → volatile static 으로 충분.
+ * Client is single render thread → volatile static is sufficient.
  */
 @Environment(EnvType.CLIENT)
 public final class SmartMovingRenderContext {
-    /** PlayerEntityRenderer.renderArm 호출 중 true (1인칭 손 렌더링 컨텍스트). */
+    /** true during PlayerEntityRenderer.renderArm call (first-person arm rendering context). */
     public static volatile boolean firstPersonArmRender = false;
 
     private SmartMovingRenderContext() {}

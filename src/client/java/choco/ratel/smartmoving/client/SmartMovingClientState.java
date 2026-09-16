@@ -478,187 +478,187 @@ public final class SmartMovingClientState {
     public boolean isFakeShallowWaterSneaking;
 
     /**
-     * 원본 SmartMovingSelf L1436 / L507 갱신:
+     * Original SmartMovingSelf L1436 / L507 update:
      *   isShallowDiveOrSwim = couldStandUp && (isDiving || isSwimming)
-     * handleSwimming 얕은 물 특수 분기 (L513-L536) 및 grab.StartPressed 수영/걷기 전환
-     * (L2839) 에 사용. B-10a / B-11 / B-36 의존.
+     * Used in handleSwimming shallow water special branch (L513-L536) and grab.StartPressed swim/walk transition
+     * (L2839). Depends on B-10a / B-11 / B-36.
      */
     public boolean isShallowDiveOrSwim;
 
     /**
-     * 원본 SmartMovingSelf L1435 / L487 갱신:
+     * Original SmartMovingSelf L1435 / L487 update:
      *   isJumpingOutOfWater = wantJumpOutOfWater && (waterMovementTicks > 10 || onGround
      *                                                || wasJumpingOutOfWater)
-     * 수면 탈출 점프 진행 조건. handleSwimming L500 `motionY = 0.30000001192092896D` 설정에 사용.
-     * B-10b / B-12 의존.
+     * Water surface exit jump progress condition. Used in handleSwimming L500 `motionY = 0.30000001192092896D` setting.
+     * Depends on B-10b / B-12.
      */
     public boolean isJumpingOutOfWater;
 
     /**
-     * 원본 SmartMovingSelf L105 `boolean wasJumpingOutOfWater = isJumpingOutOfWater`
-     * updateEntityActionState 내부 **지역 snapshot**. 이후 handleSwimming L229 파라미터로
-     * 전달되어 L487 `isJumpingOutOfWater = wantJumpOutOfWater && (... || wasJumpingOutOfWater)`
-     * 공식에 사용 (틱 간 hysteresis).
+     * Original SmartMovingSelf L105 `boolean wasJumpingOutOfWater = isJumpingOutOfWater`
+     * **local snapshot** inside updateEntityActionState. Later passed as parameter to handleSwimming L229,
+     * used in L487 `isJumpingOutOfWater = wantJumpOutOfWater && (... || wasJumpingOutOfWater)`
+     * formula (inter-tick hysteresis).
      *
-     * **§7 근사** (B-10b-pre): 1.21.1 은 Swimmer.updateSwimState + handleSwimming 으로 분리
-     * → 지역 snapshot 공유 불가 → 이전 틱 값 저장용 **public 필드로 승격**. 저장은
-     * `Swimmer.updateSwimState` 진입 첫 줄 (원본 L105 대응 위치). B-10b-post 공식 이식
-     * (세션 미정) 에서 이 필드 참조.
+     * **§7 approximation** (B-10b-pre): 1.21.1 split into Swimmer.updateSwimState + handleSwimming
+     * → cannot share local variables → **promote to public field** to store previous tick value. Storage is
+     * first line of `Swimmer.updateSwimState` entry (corresponds to original L105 location). Referenced in
+     * B-10b-post formula porting (session TBD).
      */
     public boolean wasJumpingOutOfWater;
 
     /**
-     * 원본 SmartMovingSelf L1438 / L550 갱신:
-     *   useStandard 경로에서 isStillSwimmingJump = false
-     * grab.StartPressed 수영 전환 (L2844) 에서 true 설정 — 수영 점프 hold 상태.
-     * B-10c / B-36 의존.
+     * Original SmartMovingSelf L1438 / L550 update:
+     *   isStillSwimmingJump = false in useStandard path
+     * Set to true in grab.StartPressed swim transition (L2844) — swimming jump hold state.
+     * Depends on B-10c / B-36.
      */
     public boolean isStillSwimmingJump;
 
     /**
-     * 원본 SmartMovingSelf L1797-L1802/L2419-L2432 `wantCrawl` = isCrawlingEnabled && wouldWantCrawl.
-     * wouldWantSneak 조건(L2584)에 `&& !wantCrawl` 로 사용. IMPL-01 크롤링 진입 조건과 동일 값.
+     * Original SmartMovingSelf L1797-L1802/L2419-L2432 `wantCrawl` = isCrawlingEnabled && wouldWantCrawl.
+     * Used as `&& !wantCrawl` in wouldWantSneak condition (L2584). Same value as IMPL-01 crawling entry condition.
      */
     public boolean wantCrawl;
 
     /**
-     * 원본 SmartMovingSelf L1792-L1794 `mustCrawl` = 머리 위 공간 부족 여부.
-     * wouldWantSneak 조건(L2585)에 `&& !mustCrawl` 로 사용. IMPL-01 크롤링 유지 강제 조건과 동일.
+     * Original SmartMovingSelf L1792-L1794 `mustCrawl` = whether space above head is insufficient.
+     * Used as `&& !mustCrawl` in wouldWantSneak condition (L2585). Same as IMPL-01 crawling maintenance force condition.
      */
     public boolean mustCrawl;
 
     /** 🔵 fix #154 v4 (2026-05-22): REMOTE side multi-step transition history flag.
-     *   log 실측: server side broadcast 가 dv 변경 vs cr 변경 별도 2 packet. REMOTE 측 lambda
-     *   매치 X. flag 로 swim/dive 종료 후 5 tick 안 crawl 진입 detection. */
+     *   log measurement: server side broadcast sends separate 2 packets for dv change vs cr change. REMOTE side lambda
+     *   no match. flag for detect crawl entry within 5 ticks after swim/dive end. */
     public int smRecentSwimDiveEndTick = -9999;
 
     /**
-     * 원본 SmartMovingSelf `wantCrawlNotClimb` (L2452-L2461 갱신):
+     * Original SmartMovingSelf `wantCrawlNotClimb` (L2452-L2461 update):
      *   wantCrawlNotClimb = wantCrawlNotClimb || (grab.StartPressed && !wasCrawling &&
-     *                       onGround && <추가 조건>) ...
-     * wouldWantClimb 조건(L1822) `!wantCrawlNotClimb` 및 wantClimbCeiling (L1837) 에 사용.
-     * B-31b / B-41 의존.
+     *                       onGround && <additional conditions>) ...
+     * Used as `!wantCrawlNotClimb` in wouldWantClimb condition (L1822) and wantClimbCeiling (L1837).
+     * Depends on B-31b / B-41.
      */
     public boolean wantCrawlNotClimb;
 
     /**
-     * 원본 SmartMovingSelf `initializeCrawling` (L2399 / L2822 / L2831 / L2834).
-     * 크롤링 초기화 진입 시 setHeightOffset(-1F) + move(0,-1D,0) 처리에 분기 조건으로 사용.
-     * mustCrawl 계산 시 crawlStandUpBottom 계산의 `initializeCrawling ? 0D : 1D` 오프셋에도 사용.
-     * B-31c / B-35 의존.
+     * Original SmartMovingSelf `initializeCrawling` (L2399 / L2822 / L2831 / L2834).
+     * Used as branch condition in setHeightOffset(-1F) + move(0,-1D,0) processing when entering crawling initialization.
+     * Also used in `initializeCrawling ? 0D : 1D` offset in crawlStandUpBottom calculation when computing mustCrawl.
+     * Depends on B-31c / B-35.
      */
     public boolean initializeCrawling;
 
     /**
-     * 원본 SmartMovingSelf L3077 `private boolean contextContinueCrawl`.
-     * 깊은 물 다이빙 → 물 아래 포복 전환 시 fromSwimmingOrDiving(L1388) 에서 true 로 설정.
-     * wouldWantCrawl 식(L2419)의 `isCrawling && (inputContinueCrawl || contextContinueCrawl)` 조건에 사용.
-     * 해제 경로: L2411(inputContinue/물속/mustCrawl), L2416(천장 액체 여유), L2447(!isCrawling).
+     * Original SmartMovingSelf L3077 `private boolean contextContinueCrawl`.
+     * Set to true in fromSwimmingOrDiving(L1388) when transitioning from deep water diving → crawling under water.
+     * Used in `isCrawling && (inputContinueCrawl || contextContinueCrawl)` condition of wouldWantCrawl expression (L2419).
+     * Release paths: L2411(inputContinue/underwater/mustCrawl), L2416(ceiling liquid clearance), L2447(!isCrawling).
      *
-     * **포커스 #3 B-5 (세션 5 검증)**: true 설정 경로 (fromSwimmingOrDiving 분기 2 L2800)
-     *   이미 이식 완료 (B-42-B39 세션 124). 원본 L1388 `contextContinueCrawl = true` 1:1.
-     *   stale 주석 정정.
+     * **Focus #3 B-5 (session 5 validation)**: true setting path (fromSwimmingOrDiving branch 2 L2800)
+     *   already ported (B-42-B39 session 124). Original L1388 `contextContinueCrawl = true` 1:1.
+     *   stale comment corrected.
      */
     public boolean contextContinueCrawl;
 
-    /** 원본 L2717 `wasSneaking = isSlow` (이전 틱 isSlow 저장, willStartSneak/willStopSneak 조건용). */
+    /** Original L2717 `wasSneaking = isSlow` (previous tick isSlow saved, for willStartSneak/willStopSneak condition). */
     public boolean wasSneaking;
 
     /**
-     * 원본 SmartMovingSelf L3074 `public boolean wasCrawling;` — 다용도 필드.
-     * 주요 역할:
-     *   (1) L2441 tickEssential `wasCrawling = isCrawling` — isCrawling 공식 직전 저장
-     *   (2) L3015 R-09 `isCrawling && !wasCrawling` — willStartCrawl 판정
-     *   (3) L2449 `wasCrawling && !isCrawling && capabilities.flying` — tryJump(Up) 트리거 (B-34)
-     *   (4) L2457 `!wasCrawling` — wantCrawlNotClimb 계산 (B-41)
-     *   (5) L2566/L2572/L2751/L2760/L2767/L2812/L2835/L2860 — 여러 전환 블록 재설정
-     * B-31a (세션 41): 기존 `wasCrawling_st` → `wasCrawling` 개명 (원본과 이름 일치).
-     * 현재는 (1)+(2) 이식 상태 — 나머지는 해당 B-N 에서 추가 갱신 위치 등록.
+     * Original SmartMovingSelf L3074 `public boolean wasCrawling;` — multi-purpose field.
+     * Primary roles:
+     *   (1) L2441 tickEssential `wasCrawling = isCrawling` — saved before isCrawling formula
+     *   (2) L3015 R-09 `isCrawling && !wasCrawling` — willStartCrawl determination
+     *   (3) L2449 `wasCrawling && !isCrawling && capabilities.flying` — tryJump(Up) trigger (B-34)
+     *   (4) L2457 `!wasCrawling` — wantCrawlNotClimb calculation (B-41)
+     *   (5) L2566/L2572/L2751/L2760/L2767/L2812/L2835/L2860 — multiple transition block resets
+     * B-31a (session 41): rename existing `wasCrawling_st` → `wasCrawling` (name matches original).
+     * Currently in porting state (1)+(2) — others register additional update locations in their B-N.
      */
     public boolean wasCrawling;
 
-    /** 원본 wasClimbCrawling — 이전 틱 isClimbCrawling 저장. */
+    /** Original wasClimbCrawling — previous tick isClimbCrawling saved. */
     public boolean wasClimbCrawling;
 
     /**
-     * 사다리/덩굴 ICC EXIT toCrawling 직후 isCrawlClimbing 식 차단 플래그.
+     * Ladder/vine ICC EXIT toCrawling flag blocking isCrawlClimbing formula.
      *
-     * 우리 1.21.1 매핑: ICC EXIT 후 박스 발 = ladder maxY 부근 (= grip 영역 안).
-     *   → handleClimbing 결과 isClimbing=true 잔존 → L1970 isCrawlClimbing 식 매치
-     *   (wasCrawling=true && isClimbing=true && ...) → L1985 _canStandUp=false (= ladder solid)
-     *   → L1989 분기 진입 → L1992 isCrawling=false reset BUG.
+     * Our 1.21.1 mapping: After ICC EXIT, box feet ≈ ladder maxY (within grip area).
+     *   → handleClimbing result isClimbing=true remains → L1970 isCrawlClimbing formula matches
+     *   (wasCrawling=true && isClimbing=true && ...) → L1985 _canStandUp=false (ladder solid)
+     *   → L1989 branch entry → L1992 isCrawling=false reset BUG.
      *
-     * 원본 1.7.10: 박스 발 = posY+1 = ladder maxY+1 (= 빈공간) → grip X → isClimbing=false 자연
-     *   → isCrawlClimbing 식 미매치.
+     * Original 1.7.10: box feet = posY+1 = ladder maxY+1 (empty space) → no grip → isClimbing=false naturally
+     *   → isCrawlClimbing formula does not match.
      *
-     * 해결: ICC EXIT toCrawling 시 플래그 set → 다음 tick L1970 식 false 강제 → L1992 reset 회피.
-     * isCrawling=false 자연 시 reset (= 사용자 sneak release).
+     * Solution: set flag on ICC EXIT toCrawling → next tick force L1970 formula false → avoid L1992 reset.
+     * Reset naturally when isCrawling=false (user sneak release).
      */
     public boolean iccExitJustToCrawl;
 
     /**
-     * 🔴 fix #174 (2026-05-27 재적용 — fix #175 와 조합): SS-SlideStop sR=false cause 직후 N tick
-     *   isCrawling 자가유지 차단 가드. fix #175 가 박스 부유 cause 해소 → fix #174 단독 부작용
-     *   (= 박스 부유 + cr=false 강제 시 모델 ground 안 잠김) 사라짐.
-     *   자연 종료 (= sR=true 잔존 + speed²<threshold) 시나리오는 가드 활성 X → 정상 crawling 자가유지.
+     * 🔴 fix #174 (2026-05-27 reapplied — combined with fix #175): Guard blocking isCrawling self-maintenance
+     * N ticks right after SS-SlideStop sR=false cause. fix #175 resolves box floating cause → fix #174 sole side effect
+     *   (= box floating + cr=false force causes model ground lock) disappears.
+     *   Natural end scenario (= sR=true remains + speed²<threshold) guard not active → normal crawling self-maintenance.
      */
     public int slideEndedGuardTicks = 0;
 
 
-    /** 원본 sneakButton.StartPressed — 이번 틱 스닉키 엣지(새로 눌림). */
+    /** Original sneakButton.StartPressed — sneak key edge this tick (newly pressed). */
     public boolean sneakKeyStartPressed;
-    /** 원본 sneakButton.StopPressed — 이번 틱 스닉키 엣지(새로 뗌). */
+    /** Original sneakButton.StopPressed — sneak key edge this tick (newly released). */
     public boolean sneakKeyStopPressed;
-    /** sneakKey.isPressed() 이전 틱 값 — 엣지 감지 내부 추적. */
+    /** sneakKey.isPressed() value from previous tick — internal tracking for edge detection. */
     public boolean prevSneakKeyPressed;
 
     /**
-     * 원본 sprintButton.StartPressed — 이번 틱 스프린트키 엣지(새로 눌림). B-48a (세션 131).
-     * isGroundSprinting 전환 후처리 (원본 L2697-L2709) 에서 소비.
+     * Original sprintButton.StartPressed — sprint key edge this tick (newly pressed). B-48a (session 131).
+     * Consumed in isGroundSprinting transition post-processing (original L2697-L2709).
      */
     public boolean sprintKeyStartPressed;
     /**
-     * 원본 sprintButton.StopPressed — 이번 틱 스프린트키 엣지(새로 뗌). B-48a (세션 131).
-     * 원본 L2706 `if (_walkOnSprintRelease && sprintButton.StopPressed)` 조건용.
+     * Original sprintButton.StopPressed — sprint key edge this tick (newly released). B-48a (session 131).
+     * For original L2706 `if (_walkOnSprintRelease && sprintButton.StopPressed)` condition.
      */
     public boolean sprintKeyStopPressed;
-    /** sprintKey.isPressed() 이전 틱 값 — 엣지 감지 내부 추적. B-48a (세션 131). */
+    /** sprintKey.isPressed() value from previous tick — internal tracking for edge detection. B-48a (session 131). */
     public boolean prevSprintKeyPressed;
 
     /**
-     * 원본 wasGroundSprinting — 이전 틱 isGroundSprinting 저장 (원본 L2678).
-     * B-48c (세션 131). isGroundSprinting 전환 후처리 (원본 L2697-L2702) 의
-     * 엣지 판정 (`isGroundSprinting && !wasGroundSprinting` / `wasGroundSprinting &&
-     * !isGroundSprinting`) 용.
+     * Original wasGroundSprinting — previous tick isGroundSprinting saved (original L2678).
+     * B-48c (session 131). For edge determination in isGroundSprinting transition post-processing
+     * (original L2697-L2702) (`isGroundSprinting && !wasGroundSprinting` / `wasGroundSprinting &&
+     * !isGroundSprinting`).
      */
     public boolean wasGroundSprinting;
 
     /**
-     * 원본 wasRunningWhenSprintStarted — sprint 시작 시점의 vanilla isSprinting() snapshot
-     * (원본 L2699 저장 / L2704 복원). B-48b (세션 131). sprint 종료 엣지에서 복원됨.
+     * Original wasRunningWhenSprintStarted — snapshot of vanilla isSprinting() at sprint start time
+     * (original L2699 saved / L2704 restored). B-48b (session 131). Restored at sprint end edge.
      */
     public boolean wasRunningWhenSprintStarted;
 
-    /** 원본 jumpButton.StopPressed — 이번 틱 점프키 엣지(새로 뗌). StartPressed는 jumpKeyStartPressed. */
+    /** Original jumpButton.StopPressed — jump key edge this tick (newly released). StartPressed is jumpKeyStartPressed. */
     public boolean jumpKeyStopPressed;
 
     /**
-     * 원본 `grabButton.StartPressed` — 이번 틱 grab 키 엣지(새로 눌림). vanilla
-     * `KeyBinding.wasPressed()` 는 "press 이벤트 카운터에서 1 소비" 시멘틱이라 같은 틱에
-     * 2회째 호출 시 false 반환. B-46 (세션 66) — tickEssential 초반 1회 호출 → 이 필드
-     * 저장 → 모든 소비 지점 (pre-compute / IMPL-01 / 기타) 이 필드 참조로 통일.
-     * 원본 `grabButton.StartPressed` 는 틱 내 불변 불리언이므로 시멘틱 등가.
+     * Original `grabButton.StartPressed` — grab key edge this tick (newly pressed). Vanilla
+     * `KeyBinding.wasPressed()` has "consume 1 from press event counter" semantics, so second call
+     * same tick returns false. B-46 (session 66) — call once at start of tickEssential → save to this field
+     * → unify all consumption points (pre-compute / IMPL-01 / others) to reference this field.
+     * Original `grabButton.StartPressed` is invariant boolean within tick, so semantically equivalent.
      */
     public boolean grabJustPressed;
-    /** grab 키 직전 프레임 isPressed() 값 — rising edge 검출용 (timesPressed 카운터 누적 회피). */
+    /** grab key isPressed() value from previous frame — for rising edge detection (avoid timesPressed counter accumulation). */
     public boolean prevGrabKeyPressed;
-    /** 전용 prone 키의 이번 틱 rising edge. */
+    /** Dedicated prone key's rising edge this tick. */
     public boolean proneJustPressed;
-    /** prone 키 직전 프레임 상태. */
+    /** prone key state from previous frame. */
     private boolean prevProneKeyPressed;
-    /** 전용 dodge 키의 이번 틱 rising edge. */
+    /** Dedicated dodge key's rising edge this tick. */
     public boolean dodgeJustPressed;
-    /** dodge 키 직전 프레임 상태. */
+    /** dodge key state from previous frame. */
     private boolean prevDodgeKeyPressed;
 
     // ── IMPL-03: 더블클릭 방향 점프 카운터 ──────────────────────────────

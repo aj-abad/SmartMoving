@@ -31,29 +31,29 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 12-1: setAngles() Mixin — SM 11가지 이동 상태 애니메이션.
- * 12-2: animateAngleJumping() — 방향 점프 시 팔/다리 각도.
- * 8-3 / 6-4: leaningPitch 강제 0 — 수영/잠수/크롤링 중 vanilla -90° 자동 회전 차단.
+ * 12-1: setAngles() Mixin — SM 11 movement state animations.
+ * 12-2: animateAngleJumping() — directional jump arm/leg angles.
+ * 8-3 / 6-4: force leaningPitch to 0 — block vanilla -90° auto-rotation during swimming/diving/crawling.
  *
- * 원본: SmartMovingModel.setRotationAngles() 이식.
- * 상태 우선순위 (if-else 체인 순서):
+ * Original: ported from SmartMovingModel.setRotationAngles().
+ * State priority (if-else chain order):
  *   isClimbing/isCrawlClimbing → isClimbJumping → isCeilingClimbing →
  *   isSwimming_sm → isDiving → isCrawling → isSliding →
  *   isFlying → isHeadJumping → isFalling → else(standard)
  *
- * 각도 상수 (SmartRenderContext 기반 라디안):
+ * Angle constants (radian based on SmartRenderContext):
  *   Half=π, Quarter=π/2, Eighth=π/4, Sixteenth=π/8,
  *   Thirtytwoth=π/16, Sixtyfourth=π/32
  *
- * NOTE: 회전 순서 변환은 setAnglesYZX/setAnglesZXY 헬퍼로 처리.
- *       원본 YZX GL 순서 → JOML qY*qZ*qX → getEulerAnglesZYX → ModelPart pitch/yaw/roll.
- *       원본 ZXY GL 순서 → JOML qZ*qX*qY → 동일 변환.
+ * NOTE: rotation order conversion handled by setAnglesYZX/setAnglesZXY helpers.
+ *       original YZX GL order → JOML qY*qZ*qX → getEulerAnglesZYX → ModelPart pitch/yaw/roll.
+ *       original ZXY GL order → JOML qZ*qX*qY → same conversion.
  */
 @Environment(EnvType.CLIENT)
 @Mixin(HumanoidModel.class)
 public abstract class MixinPlayerEntityModelClient {
 
-    // ── 각도 상수 (SmartRenderContext/SmartRenderUtilities 기준) ─────────────
+    // ── Angle constants (based on SmartRenderContext/SmartRenderUtilities) ─────────────
     private static final float HALF        = (float) Math.PI;        // π
     private static final float QUARTER     = HALF / 2f;              // π/2
     private static final float EIGHTH      = HALF / 4f;              // π/4
@@ -61,9 +61,9 @@ public abstract class MixinPlayerEntityModelClient {
     private static final float THIRTYTWOTH = HALF / 16f;             // π/16
     private static final float SIXTYFOURTH = HALF / 32f;             // π/32
     private static final float WHOLE       = HALF * 2f;              // 2π
-    private static final float DEG_TO_RAD  = (float) (Math.PI / 180.0); // 도→라디안
+    private static final float DEG_TO_RAD  = (float) (Math.PI / 180.0); // degrees to radians
 
-    // ── BipedEntityModel 파트 @Shadow ────────────────────────────────────────
+    // ── BipedEntityModel parts @Shadow ────────────────────────────────────────
     @Shadow public ModelPart head;
     @Shadow public ModelPart hat;
     @Shadow public ModelPart body;
@@ -72,12 +72,12 @@ public abstract class MixinPlayerEntityModelClient {
     @Shadow public ModelPart rightLeg;
     @Shadow public ModelPart leftLeg;
 
-    // 🔴 (Phase 2 multi BUG-4) ModelPart pivot leak 차단 — single-instance 모델의 player 간 leak 방지.
-    //   원인: PlayerEntityModel 은 모든 player render 가 공유하는 single instance.
-    //   한 player 의 SM 분기 (= sm_animateCrawling 등) 가 head.pivotZ/body.pivotZ/leg.pivotX 등 변경 →
-    //   vanilla setAngles 가 일부 field 만 매 호출 시 reset → 다음 player render 시 잔존 → A 의 자세가 B 에 leak.
-    //   해결: 첫 setAngles HEAD 시 default pivot 캐시 → 매 setAngles HEAD 마다 caching 값 복원.
-    //   vanilla setAngles 가 sneak 분기 등에서 pivot 추가 변경 → SM 분기가 추가 변경 → 정상 흐름.
+    // 🔴 (Phase 2 multi BUG-4) Block ModelPart pivot leak — prevent leak between players of single-instance model.
+    //   Root cause: PlayerEntityModel is a single instance shared by all player renders.
+    //   One player's SM branch (= sm_animateCrawling, etc.) changes head.pivotZ/body.pivotZ/leg.pivotX, etc. →
+    //   vanilla setAngles resets only some fields per call → lingers in next player render → A's pose leaks to B.
+    //   Solution: cache default pivot on first setAngles HEAD → restore cached values every setAngles HEAD.
+    //   vanilla setAngles makes additional pivot changes in sneak branch, etc. → SM branch makes additional changes → normal flow.
     @Unique private boolean sm_pivotDefaultsCached = false;
     @Unique private float sm_headPivotX, sm_headPivotY, sm_headPivotZ;
     @Unique private float sm_bodyPivotX, sm_bodyPivotY, sm_bodyPivotZ;
@@ -106,7 +106,7 @@ public abstract class MixinPlayerEntityModelClient {
         leftArm.x  = sm_lArmPivotX; leftArm.y  = sm_lArmPivotY; leftArm.z  = sm_lArmPivotZ;
         rightLeg.x = sm_rLegPivotX; rightLeg.y = sm_rLegPivotY; rightLeg.z = sm_rLegPivotZ;
         leftLeg.x  = sm_lLegPivotX; leftLeg.y  = sm_lLegPivotY; leftLeg.z  = sm_lLegPivotZ;
-        // vanilla setAngles 가 reset 안 하는 회전 field 도 복원 (= roll/yaw 일부) — leak 차단.
+        // Also restore rotation fields that vanilla setAngles doesn't reset (= some roll/yaw) — block leak.
         head.zRot = 0f;
         body.zRot = 0f;
         rightArm.zRot = 0f; leftArm.zRot = 0f;

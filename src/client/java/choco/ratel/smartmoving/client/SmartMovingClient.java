@@ -162,9 +162,9 @@ public class SmartMovingClient implements ClientModInitializer {
                     if (entity instanceof AbstractClientPlayer rsPre
                             && !(entity instanceof LocalPlayer)) {
                         double bbMinY = rsPre.getBoundingBox().minY;
-                        // calc dim *전* bb (= mixin offset 활성 시점). self fix #70 의 _currentBoxMinY70 등가.
+                        // calc dim *before* bb (= moment when mixin offset active). self fix #70 equivalent _currentBoxMinY70.
                         if (wasSliding) slideBoxMinYBefore = bbMinY;
-                        // 🔴 (BUG D fix, 2026-05-13) 비행 종료 직전 bb (= mixin offset 활성 시점) — gap 측정용.
+                        // 🔴 (BUG D fix, 2026-05-13) bb just before flight end (= moment when mixin offset active) — for gap measurement.
                         if (wasFlying) flyBoxMinYBefore = bbMinY;
                     }
                     target.processStatePacket(payload.state());
@@ -373,43 +373,43 @@ public class SmartMovingClient implements ClientModInitializer {
                             remoteSlideExit.setPos(remoteSlideExit.getX(), newY, remoteSlideExit.getZ());
                             remoteSlideExit.yOld = newY;
                             remoteSlideExit.yo = newY;
-                            // 🔴 lerp cancel — 진입 분기와 동일 패턴 (srvY/bti 동기화 → lerp 차단).
+                            // 🔴 lerp cancel — same pattern as entry branch (srvY/bti sync → block lerp).
                             accX.sm_setServerY(newY);
                             accX.sm_setBodyTrackingIncrements(0);
                         }
                     }
 
-                    // 🔴 (BUG 2 fix, 2026-05-13) remote 헤드점프 착지 1칸 down jump 차단.
-                    //   self side L2196 EXIT 분기 (SmartMovingClientState):
+                    // 🔴 (BUG 2 fix, 2026-05-13) remote head jump landing 1-block downward jump block.
+                    //   self side L2196 EXIT branch (SmartMovingClientState):
                     //     `wasHJ && !isHJ && onGround` → standupIfPossible(false, true) → entity.y +1m push.
-                    //     검증 (= log_temp.txt 시도 1~3): SELF-EXIT-POST dy=1.000.
-                    //   server side: self c2s SmartMovingState packet 이 c2s position packet 보다 빨리 처리
-                    //     → SERVER-RECV 시 server.y = push 전 (70.000). 다음 server tick 에 71.000 갱신.
-                    //   broadcast: SmartMovingState packet 이 EntityPositionS2CPacket 보다 ~1 server tick
-                    //     빨리 broadcast (= reference_vanilla_server_tick_order, BUG-7/15/D 동일 메커니즘).
-                    //   remote: PKT 도착 시 remote.y = 70.X (= lerp 가 srvY=70 추격 중). bbMin=remote.y+1
-                    //     (mixin offset 활성, MixinEntity.sm_offsetBoundingBoxForFlying 의 SLIDING POSE 가드).
-                    //     box 발은 ground 위 (= 잠수 X). **그러나 모델 origin = entity.y = 70.X = ground
-                    //     아래 0.5~0.8m → 사용자 시각 "1칸 잠수"**. srvY=71 갱신 후 lerp 추격 ~3~15 tick
-                    //     (= 150~750ms) 동안 잔존.
-                    //   해결: BUG-7/15 동일 패턴 — packet lambda 안 즉시 setPos(groundY) + lerp cancel.
-                    //     newY 식 = ground top 직접 측정 (= getMaxPlayerSolidBetween, yMax<bbMin 으로 천장
-                    //     매치 차단). srvY+1 보다 정확 (= srvY 가 진입 frame 에 부정확한 broadcast 값 잔존
-                    //     가능, 시도 3/5 검증).
-                    //   가드 `!target.isSliding && !target.isCrawling`:
-                    //     - 자체슬라이딩 자동 전환 (= 여우무빙, 시도 4/5): self.y 변화 X → fix 적용 X 가 정합.
-                    //     - 헤드점프 → crawl 전환 등: 별도 fix 분기.
-                    // 🔵 fix #99 (2026-05-14) — HJ→CR 직접 전환 분기.
-                    //   사용자 보고: 헤드점프 + 벽 충돌 + 떨어짐 + GRAB+SNEAK 누름 → 자동 엎드리기
-                    //     전환 시 REMOTE 잠깐 잠긴 visual.
-                    //   진짜 path: HJ:true→false + CR:false→true 동시.
-                    //   = self side `standupIfPossible` → `toSlidingOrCrawling` 의 else 분기 (= grab
-                    //     매치 X) → `toCrawling()` 호출.
-                    //   기존 fix 분기 빈공간: fix #93 (SL 진입) / fix #98 v5 (HJ→standing) / fix #90
-                    //     (SL→CR) 모두 가드 미매치.
-                    //   newY 식 = srvY + 1m (= server side fix #99 v3 push 후 broadcast 위치 정확).
-                    //     groundY 직접 측정 (= fix #92/#93 패턴) 은 진입 frame 박스 dim 변화 (=
-                    //     calculateDimensions 후 isCrawling dim) 로 yMax<ground top → clamp 잘못.
+                    //     verification (= log_temp.txt attempts 1~3): SELF-EXIT-POST dy=1.000.
+                    //   server side: self c2s SmartMovingState packet processed before c2s position packet
+                    //     → SERVER-RECV when server.y = before push (70.000). next server tick updates to 71.000.
+                    //   broadcast: SmartMovingState packet broadcast ~1 server tick earlier than EntityPositionS2CPacket
+                    //     (= reference_vanilla_server_tick_order, BUG-7/15/D same mechanism).
+                    //   remote: packet arrival when remote.y = 70.X (= lerp chasing srvY=70). bbMin=remote.y+1
+                    //     (mixin offset active, MixinEntity.sm_offsetBoundingBoxForFlying SLIDING POSE guard).
+                    //     box feet above ground (= no diving). **However model origin = entity.y = 70.X = 0.5~0.8m below ground
+                    //     → user visual "1-block submerged"**. after srvY=71 update, lerp chases for ~3~15 ticks
+                    //     (= 150~750ms).
+                    //   solution: BUG-7/15 same pattern — inside packet lambda immediately setPos(groundY) + lerp cancel.
+                    //     newY formula = directly measure ground top (= getMaxPlayerSolidBetween, yMax<bbMin blocks ceiling
+                    //     match). more accurate than srvY+1 (= srvY may persist inaccurate broadcast value on entry frame,
+                    //     attempts 3/5 verification).
+                    //   guard `!target.isSliding && !target.isCrawling`:
+                    //     - self sliding auto-transition (= fox movement, attempts 4/5): self.y no change → fix not applied, matches.
+                    //     - head jump → crawl transition etc: separate fix branch.
+                    // 🔵 fix #99 (2026-05-14) — HJ→CR direct transition branch.
+                    //   user report: head jump + wall collision + fall + GRAB+SNEAK press → auto-crouch
+                    //     transition when REMOTE briefly locks visually.
+                    //   real path: HJ:true→false + CR:false→true simultaneously.
+                    //   = self side `standupIfPossible` → `toSlidingOrCrawling` else branch (= grab
+                    //     no match) → `toCrawling()` call.
+                    //   existing fix branch gap: fix #93 (SL entry) / fix #98 v5 (HJ→standing) / fix #90
+                    //     (SL→CR) all guards no match.
+                    //   newY formula = srvY + 1m (= server side fix #99 v3 push then broadcast position accurate).
+                    //     direct groundY measurement (= fix #92/#93 pattern) entry frame box dim change (=
+                    //     calculateDimensions after isCrawling dim) causes yMax<ground top → clamp error.
                     if (wasHJ && !target.isHeadJumping
                             && !wasSliding && !target.isSliding
                             && target.isCrawling
