@@ -24,268 +24,268 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 클라이언트 플레이어당 SM 상태 컴포넌트.
- * 서버의 SmartMovingServer에 대응하는 클라이언트 측 상태 관리 클래스.
- * Map<UUID, SmartMovingClientState> 방식 — @Unique 필드 주입 대신 사용.
+ * SM state component per client player.
+ * Client-side state management class corresponding to SmartMovingServer on the server.
+ * Map<UUID, SmartMovingClientState> pattern — used instead of @Unique field injection.
  */
 @Environment(EnvType.CLIENT)
 public final class SmartMovingClientState {
 
-    // ── 4-1: 점프 관련 필드 ──────────────────────────────────────────
+    // ── 4-1: Jump-related fields ──────────────────────────────────────────
 
-    /** 다음 처리 틱에 점프 실행 */
+    /** Execute jump on next processing tick */
     public boolean jumpPending;
 
-    /** vanilla jump() 회피 여부 */
+    /** Whether to bypass vanilla jump() */
     public boolean jumpAvoided;
 
-    /** 차지 점프 누적 (0.0 ~ Config.MaxJumpCharge) */
+    /** Charge jump accumulation (0.0 ~ Config.MaxJumpCharge) */
     public float jumpCharge;
 
-    /** 헤드점프 차지 누적 */
+    /** Head jump charge accumulation */
     public float headJumpCharge;
 
-    /** 버튼 릴리즈까지 점프 차단 */
+    /** Block jump until button release */
     public boolean blockJumpTillButtonRelease;
 
-    /** 스프린트 점프 상태 */
+    /** Sprint jump state */
     public boolean isSprintJump;
 
-    /** 헤드점프 상태 */
+    /** Head jump state */
     public boolean isHeadJumping;
 
     /**
-     * 원본 SmartMovingSelf L2524 `wasHeadJumping = isHeadJumping` — isHeadJumping 매 틱
-     * 재평가 5-AND 공식 직전 저장. wasHeadJumping && !isHeadJumping && onGround 해제
-     * 엣지 후처리(handleCrash + restoreFromFlying) 및 toSlidingOrCrawling 조건에 사용.
-     * B-23 / B-24 / B-29 의존.
+     * Original SmartMovingSelf L2524 `wasHeadJumping = isHeadJumping` — saved before isHeadJumping re-evaluation
+     * 5-AND formula each tick. Release condition: wasHeadJumping && !isHeadJumping && onGround
+     * Used in edge post-processing (handleCrash + restoreFromFlying) and toSlidingOrCrawling conditions.
+     * Dependencies: B-23 / B-24 / B-29.
      */
     public boolean wasHeadJumping;
 
-    /** 벽점프 상태 */
+    /** Wall jump state */
     public boolean isWallJumping;
 
-    /** 방향 점프 타입 (0~7) */
+    /** Direction jump type (0~7) */
     public int angleJumpType;
 
-    /** 벽점프 연속 여부 */
+    /** Wall jump continuation flag */
     public boolean continueWallJumping;
 
     /**
-     * 원본: SmartMovingSelf.wallJumpCount — 더블클릭 타이머.
-     * 0 일 때 jump StartPressed → wallJumpDoubleClickTicks(정수) 로 설정,
-     * 그 다음 jump StartPressed → triggerWallJumping=true + 0 리셋. else 매 틱 --.
+     * Original: SmartMovingSelf.wallJumpCount — double-click timer.
+     * When 0, jump StartPressed → set to wallJumpDoubleClickTicks(integer),
+     * next jump StartPressed → triggerWallJumping=true + reset to 0. Otherwise, decrement each tick.
      */
     public int wallJumpCount;
 
     /**
-     * 원본: SmartMovingSelf.triggerWallJumping — 더블클릭 감지 플래그.
-     * wantWallJumping 식에 반영된 뒤 역할 종료. 매 틱 시작에 자동 리셋(원본 리서치
-     * 파일에 명시적 리셋 위치 기록 없음 — 보수적 채택).
+     * Original: SmartMovingSelf.triggerWallJumping — double-click detection flag.
+     * Consumed in wantWallJumping expression, then role ends. Auto-reset at start of each tick
+     * (no explicit reset location recorded in original research file — conservative adoption).
      */
     public boolean triggerWallJumping;
 
     /**
-     * 원본: SmartMovingSelf.wantWallJumping — handleWallJumping 진입 조건.
+     * Original: SmartMovingSelf.wantWallJumping — handleWallJumping entry condition.
      * canWallJumping && (trigger || continue || (prev wantWallJumping && jumpPressed && !collided)).
      */
     public boolean wantWallJumping;
 
     /**
-     * 원본 jumpButton.StartPressed (이번 틱에 새로 눌림) 에 대응하는 프레임 이벤트.
-     * tickEssential 초반에 prevJumpKeyPressed 와 비교해 계산하며, sm_travel_client 내
-     * 여러 핸들러(handleJumping, updateWallJumpState 등)에서 재참조 가능.
+     * Frame event corresponding to original jumpButton.StartPressed (newly pressed this tick).
+     * Calculated at beginning of tickEssential by comparing with prevJumpKeyPressed, and can be
+     * re-referenced in multiple handlers within sm_travel_client (handleJumping, updateWallJumpState, etc.).
      */
     public boolean jumpKeyStartPressed;
 
-    /** jumpKey.isPressed() 이전 틱 값 — jumpKeyStartPressed 엣지 감지용 내부 추적. */
+    /** jumpKey.isPressed() value from previous tick — internal tracking for jumpKeyStartPressed edge detection. */
     public boolean prevJumpKeyPressed;
 
-    // ── 4-1: 이동 상태 필드 ──────────────────────────────────────────
+    // ── 4-1: Movement state fields ──────────────────────────────────────────
 
-    // 🔴 (Phase 3, Crawl 1:1 fix): 원본 SmartMovingContext L43-L44 의 SwimCrawl 상수 정의.
-    //   1.21.1 에 별도 SmartMovingContext 파일 없음 → SmartMovingClientState 에 static 정의.
-    /** 원본 SwimCrawlWaterTopBorder = 0.65F. canCrawl/mustCrawl 의 dippingDepth 검사에 사용. */
+    // 🔴 (Phase 3, Crawl 1:1 fix): Definition of SwimCrawl constants from original SmartMovingContext L43-L44.
+    //   No separate SmartMovingContext file in 1.21.1 → define static in SmartMovingClientState.
+    /** Original SwimCrawlWaterTopBorder = 0.65F. Used in dippingDepth check for canCrawl/mustCrawl. */
     public static final float SWIM_CRAWL_WATER_TOP_BORDER = 0.65F;
-    /** 원본 SwimCrawlWaterMediumBorder = 0.6F. B-36 (b) dipping → swim/dive 전환 임계. */
+    /** Original SwimCrawlWaterMediumBorder = 0.6F. B-36 (b) dipping → swim/dive transition threshold. */
     public static final float SWIM_CRAWL_WATER_MEDIUM_BORDER = 0.6F;
-    /** 원본 SwimCrawlWaterBottomBorder = 0.55F. B-36 (c) dipping → 얕은 물 crawl 전환 임계. */
+    /** Original SwimCrawlWaterBottomBorder = 0.55F. B-36 (c) dipping → shallow water crawl transition threshold. */
     public static final float SWIM_CRAWL_WATER_BOTTOM_BORDER = 0.55F;
     /**
-     * 원본 SmartMovingContext L51 SlideToHeadJumpingFallDistance = 0.05F.
-     * 슬라이딩 중 낙하거리 임계값 — 초과 시 isSliding=false + isHeadJumping=true + isAerodynamic=true.
-     * (헤드점프 Phase A-4 — 원본 SmartMovingSelf L2546)
+     * Original SmartMovingContext L51 SlideToHeadJumpingFallDistance = 0.05F.
+     * Fall distance threshold during sliding — when exceeded, isSliding=false + isHeadJumping=true + isAerodynamic=true.
+     * (Head jump Phase A-4 — original SmartMovingSelf L2546)
      */
     public static final float SLIDE_TO_HEADJUMPING_FALL_DISTANCE = 0.05F;
 
-    /** 히트박스 오프셋 (헤드점프 시 -1F) */
+    /** Hitbox offset (set to -1F during head jump) */
     public float heightOffset;
 
     /**
-     * 현재 수심 — 발 기준 물 높이(m). isTouchingWater()=false이면 -1F.
-     * 원본: SmartMovingSelf.dippingDepth (행 89), handleSwimming()에서 매 틱 갱신.
-     * 1.21.1: player.getFluidHeight(FluidTags.WATER) 로 근사.
-     * canCrawl / handleSwimming SwimCrawlWater 전환 판정에 사용.
+     * Current water depth — water height relative to feet (m). Set to -1F if isTouchingWater()=false.
+     * Original: SmartMovingSelf.dippingDepth (line 89), updated each tick in handleSwimming().
+     * 1.21.1: Approximated with player.getFluidHeight(FluidTags.WATER).
+     * Used to determine canCrawl / handleSwimming SwimCrawlWater transitions.
      */
     public float dippingDepth = -1F;
 
     /**
-     * 스니킹 속도로 이동 중 여부 (스프린트 없음 + 클라이밍 없음).
-     * 원본: isSlow = wantSneak && !wantSprint && !isClimbing
-     * C-15: tickEssential()에서 매 틱 계산.
+     * Whether moving at sneaking speed (no sprint + no climbing).
+     * Original: isSlow = wantSneak && !wantSprint && !isClimbing
+     * C-15: Calculated each tick in tickEssential().
      */
     public boolean isSlow;
 
     /**
-     * 스프린팅+점프로 빠른 이동 중 여부 (스프린트 점프보다 빠름).
-     * 원본: isFast = grabButton.Pressed && isSprinting() (또는 config 속도 임계값)
-     * C-15: tickEssential()에서 매 틱 계산.
+     * Whether moving fast with sprint+jump (faster than sprint jump alone).
+     * Original: isFast = grabButton.Pressed && isSprinting() (or config speed threshold)
+     * C-15: Calculated each tick in tickEssential().
      */
     public boolean isFast;
 
     /**
-     * 원본 SmartMovingSelf L1419 + L2734 갱신 공식:
+     * Original SmartMovingSelf L1419 + L2734 update formula:
      *   isStanding = horizontalSpeedSquare < 0.0005
      *   (horizontalSpeedSquare = motionX² + motionZ²)
-     * getJumpSpeed / handleExhaustion Config.getFactor / jumpChargeCondition 등에서 참조.
-     * B-30 공식 이식 의존.
+     * Referenced in getJumpSpeed / handleExhaustion Config.getFactor / jumpChargeCondition, etc.
+     * Depends on B-30 formula porting.
      */
     public boolean isStanding;
 
     /**
-     * 원본 SmartMovingSelf L3043 `wasRunning = isRunning` — R-09 블록 종료부 저장.
-     * isSliding 직접 진입 조건 `(isGroundSprinting || (wasRunning && !isRunning && onGround))`
-     * 및 tryJump 파라미터에 사용.
-     * B-25 / B-26 / B-43 (세션 56) 이식 완료.
+     * Original SmartMovingSelf L3043 `wasRunning = isRunning` — saved at end of R-09 block.
+     * Used in isSliding direct entry condition `(isGroundSprinting || (wasRunning && !isRunning && onGround))`
+     * and as tryJump parameter.
+     * B-25 / B-26 / B-43 (session 56) porting completed.
      */
     public boolean wasRunning;
 
     /**
-     * 원본 SmartMovingSelf L3044 `wasLevitating = isLevitating` — R-09 블록 종료부 저장.
-     * 이전 틱 isLevitating 스냅샷. 사용처: isGroundSprinting 전환 후처리(L2699) 등.
-     * isLevitating 공식 자체는 B-10d / B-9 범위 (현재 항상 false) — wasLevitating 도
-     * 결과적으로 false 유지. 저장 라인 1:1 이식만 먼저 수행. B-43 (세션 56).
+     * Original SmartMovingSelf L3044 `wasLevitating = isLevitating` — saved at end of R-09 block.
+     * Snapshot of previous tick's isLevitating. Usage: isGroundSprinting transition post-processing (L2699), etc.
+     * isLevitating formula itself is in B-10d / B-9 range (currently always false) — wasLevitating consequently
+     * remains false. 1:1 porting of save line only for now. B-43 (session 56).
      */
     public boolean wasLevitating;
 
     /**
-     * 원본 SmartMovingSelf `wasFlying` — 이전 틱 isFlying 저장 (원본 L2511 엣지 판정용).
-     * B-51 (세션 133). isFlying 전환 엣지 (`isFlying && !wasFlying` / `!isFlying && wasFlying`)
-     * 판정으로 setHeightOffset(-1) / restoreFromFlying=true 설정.
+     * Original SmartMovingSelf `wasFlying` — previous tick's isFlying saved (for edge determination in original L2511).
+     * B-51 (session 133). isFlying transition edge (`isFlying && !wasFlying` / `!isFlying && wasFlying`)
+     * determination sets setHeightOffset(-1) / restoreFromFlying=true.
      */
     public boolean wasFlying;
 
     /**
-     * 🔴 fix #19 (2026-05-08): 헤드점프 종료 → 슬라이딩 진입 매핑.
-     *   handleCrash 분기 진입 시 1 tick 만 true.
-     *   standupIfPossible 의 setPos(y+1) 분기 가드에 사용 → 헤드점프 종료 직후 1 tick 만
-     *   setPos 호출 (비행/Levitate 종료와 동일 효과). 다음 tick reset 으로 무한 setPos 차단
-     *   (이전 fix #16 무한 루프 BUG 회피).
-     *   다음 tick 의 L1854 tryLanding 분기 standupIfPossible 호출 시 미매치 → setPos X →
-     *   vanilla 자동 처리.
+     * 🔴 fix #19 (2026-05-08): Head jump end → sliding entry mapping.
+     *   True for only 1 tick when handleCrash branch is entered.
+     *   Used as guard in standupIfPossible's setPos(y+1) branch → setPos called only 1 tick right after
+     *   head jump end (same effect as flight/Levitate end). Next tick reset blocks infinite setPos
+     *   (avoids previous fix #16 infinite loop BUG).
+     *   Next tick L1854 tryLanding branch standupIfPossible call mismatch → setPos not called →
+     *   vanilla automatic handling.
      */
     public boolean justEndedHeadJump;
 
     /**
-     * 🔴 fix #21 (2026-05-08): SlideToHeadJumping 자동 전환 cooldown.
-     *   슬라이딩 → 절벽 → 자동 전환 → 헤드점프 종료 → setPos(y+1) → 사용자 환경 (다층 절벽)
-     *   에서 박스 ground+1m 공중 → 다음 tick fallDistance 누적 → 자동 전환 재발 → 무한 루프.
-     *   첫 자동 전환은 OK (사용자 의도). 종료 후 N tick 동안 자동 전환 차단.
-     *   handleCrash 분기에서 set (5 tick). tickEssential 시작 시 카운터 감소.
+     * 🔴 fix #21 (2026-05-08): SlideToHeadJumping automatic transition cooldown.
+     *   Sliding → cliff → automatic transition → head jump end → setPos(y+1) → in user environment (multi-layered cliffs)
+     *   box ends up ground+1m in air → next tick fallDistance accumulates → automatic transition recurs → infinite loop.
+     *   First automatic transition is OK (user intent). Block automatic transition for N ticks after end.
+     *   Set in handleCrash branch (5 ticks). Counter decremented at start of tickEssential.
      */
     public int slideToHeadCooldown;
 
     /**
-     * 비행 중 여부 (vanilla flight 또는 SM fly).
-     * 원본: flying = sp.capabilities.isFlying
-     * C-15: tickEssential()에서 매 틱 계산.
+     * Whether currently flying (vanilla flight or SM fly).
+     * Original: flying = sp.capabilities.isFlying
+     * C-15: Calculated each tick in tickEssential().
      */
     public boolean isFlying;
 
     /**
-     * 원본 SmartMovingSelf L1415 `public boolean wantSprint;` — **public 필드**.
-     * 매 틱 tickEssential L2595-L2615 에서 계산 (6조건 OR).
-     * 사용처:
-     *   - L2647 `if(wantSprint && !wantSneak)` — preferSprint 판정
+     * Original SmartMovingSelf L1415 `public boolean wantSprint;` — **public field**.
+     * Calculated in tickEssential L2595-L2615 each tick (6-condition OR).
+     * Usage locations:
+     *   - L2647 `if(wantSprint && !wantSneak)` — preferSprint determination
      *   - L2713 `wouldIsSneaking = wouldWantSneak && !wantSprint && !isClimbing`
      *   - L2990 R-09 `wantSneak && wantSprint && sneakStartPressed && sneakToggled`
-     *   - handleLand / handleJumping 등
-     * B-3a (세션 49).
+     *   - handleLand / handleJumping, etc.
+     * B-3a (session 49).
      */
     public boolean wantSprint;
 
     /**
-     * 원본 SmartMovingSelf L1439 `public boolean isGroundSprinting;` — **public 필드**.
-     * 매 틱 tickEssential L2679 에서 계산:
+     * Original SmartMovingSelf L1439 `public boolean isGroundSprinting;` — **public field**.
+     * Calculated in tickEssential L2679 each tick:
      *   `canHorizontallySprint && (onGround || isLevitating()) && !isSwimming && !isDiving && !isClimbing`
-     * 사용처: isFast (L2689) / isHeadJumpCharging (L1883 Jumper) / isSlidingEnable (L2553)
-     * 및 B-1d/B-1f 의존.
-     * B-1c3 (세션 51).
+     * Usage: isFast (L2689) / isHeadJumpCharging (L1883 Jumper) / isSlidingEnable (L2553)
+     * and depends on B-1d/B-1f.
+     * B-1c3 (session 51).
      */
     public boolean isGroundSprinting;
 
     /**
-     * 원본 SmartMovingSelf `collidedHorizontallyTickCount` (필드 선언 위치 리서치 미확인).
-     * 수평 충돌 연속 틱 카운터. 매 틱 `horizontalCollision ? ++count : 0`.
-     * 사용처: canHorizontallySprint (원본 L2675) `canAnySprint && collidedHorizontallyTickCount < 3`.
-     * B-1c2 (세션 51).
+     * Original SmartMovingSelf `collidedHorizontallyTickCount` (field declaration location not confirmed in research).
+     * Horizontal collision consecutive tick counter. Each tick `horizontalCollision ? ++count : 0`.
+     * Usage: canHorizontallySprint (original L2675) `canAnySprint && collidedHorizontallyTickCount < 3`.
+     * B-1c2 (session 51).
      */
     public int collidedHorizontallyTickCount;
 
     /**
-     * 원본 SmartMovingSelf `restoreFromFlying` — standupIfPossible 트리거 플래그.
-     * 설정 위치: L2200 (standupIfPossible 내부), L2539 (isHeadJumping 해제 엣지),
-     *           L2543 (flying 착지 전 tryLanding).
-     * 사용처: L2543 `if(restoreFromFlying || tryLanding) standupIfPossible(...)`.
-     * 1.21.1 standupIfPossible 미이식 — 필드 설정만 이식, 소비는 별도 B-N.
-     * B-24 (세션 53).
+     * Original SmartMovingSelf `restoreFromFlying` — standupIfPossible trigger flag.
+     * Set locations: L2200 (inside standupIfPossible), L2539 (isHeadJumping release edge),
+     *                L2543 (tryLanding before flying landing).
+     * Usage: L2543 `if(restoreFromFlying || tryLanding) standupIfPossible(...)`.
+     * 1.21.1 standupIfPossible not ported — only field setting ported, consumption handled separately in B-N.
+     * B-24 (session 53).
      */
     public boolean restoreFromFlying;
 
-    /** 크롤링 상태 */
+    /** Crawling state */
     public boolean isCrawling;
 
-    /** 슬라이딩 상태 */
+    /** Sliding state */
     public boolean isSliding;
 
-    /** 클라이밍 상태 */
+    /** Climbing state */
     public boolean isClimbing;
 
-    /** 크롤-클라이밍 상태 */
+    /** Crawl-climbing state */
     public boolean isCrawlClimbing;
 
-    /** 천장 클라이밍 상태 */
+    /** Ceiling climbing state */
     public boolean isCeilingClimbing;
 
-    /** 작은 크기 상태 (크롤링/슬라이딩) */
+    /** Small size state (crawling/sliding) */
     public boolean isSmall;
 
-    /** 클라이밍 점프 상태 */
+    /** Climbing jump state */
     public boolean isClimbJumping;
 
-    /** 클라이밍 홀딩 — 수직 이동 없이 제자리 유지. setShouldClimbSpeed에서 relevant=false 시 참조. */
+    /** Climbing holding — staying in place without vertical movement. Referenced in setShouldClimbSpeed when relevant=false. */
     public boolean isClimbHolding;
 
     /**
-     * 원본 SmartMovingSelf L2721-L2732 `wantClimbHolding` 3-OR. B-16 세션 68 에서 지역 변수로
-     * 이식 → B-18-pre 세션 81: B-18 본체 `canClimbCrawling = wantClimbHolding && wantClimbUp`
-     * 에서 참조 필요 → public 필드 승격.
+     * Original SmartMovingSelf L2721-L2732 `wantClimbHolding` 3-OR. Ported as local variable in B-16 session 68
+     * → B-18-pre session 81: B-18 main body needs reference in `canClimbCrawling = wantClimbHolding && wantClimbUp`
+     * → promote to public field.
      */
     public boolean wantClimbHolding;
 
     /**
-     * 원본 SmartMovingSelf L2479 `wantClimb = Config.isFreeClimbingEnabled() && wouldWantClimb`.
-     * 등반 의도 (지역 변수에서 필드 승격). B-16c 세션 69 에서 `wouldWantClimb` 4-OR 완전 이식.
-     * B-17b2-pre 세션 72: 지역 `wantClimb16` → public 필드 승격 (B-17b2 `else if (wasCrawlClimbing)`
-     * 블록에서 참조 필요). 사용처: wantClimbUp/wantClimbDown 의존.
+     * Original SmartMovingSelf L2479 `wantClimb = Config.isFreeClimbingEnabled() && wouldWantClimb`.
+     * Climbing intent (promoted from local variable to field). B-16c session 69 completely ported `wouldWantClimb` 4-OR.
+     * B-17b2-pre session 72: local `wantClimb16` → promote to public field (needs reference in B-17b2 `else if (wasCrawlClimbing)`
+     * block). Usage: depends on wantClimbUp/wantClimbDown.
      */
     public boolean wantClimb;
 
     /**
-     * 원본 SmartMovingSelf L2467-L2477 `wouldWantClimb` 4-OR + 4-AND 억제 조건.
-     * B-16c (세션 69) 4-OR 완전 이식됨 (지역 변수 `wouldWantClimb16`). B-36-pre (세션 77):
-     * 필드 승격 — B-36 grab.StartPressed 3분기 (원본 L2838-L2861) 의 분기 (a) 에서 참조.
-     * 사용처: wantClimb 전구체 + B-36 walking 전환 분기 + 원본 wouldWantClimb 소비 전반.
+     * Original SmartMovingSelf L2467-L2477 `wouldWantClimb` 4-OR + 4-AND suppression conditions.
+     * B-16c (session 69) 4-OR completely ported (local variable `wouldWantClimb16`). B-36-pre (session 77):
+     * promote to field — referenced in branch (a) of B-36 grab.StartPressed 3-way branch (original L2838-L2861).
+     * Usage: wouldWantClimb precursor + B-36 walking transition branch + original wouldWantClimb consumption overall.
      */
     public boolean wouldWantClimb;
 

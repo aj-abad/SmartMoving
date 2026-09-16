@@ -15,15 +15,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * getFovMultiplier() 오버라이드 — fadingPerspectiveFactor 기반 부드러운 FOV 배율.
- * 원본: SmartMovingSelf.getFOVMultiplier (SmartMovingSelf.md L2036-2044)
+ * Override getFovMultiplier() — smooth FOV multiplier based on fadingPerspectiveFactor.
+ * Original: SmartMovingSelf.getFOVMultiplier (SmartMovingSelf.md L2036-2044)
  *
- * getFovMultiplier()는 AbstractClientPlayerEntity에 정의됨 — ClientPlayerEntity 타깃 불가.
+ * getFovMultiplier() is defined in AbstractClientPlayerEntity — cannot target ClientPlayerEntity directly.
  *
- * vanilla 로직 (AbstractClientPlayerEntity.getFovMultiplier() 바이트코드 역산):
+ * vanilla logic (reverse-engineered from AbstractClientPlayerEntity.getFovMultiplier() bytecode):
  *   f = 1.0; if flying f*=1.1;
  *   f *= (MOVEMENT_SPEED / walkSpeed + 1) / 2;
- *   bow: f *= 1 - t²*0.15; spyglass 1인칭: return 0.1;
+ *   bow: f *= 1 - t²*0.15; spyglass first-person: return 0.1;
  *   return lerp(fovEffectScale, 1.0, f)
  */
 @Mixin(AbstractClientPlayer.class)

@@ -14,29 +14,29 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 6-1 (서버): getBaseDimensions() 커스텀 EntityDimensions 반환.
- * 6-4 (서버): updatePose() Mixin — SM 상태별 포즈 강제 설정.
+ * 6-1 (server): getBaseDimensions() returns custom EntityDimensions.
+ * 6-4 (server): updatePose() Mixin — Forces pose setting by SM state.
  *
- * LivingEntity.getDimensions()는 final → getBaseDimensions()가 유일한 오버라이드 진입점.
- * Yarn: getBaseDimensions (intermediary: method_55694 확인 완료)
- * Yarn: updatePose (intermediary: method_7318 확인 완료)
+ * LivingEntity.getDimensions() is final → getBaseDimensions() is the only override entry point.
+ * Yarn: getBaseDimensions (intermediary: method_55694 verified)
+ * Yarn: updatePose (intermediary: method_7318 verified)
  *
- * 클라이언트 측 → MixinPlayerEntityClient.sm_getBaseDimensions_client(), sm_updatePose_client()
+ * Client side → MixinPlayerEntityClient.sm_getBaseDimensions_client(), sm_updatePose_client()
  */
 @Mixin(Player.class)
 public abstract class MixinPlayerEntity {
 
     /**
-     * 6-1 (서버): SM 포즈별 커스텀 EntityDimensions 반환.
+     * 6-1 (server): Returns custom EntityDimensions by SM pose.
      *
-     * **포커스 #2.7 Phase C 재작성 (세션 4, 2026-04-25)**: 클라와 완전 대칭 (옵션 3).
-     *   원본 `setHeightOffset(-1F)` (SmartMovingSelf L1694-L1704) → `sp.height = 1.8F + (-1F)
+     * **Focus #2.7 Phase C rewrite (session 4, 2026-04-25)**: Completely symmetric with client (option 3).
+     *   Original `setHeightOffset(-1F)` (SmartMovingSelf L1694-L1704) → `sp.height = 1.8F + (-1F)
      *   = 0.8F` + `getEyeHeight() = height - 0.18F = 0.62F` (ServerPlayerBase L142-L145).
-     *   → 모든 small 상태 (isCrawling/isCrawlClimbing/isHeadJumping/isSliding/isSwimming/
-     *   isDiving/isFlying/isLevitating) 통합 0.6×0.8 + 0.62F.
+     *   → All small states (isCrawling/isCrawlClimbing/isHeadJumping/isSliding/isSwimming/
+     *   isDiving/isFlying/isLevitating) unified 0.6×0.8 + 0.62F.
      *
-     * 클라 (MixinPlayerEntityClient.sm_getBaseDimensions_client) 와 동일 8 SM OR 분기.
-     * isFlying 은 vanilla `abilities.flying + cfg.fly + !isSwimming + !isDiving` 원본 공식
+     * Same 8 SM OR branches as client (MixinPlayerEntityClient.sm_getBaseDimensions_client).
+     * isFlying is vanilla `abilities.flying + cfg.fly + !isSwimming + !isDiving` original formula
      * (SmartMovingSelf L2509-L2515) 1:1.
      */
     @Inject(method = "getDefaultDimensions", at = @At("HEAD"), cancellable = true, require = 0)
@@ -44,62 +44,62 @@ public abstract class MixinPlayerEntity {
         if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
 
-        // 🔴 BUG-29 진짜 원인 정정 (Flying Phase / 세션 45): 비행/Levitate 분기 제거 (서버측).
-        //   클라측 sm_getBaseDimensions_client 와 동일 정정 — 비행 시 vanilla STANDING 통과.
-        //   원본 1.7.10 vanilla 에 EntityPose 시스템 없음 → 비행 시 STANDING 모델 + eyeHeight
-        //   1.62 그대로. 1.21.1 잘못 매핑 = SLIDING 강제 → 카메라 발끝.
-        //   클라/서버 대칭 유지: 둘 다 비행 시 vanilla STANDING POSE 통과 → datatracker 일관.
+        // 🔴 BUG-29 real cause fix (Flying Phase / session 45): Remove flying/Levitate branch (server side).
+        //   Same fix as client side sm_getBaseDimensions_client — pass vanilla STANDING during flying.
+        //   Original 1.7.10 vanilla has no EntityPose system → flying uses STANDING model + eyeHeight
+        //   1.62 as-is. 1.21.1 incorrect mapping = force SLIDING → camera at feet.
+        //   Keep client/server symmetry: both pass vanilla STANDING POSE during flying → datatracker consistent.
         //
-        // 원본 setHeightOffset(-1F) 상태 전수 — Crawling/Sliding/Swimming 등만 0.6 × 0.8 +
-        // eyeHeight 0.62F. isFlying/isLevitating 은 vanilla 통과.
-        // 🔴 isClimbCrawling 분기 추가 (사용자 보고 fix — X/Z 땡김 server reconcile 차단):
-        //   ICC 활성 중 클라 dim eyeHeight=1.62 (mixin offset 박스 +1 적용) ↔ 서버 vanilla
-        //   dim 1.8 (mixin offset 미적용) → 박스 1m Y 차이 → 서버가 박스 ladder collision
-        //   안 → 차단 → server position correction packet → 클라 위치 reset.
-        //   클라 sm_getBaseDimensions_client 와 동일한 isClimbCrawling 분기 추가 → 서버 박스
-        //   클라와 동일 (entity.y+1, entity.y+1.8) → 서버 reconcile 발생 X.
-        // 🔴 isCrawlClimbing ICC 분기 추가 시도 revert (2026-05-03):
-        //   클라 sm_getBaseDimensions_client 와 동일 — isCrawlClimbing 시 박스 +1m mixin offset
-        //   발동 → ladder grip 영역 벗어남 → 의도치 않은 ICC 발동. 원본 1:1 = smSmall dim
-        //   (0.8, 0.62) 적용 (원본 setHeightOffset 호출 없음 → 이전 isCrawling 박스 잔존).
+        // Original setHeightOffset(-1F) state exhaustive — only Crawling/Sliding/Swimming etc. use 0.6 × 0.8 +
+        // eyeHeight 0.62F. isFlying/isLevitating pass vanilla.
+        // 🔴 Add isClimbCrawling branch (user report fix — block X/Z pulling server reconcile):
+        //   During ICC active, client dim eyeHeight=1.62 (mixin offset box +1 applied) ↔ server vanilla
+        //   dim 1.8 (mixin offset not applied) → box 1m Y difference → server box ladder collision
+        //   not detected → block → server position correction packet → client position reset.
+        //   Add isClimbCrawling branch same as client sm_getBaseDimensions_client → server box
+        //   same as client (entity.y+1, entity.y+1.8) → no server reconcile.
+        // 🔴 Revert attempt to add isCrawlClimbing ICC branch (2026-05-03):
+        //   Same as client sm_getBaseDimensions_client — during isCrawlClimbing, box +1m mixin offset
+        //   triggers → exceeds ladder grip area → unintended ICC trigger. Original 1:1 = apply smSmall dim
+        //   (0.8, 0.62) (no original setHeightOffset call → previous isCrawling box remains).
         if (sm.isClimbCrawling) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
-        // 🔴 isHeadJumping 별도 분기 (2026-05-08, 다단계 fix 후 정착) — 클라 측과 1:1 대칭:
-        //   1차 dim (0.6, 0.8, 1.62F) → MixinEntity offset 가드 매치 → 박스 +1m → 무한 루프 BUG.
-        //   2차 dim (0.6, **1.8**, 1.62F) → height STANDING → offset 가드 미매치 → 박스 STANDING.
-        //   클라 (MixinPlayerEntityClient) 와 동일 매핑 — server reconcile 차단.
+        // 🔴 Separate isHeadJumping branch (2026-05-08, settled after multi-step fix) — 1:1 symmetric with client:
+        //   Phase 1 dim (0.6, 0.8, 1.62F) → MixinEntity offset guard match → box +1m → infinite loop BUG.
+        //   Phase 2 dim (0.6, **1.8**, 1.62F) → height STANDING → offset guard mismatch → box STANDING.
+        //   Same mapping as client (MixinPlayerEntityClient) — block server reconcile.
         if (sm.isHeadJumping) {
-            // 🔴 fix #13 (2026-05-08): 클라 측과 동일 매핑 — dim 0.6×0.8 + eyeHeight 1.62F.
-            //   MixinEntity.sm_offsetBoundingBoxForFlying 의 POSE=SLIDING 가드로 mixin offset 차단.
+            // 🔴 fix #13 (2026-05-08): Same mapping as client side — dim 0.6×0.8 + eyeHeight 1.62F.
+            //   MixinEntity.sm_offsetBoundingBoxForFlying's POSE=SLIDING guard blocks mixin offset.
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
-        // 🔴 fix #59 (2026-05-10, dump 분석 결과 — 사용자 보고 "여우무빙 시 EYEHEIGHT 가 콜리전
-        //   아래에 설정"):
-        //   isSliding 시 fix #56 의 POSE.SLIDING 가드로 mixin offset 활성 → 박스 +1m up
-        //   (= bb.minY = entity.y + 1m). 그러나 dim eyeHeight=0.62 잔존 → 카메라 = entity.y +
-        //   0.62 → 박스 (entity.y+1, entity.y+1.8) 아래 0.38m.
-        //   1.7.10/1.12.2 의 setHeightOffset(-1) 효과 = boundingBox +1m up + height 0.8 +
-        //   eyeHeight 변경 X (= STANDING 1.62 잔존, position 변경 X 매핑).
-        //   해결: isSliding 시 eyeHeight=1.62 (= STANDING) → 카메라 = entity.y + 1.62 →
-        //   박스 안 (= entity.y+1 ~ entity.y+1.8 안에 entity.y+1.62) 정상.
+        // 🔴 fix #59 (2026-05-10, dump analysis result — user report "during fox movement EYEHEIGHT set
+        //   below collision"):
+        //   During isSliding, fix #56's POSE.SLIDING guard activates mixin offset → box +1m up
+        //   (= bb.minY = entity.y + 1m). However, dim eyeHeight=0.62 remains → camera = entity.y +
+        //   0.62 → 0.38m below box (entity.y+1, entity.y+1.8).
+        //   1.7.10/1.12.2's setHeightOffset(-1) effect = boundingBox +1m up + height 0.8 +
+        //   eyeHeight unchanged (= STANDING 1.62 remains, position unchanged mapping).
+        //   Solution: During isSliding, set eyeHeight=1.62 (= STANDING) → camera = entity.y + 1.62 →
+        //   inside box (= entity.y+1.62 within entity.y+1 ~ entity.y+1.8) normal.
         if (sm.isSliding) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
-        // 🔵 (2026-05-20, Phase 0 검증 fix #102) swim/dive 별도 분기 — 클라 매핑 1:1 대칭.
-        //   원본 1.7.10 `setHeightOffset(-1F)` 효과 = 박스 +1m up + eyeHeight 1.62 STANDING 유지.
-        //   client side `sm_getBaseDimensions_client` 의 swim/dive 분기 변경과 1:1 동기화 필수
-        //   (= server reconcile + multi remote bb 정합).
+        // 🔵 (2026-05-20, Phase 0 validation fix #102) separate swim/dive branch — 1:1 symmetric with client mapping.
+        //   Original 1.7.10 `setHeightOffset(-1F)` effect = box +1m up + keep eyeHeight 1.62 STANDING.
+        //   Must sync 1:1 with swim/dive branch changes in client side `sm_getBaseDimensions_client`
+        //   (= server reconcile + multi remote bb consistency).
         if (sm.isSwimming || sm.isDiving) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
-        // 🔴 v26.12 — v26.5 가드 폐기 (client/server 양쪽 동기화).
-        //   STANDING dim fall through BUG root. Fix 7 의 의도 (= smSmall 에 isCrawlClimbing 추가)
-        //   1:1 복원. 사용자 보고 "STANDING → 엎드림" transition 차단.
+        // 🔴 v26.12 — Discard v26.5 guard (sync both client/server).
+        //   STANDING dim fall through BUG root. Restore 1:1 intent of Fix 7 (= add isCrawlClimbing to smSmall).
+        //   User report "block STANDING → lying down transition".
         boolean smSmall = sm.isCrawling || sm.isCrawlClimbing;
         if (smSmall) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(0.62F));

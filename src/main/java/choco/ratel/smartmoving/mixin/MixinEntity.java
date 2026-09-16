@@ -18,28 +18,28 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 5-7: velocityDirty @Shadow — SM이 직접 속도 변경 시 서버 동기화 트리거.
- * 5-8: move() HEAD/TAIL 훅 — beforeMoveEntity / afterMoveEntity 이식.
+ * 5-7: velocityDirty @Shadow — Triggers server synchronization when SM directly changes velocity.
+ * 5-8: move() HEAD/TAIL hook — Porting beforeMoveEntity / afterMoveEntity.
  *
- * 참고: Entity.setVelocity()는 내부에서 velocityDirty=true를 자동 설정한다.
- *       SM이 setVelocity()를 통해 속도를 변경한다면 별도 설정 불필요.
- *       직접 velocity 벡터 필드를 조작하는 경우에만 수동 설정이 필요하다.
+ * Note: Entity.setVelocity() automatically sets velocityDirty=true internally.
+ *       If SM changes velocity through setVelocity(), separate setting is not needed.
+ *       Manual setting is only required when directly manipulating the velocity vector field.
  */
 @Mixin(Entity.class)
 public abstract class MixinEntity {
 
     /**
-     * Entity.dimensions — 현재 EntityDimensions (width/height/eyeHeight).
-     * sm_offsetBoundingBoxForFlying 의 가드 신호.
+     * Entity.dimensions — Current EntityDimensions (width/height/eyeHeight).
+     * Guard signal for sm_offsetBoundingBoxForFlying.
      */
     @Shadow private EntityDimensions dimensions;
 
     /**
-     * 3-4: isSneaking() 오버라이드 — 서버 플레이어 전용.
-     * isSneaking()은 Entity에 선언되어 있어 ServerPlayerEntity에서 inject 불가.
-     * Entity Mixin에서 instanceof 가드로 서버 플레이어에만 적용한다.
+     * 3-4: isSneaking() override — Server player only.
+     * isSneaking() is declared in Entity, so cannot be injected in ServerPlayerEntity.
+     * Applied only to server players with instanceof guard in Entity Mixin.
      *
-     * 원본: SmartMovingServer.isSneaking(): forceIsSneaking != null ? forceIsSneaking : vanilla
+     * Original: SmartMovingServer.isSneaking(): forceIsSneaking != null ? forceIsSneaking : vanilla
      */
     @Inject(method = "isShiftKeyDown", at = @At("HEAD"), cancellable = true)
     private void sm_isSneaking(CallbackInfoReturnable<Boolean> cir) {
@@ -51,20 +51,20 @@ public abstract class MixinEntity {
     }
 
     /**
-     * 5-8 after: afterMoveEntity() 이식 (서버 측).
+     * 5-8 after: afterMoveEntity() porting (server side).
      *
-     * 클라이밍 이동 거리 누적 (피로도 계산용)
-     *   isClimbing: 지면 접촉 중 → 1.2 배율
-     *   isCrawlClimbing / isCeilingClimbing: 공중 → 0.9 배율
+     * Accumulate climbing movement distance (for exhaustion calculation)
+     *   isClimbing: while touching ground → 1.2 multiplier
+     *   isCrawlClimbing / isCeilingClimbing: in air → 0.9 multiplier
      *
-     * heightOffset 위치 보정: MixinEntityClient.sm_afterMove_client()에서 구현됨.
+     * heightOffset position correction: Implemented in MixinEntityClient.sm_afterMove_client().
      *
-     * 🔴 fix #73 2단계 (2026-05-10): STEP_HEIGHT=0 강제 + 복원 로직 일괄 제거.
-     *   원본 SmartMovingSelf.beforeMoveEntity 의 `ySize=0F` 는 1.21.1 GENERIC_STEP_HEIGHT 와
-     *   다른 변수 (ySize = step up 후 rendering 보간 offset, stepHeight = 실제 step 높이).
-     *   원본 SmartMovingBase.move 는 sp.stepHeight 자체를 변경 안 함 → vanilla 0.5F 그대로 사용.
-     *   1.12.2 SMReboot 도 동일. 매핑 자체가 잘못된 것 → 제거가 1:1 정합.
-     *   1단계 (isCrawling) + 2단계 (isCrawlClimbing/isCeilingClimbing) 모두 인게임 회귀 없음.
+     * 🔴 fix #73 phase 2 (2026-05-10): Force STEP_HEIGHT=0 + remove all restoration logic.
+     *   Original SmartMovingSelf.beforeMoveEntity's `ySize=0F` is a different variable from 1.21.1 GENERIC_STEP_HEIGHT
+     *   (ySize = rendering interpolation offset after step up, stepHeight = actual step height).
+     *   Original SmartMovingBase.move does not change sp.stepHeight itself → uses vanilla 0.5F as-is.
+     *   1.12.2 SMReboot is the same. The mapping itself is incorrect → removal is 1:1 correct.
+     *   No in-game regression for both phase 1 (isCrawling) + phase 2 (isCrawlClimbing/isCeilingClimbing).
      */
     @Inject(method = "move", at = @At("TAIL"))
     private void sm_afterMove(MoverType type, Vec3 movement, CallbackInfo ci) {
@@ -76,28 +76,28 @@ public abstract class MixinEntity {
     }
 
     /**
-     * 비행 콜리전 — 사용자 매핑 (단계 4 복구):
-     *   원본 SmartMovingSelf.setHeightOffset(-1F) (L1694-L1704):
-     *     boundingBox.minY -= heightOffset = +1 (박스 1블록 위로)
+     * Flying collision — User mapping (phase 4 recovery):
+     *   Original SmartMovingSelf.setHeightOffset(-1F) (L1694-L1704):
+     *     boundingBox.minY -= heightOffset = +1 (move box 1 block up)
      *     height += heightOffset = -1 (1.8 → 0.8)
      *
-     *   1.21.1 매핑:
-     *   - sm_getBaseDimensions inject: 비행 시 dimensions=(0.6, 0.8, 1.62) (height 0.8).
-     *   - 본 mixin: 비행 시 calculateBoundingBox 결과 box.offset(0, 1, 0) — 박스 +1 위로.
-     *   - 결과: 박스 = (entity.y+1, entity.y+1+0.8) = (entity.y+1, entity.y+1.8).
+     *   1.21.1 mapping:
+     *   - sm_getBaseDimensions inject: dimensions=(0.6, 0.8, 1.62) during flying (height 0.8).
+     *   - This mixin: calculateBoundingBox result box.offset(0, 1, 0) during flying — move box +1 up.
+     *   - Result: box = (entity.y+1, entity.y+1+0.8) = (entity.y+1, entity.y+1.8).
      *
-     *   가드: dimensions.height < 1 && eyeHeight > 1 — 비행/Levitate 만 (다른 small SM 은
-     *   eyeHeight 0.62 라 미통과). PlayerEntity 만.
-     *   abilities=null 가드: PlayerEntity 생성자가 abilities 초기화 전 setPosition 호출 가능.
+     *   Guard: dimensions.height < 1 && eyeHeight > 1 — flying/Levitate only (other small SM
+     *   has eyeHeight 0.62 so does not pass). PlayerEntity only.
+     *   abilities=null guard: PlayerEntity constructor may call setPosition before abilities initialization.
      */
     /**
-     * 🔴 fix #175 v5 (2026-05-27, 사용자 보고 fix v4 후 "헤드점프/여우무빙 콜리전+애니메이션 이상"):
-     *   v4 식 = sm.isSliding 만 검사 → 헤드점프 시도 차단 → 박스 +1m up 안 됨 → 박스 발 박힘.
-     *   v5 = SLIDING POSE 진입 path 모두 검사 (= sm_updatePose_client/server):
+     * 🔴 fix #175 v5 (2026-05-27, user report after fix v4 "head jump/fox movement collision+animation issue"):
+     *   v4 formula = check sm.isSliding only → blocks head jump attempt → box +1m up does not happen → box feet stuck.
+     *   v5 = check all SLIDING POSE entry paths (= sm_updatePose_client/server):
      *     `isHeadJumping || isSliding → SLIDING`.
-     *     (비행/Levitate 는 BUG-29 정정 후 STANDING 통과 → SLIDING POSE 진입 X).
-     *   두 phase 어느 하나라도 true 시 정상 → main mixin 활성 유지. 모두 false 시만 잔존 → 차단.
-     *   reflection 실패 시 true 반환 (= 가드 통과 → 기존 동작 유지).
+     *     (flying/Levitate passes STANDING after BUG-29 fix → does not enter SLIDING POSE).
+     *   If either phase is true, normal → keep main mixin active. Only if both false → block.
+     *   If reflection fails, return true (= pass guard → maintain existing behavior).
      */
     @org.spongepowered.asm.mixin.Unique
     private static boolean sm_isValidSlidingPoseState(Player player) {
@@ -105,15 +105,15 @@ public abstract class MixinEntity {
             SmartMovingServer sm = SmartMovingServer.get(sp);
             return sm.isSliding || sm.isHeadJumping;
         }
-        // client side - reflection (main module compile 시 client class symbol 회피).
-        // 🔴 fix (2026-06-08, BUG = "개발모드 OK / 빌드(prod)에서 슬라이딩 빠른 연타 시 땅 잠김"):
-        //   기존 코드는 Class.forName("net.minecraft.client.network.AbstractClientPlayerEntity") —
-        //   named 클래스명. 문자열 리터럴은 Loom/Mixin remapper 가 건드리지 않으므로 prod
-        //   intermediary 런타임(net.minecraft.class_742)에서 ClassNotFoundException → catch →
-        //   return true (항상 box +1 offset). dev(named 런타임)는 성공 → isSliding 정확 검사.
-        //   결과: prod 에서 isSliding=false transition frame 에도 박스 +1 잔존 → 발밑 1칸 공중
-        //   → client 자유낙하 → server reconcile(COLLISION) → 땅 잠김. = dev/prod 차이의 root.
-        //   해결: Minecraft named 클래스 Class.forName 제거. get(...) 을 이름+파라미터수로 탐색.
+        // client side - reflection (avoids client class symbol during main module compile).
+        // 🔴 fix (2026-06-08, BUG = "dev mode OK / in build (prod) quick sliding tap causes ground lock"):
+        //   Existing code used Class.forName("net.minecraft.client.network.AbstractClientPlayerEntity") —
+        //   named class name. String literal not touched by Loom/Mixin remapper, so in prod
+        //   intermediary runtime (net.minecraft.class_742) ClassNotFoundException → catch →
+        //   return true (always box +1 offset). dev (named runtime) succeeds → accurate isSliding check.
+        //   Result: in prod, isSliding=false transition frame still has box +1 remaining → 1 block air under feet
+        //   → client free fall → server reconcile (COLLISION) → ground lock = root of dev/prod difference.
+        //   Solution: Remove Minecraft named class Class.forName. Search get(...) by name+parameter count.
         try {
             Class<?> stateCls = Class.forName("choco.ratel.smartmoving.client.SmartMovingClientState");
             java.lang.reflect.Method getM = null;
@@ -130,7 +130,7 @@ public abstract class MixinEntity {
             return stateCls.getField("isSliding").getBoolean(state)
                     || stateCls.getField("isHeadJumping").getBoolean(state);
         } catch (Throwable e) {
-            return true;  // reflection 실패 시 정상 SLIDING 으로 간주 → main mixin 활성 유지.
+            return true;  // If reflection fails, consider as normal SLIDING → keep main mixin active.
         }
     }
 
@@ -141,20 +141,20 @@ public abstract class MixinEntity {
         if (player.getAbilities() == null) return;
 
         EntityDimensions dim = this.dimensions;
-        if (dim.height() >= 1.0F) return;       // STANDING / 일반 height
-        // 🔴 fix #56 (2026-05-10, 사용자 보고 "fix #53 후 박스 낮음 + 벽박힘 + 진입 어려움"):
-        //   기존 가드 `eye <= 1.0F` 만 = isHeadJumping (eye=1.62) 시점만 mixin offset 활성.
-        //   fix #53 (= 1.12.2 1:1) 진입 시 isHeadJumping=false + isSliding=true 강제 → dim eye=0.62
-        //   → mixin offset 차단 → 박스 발 = entity.y = 원래 ground - 1m → 박힘.
+        if (dim.height() >= 1.0F) return;       // STANDING / normal height
+        // 🔴 fix #56 (2026-05-10, user report "after fix #53: box low + wall collision + difficult entry"):
+        //   Previous guard `eye <= 1.0F` only = mixin offset active only during isHeadJumping (eye=1.62).
+        //   During fix #53 entry (= 1:1 with 1.12.2): force isHeadJumping=false + isSliding=true → dim eye=0.62
+        //   → mixin offset blocked → box feet = entity.y = original ground - 1m → stuck.
         //
-        //   1.7.10/1.12.2 의 `setHeightOffset(-1)` 식 = boundingBox.minY += 1m **직접 변경**
-        //   (POSE 무관, isSliding/isHeadJumping 시 양쪽 적용). vanilla 1.21.1 매핑에서는 mixin
-        //   offset 으로 등가 처리하는데 가드가 `eye>1` 만 검사 → isSliding 시 미적용 BUG.
+        //   1.7.10/1.12.2 `setHeightOffset(-1)` pattern = boundingBox.minY += 1m **direct change**
+        //   (regardless of POSE, applied to both isSliding/isHeadJumping). In vanilla 1.21.1 mapping,
+        //   mixin offset equivalent is guard only by `eye>1` → BUG: not applied when isSliding.
         //
-        //   해결: POSE.SLIDING 시도 mixin offset 활성. POSE.SLIDING 분기:
-        //     - sm_updatePose 식: isHeadJumping || isSliding || isFlying || isLevitating → SLIDING.
-        //   → 모든 SLIDING POSE 에서 박스 +1m up. 1.7.10/1.12.2 setHeightOffset 효과 1:1.
-        //   부작용: 일반 슬라이딩 시도 박스 +1m up — 1.12.2 동등 동작 (= 부작용 X).
+        //   Solution: activate mixin offset also on POSE.SLIDING. POSE.SLIDING branch:
+        //     - sm_updatePose pattern: isHeadJumping || isSliding || isFlying || isLevitating → SLIDING.
+        //   → offset +1m up on all SLIDING POSE. 1:1 effect as 1.7.10/1.12.2 setHeightOffset.
+        //   Side effect: normal sliding also box +1m up — equivalent 1.12.2 behavior (= no regression).
         Pose pose = ((Entity) (Object) this).getPose();
         if (dim.eyeHeight() <= 1.0F && pose != Pose.SLIDING) return;
 
@@ -168,9 +168,9 @@ public abstract class MixinEntity {
 
         AABB original = cir.getReturnValue();
         cir.setReturnValue(original.move(0.0, 1.0, 0.0));
-        // 🔴 v26.6 — remote 측 timer override 는 client-side mixin 에서 추가 적용 (분리 사유:
-        //   main mixin set 은 server 빌드 시 client class 참조 불가).
-        //   client-side `MixinEntityClient.sm_iccTimerOffsetBb` 가 같은 method 에 RETURN inject.
+        // 🔴 v26.6 — remote side timer override is additionally applied in client-side mixin (reason for separation:
+        //   main mixin set cannot reference client class during server build).
+        //   client-side `MixinEntityClient.sm_iccTimerOffsetBb` injects RETURN on the same method.
     }
 
 }

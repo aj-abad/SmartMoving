@@ -7,23 +7,23 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * Camera 의 cameraY / lastCameraY 필드 setter 노출.
+ * Expose Camera cameraY / lastCameraY field setters.
  *
- * 원본 1.7.10: 카메라 위치 = posY + (yOffset 또는 1.62F). 보간 없음.
- * 1.21.1 vanilla: Camera.updateEyeHeight() 가 매 frame
+ * Original 1.7.10: camera position = posY + (yOffset or 1.62F). No interpolation.
+ * 1.21.1 vanilla: Camera.updateEyeHeight() each frame
  *     lastCameraY = cameraY;
  *     cameraY     = cameraY + (entity.getStandingEyeHeight() - cameraY) * 0.5F;
- * → 0.5 lerp 로 standingEyeHeight 추격.
+ * → Chases standingEyeHeight with 0.5 lerp.
  *
- * SmartMoving ICC EXIT 매핑 시 entity.y +=1, eyeHeight 1.62→0.62 즉시 변경.
- * 이 때 Camera.cameraY 가 이전 standing 1.62 에서 0.62 로 lerp 추격 → 1 frame 카메라
- * 위로 +0.5 점프 후 점차 하강 → 사용자 시점 덜컹.
+ * During SmartMoving ICC EXIT mapping, entity.y +=1, eyeHeight changes 1.62→0.62 immediately.
+ * When Camera.cameraY lerps from previous standing 1.62 to 0.62 → camera jumps up +0.5 for 1 frame,
+ * then gradually descends → user viewpoint jittery.
  *
- * 해결: ICC toCrawling 직후 cameraY/lastCameraY 를 standingEyeHeight (= 0.62) 로 강제
- * → 다음 frame update 부터 보간 baseline 일치 → 점프 차단.
+ * Solution: Force cameraY/lastCameraY to standingEyeHeight (= 0.62) after ICC toCrawling
+ * → next frame update interpolation baseline matches → prevents jump.
  *
- * 🔴 interface 형태 유지 — Mixin class 는 직접 cast 불가 (IllegalClassLoadError).
- *   @Inject 는 별도 MixinCameraDebug abstract class 에서 처리.
+ * Keep interface form — Mixin class cannot be cast directly (IllegalClassLoadError).
+ *   @Inject handled in separate MixinCameraDebug abstract class.
  */
 @Mixin(Camera.class)
 @Environment(EnvType.CLIENT)
