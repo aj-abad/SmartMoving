@@ -177,65 +177,65 @@ public class MixinPlayerEntityRenderer {
                 || sm.isCeilingClimbing || sm.isHeadJumping
                 || sm.isSliding || sm.isAngleJumping();
 
-        // 🔴 사용자 보고 fix 정정 (2026-05-03 — "max 후 body 가 마우스 따라 확 회전, 부드러운 lag 필요"):
-        //   원본 SmartMovingRender L147 강제 분기에 isCrawl 단독 미포함 → vanilla 1.21.1 의
-        //   LivingEntity.turnHead 자연 동작 (= getMaxRelativeHeadRotation = 50°).
+        // 🔴 User report fix refinement (2026-05-03 — "after max body rotates sharply following mouse, need smooth lag"):
+        //   Original SmartMovingRender L147 force branch doesn't include isCrawl alone → vanilla 1.21.1
+        //   LivingEntity.turnHead natural behavior (= getMaxRelativeHeadRotation = 50°).
         //
-        //   원본 SmartRenderModel L208-L209: bipedOuter.rotateAngleY = actualRotation /
-        //     RadiantToAngle (= bodyYaw 라디안), bipedOuter.fadeRotateAngleY = true (player).
-        //   원본 fadeIntermediate (ModelRotationRenderer L323-L325) + GetIntermediateAngle (L347-L364):
+        //   Original SmartRenderModel L208-L209: bipedOuter.rotateAngleY = actualRotation /
+        //     RadiantToAngle (= bodyYaw radians), bipedOuter.fadeRotateAngleY = true (player).
+        //   Original fadeIntermediate (ModelRotationRenderer L323-L325) + GetIntermediateAngle (L347-L364):
         //     result = prev + (target - prev) * deltaT * 0.2F
-        //   = bipedOuter.Y 가 0.2 lerp 추가 적용 → body 가 head 따라가는 속도 부드러움.
+        //   = bipedOuter.Y gets additional 0.2 lerp → body follows head smoothly.
         //
-        //   1차 fix (smStandardFadeActive=false) → vanilla 동작 그대로 → max 작동 OK 지만 body
-        //     가 head 따라 확 회전 (사용자 보고).
-        //   2차 fix (smStandardFadeActive=true + 그대로) → fade lag 적용되지만 sm_modifyNetHeadYaw
-        //     의 head 보정 (netHeadYaw + bodyYaw_diff) 가 head.roll 에 영향 → max 50° 깨짐.
-        //   진짜 fix: smStandardFadeActive=true 로 body fade lag + smCrawlMode=true 로 head 보정 skip.
+        //   1st fix (smStandardFadeActive=false) → vanilla behavior as-is → max works OK but body
+        //     rotates sharply following head (user report).
+        //   2nd fix (smStandardFadeActive=true + as-is) → fade lag applies but sm_modifyNetHeadYaw
+        //     head correction (netHeadYaw + bodyYaw_diff) affects head.roll → max 50° breaks.
+        //   Real fix: smStandardFadeActive=true for body fade lag + smCrawlMode=true to skip head correction.
         if (sm.isCrawling && !sm.isClimbing) {
-            sm.smStandardFadeActive = true;   // body fade lag (= 부드러움)
+            sm.smStandardFadeActive = true;   // body fade lag (= smoothness)
             sm.smFallingFadeMode = false;
-            sm.smCrawlMode = true;             // head 보정 skip (= max 50° 유지)
+            sm.smCrawlMode = true;             // skip head correction (= maintain max 50°)
             return;
         }
 
         if (!smActive) {
-            // 🔴 (2026-04-27) 낙하/기본 상태 분기 — 두 모드:
-            //   - 낙하: force 매핑 (smBodyYawActive=true; smBodyYawOverride=0) + head force.
-            //          비행 패턴과 동일. 머리/몸 같이 fade lag.
-            //   - 기본 상태 (땅 위): smBodyYawActive=false 유지 → ModifyArg 가 vanilla bodyYaw 를
-            //          받아 fade lerp 적용 후 force (sm_modifyBodyYaw 내부).
-            //          = vanilla 자연 동작 (키보드 이동 시 몸 회전) + 추가 fade lag (마우스 부드러움).
-            //   사용자 보고 흐름:
-            //     1) "마우스 회전 시 머리/몸 회전 속도 차이 부드럽게" → fade lag 필요.
-            //     2) "키보드 좌우 이동 시 몸 경직" → vanilla force 0 무력화 안 해야.
-            //     3) "마우스 회전 시 lag 가 없어짐" → fade 다시 활성화.
-            //   해결: ModifyArg 가 force=0 안 하고 vanilla bodyYaw 에 fade 만 추가.
-            //   엘리트라 활공 중에는 vanilla FALL_FLYING 회전을 보존하기 위해 낙하 모드에서 제외.
+            // 🔴 (2026-04-27) falling/standard state branch — two modes:
+            //   - falling: force mapping (smBodyYawActive=true; smBodyYawOverride=0) + head force.
+            //             same as flying pattern. head/body fade lag together.
+            //   - standard state (on ground): keep smBodyYawActive=false → ModifyArg receives vanilla bodyYaw,
+            //             applies fade lerp then force (inside sm_modifyBodyYaw).
+            //             = vanilla natural behavior (keyboard movement rotates body) + additional fade lag (mouse smoothness).
+            //   User report flow:
+            //     1) "smooth head/body rotation speed difference during mouse rotation" → need fade lag.
+            //     2) "body stiff during keyboard left/right movement" → shouldn't disable vanilla force 0.
+            //     3) "lag disappears during mouse rotation" → re-enable fade.
+            //   Solution: ModifyArg doesn't force=0, only adds fade to vanilla bodyYaw.
+            //   During elytra gliding exclude from falling mode to preserve vanilla FALL_FLYING rotation.
             boolean isFalling = !localPlayer.onGround()
                     && localPlayer.fallDistance > SmartMovingConfig.Config.fallAnimationDistanceMinimum
                     && !localPlayer.isFallFlying()
                     && !localPlayer.isInWater();
             if (isFalling) {
-                // 🔴 (2026-04-27) 낙하 매핑 변경 — standard 와 동일한 ModifyArg lerp 모드.
-                //   이전 (force=0 + 추가 R_y) 매핑은 vanilla setupTransforms 의 자연 회전을
-                //   무력화 → 원본의 "vanilla 즉시 + bipedOuter fade" 이중 효과 중 즉시 부분 빠짐.
-                //   사용자 보고: 낙하 시 WASD 회전이 원본보다 lag.
-                //   해결: smBodyYawActive=false 유지 → sm_modifyBodyYaw 가 vanilla bodyYaw 위에
-                //         fade lerp 만 적용 → vanilla 즉시 효과 + 추가 fade lag (원본 1:1).
-                //   smFallingFadeMode=true 는 유지 — sm_animateFalling head.yaw=0 force +
-                //   sm_modifyNetHeadYaw 보정 skip 발동용 (머리/몸 같이 회전).
+                // 🔴 (2026-04-27) falling mapping change — same ModifyArg lerp mode as standard.
+                //   Previous (force=0 + additional R_y) mapping neutralized vanilla setupTransforms natural rotation
+                //   → missing immediate part of original's "vanilla immediate + bipedOuter fade" dual effect.
+                //   User report: WASD rotation during falling more lag than original.
+                //   Solution: keep smBodyYawActive=false → sm_modifyBodyYaw applies only
+                //             fade lerp over vanilla bodyYaw → vanilla immediate effect + additional fade lag (original 1:1).
+                //   Keep smFallingFadeMode=true — for triggering sm_animateFalling head.yaw=0 force +
+                //   sm_modifyNetHeadYaw correction skip (head/body rotate together).
                 sm.smStandardFadeActive = true;
                 sm.smFallingFadeMode = true;
             } else {
-                // 기본 상태: ModifyArg 가 fade lerp 적용 모드. smBodyYawActive=false 유지.
+                // standard state: ModifyArg in fade lerp apply mode. Keep smBodyYawActive=false.
                 sm.smStandardFadeActive = true;
                 sm.smFallingFadeMode = false;
             }
             return;
         }
 
-        // 🔵 (2026-05-21, fix #119) isLevitating 분기 제거 — swim/dive 분기 우선 매치 보장.
+        // 🔵 (2026-05-21, fix #119) Remove isLevitating branch — guarantee swim/dive branch matches first.
         //   로그 실측 cause (docs/log_temp.txt):
         //   - tick 237/238 (= 이동 종료 직후, isLevitating=false): swim/dive 분기 매치 → fix #118
         //     4단계 패턴 적용 (smBodyYawOverride=0 + extraYaw fade + entity.bodyYaw force).
