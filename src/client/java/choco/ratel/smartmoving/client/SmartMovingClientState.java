@@ -1389,7 +1389,7 @@ public final class SmartMovingClientState {
             }
         }
 
-        // IMPL-05: 속도 키 처리 (원본: speedIncreaseButton/speedDecreaseButton StartPressed → changeSpeed)
+        // IMPL-05: Speed key handling (original: speedIncreaseButton/speedDecreaseButton StartPressed → changeSpeed)
         // Send SpeedChangePayload to server → server verifies permission and returns result via S2C
         // B-6 (Session 26): Creative-only gate. In original `isUserSpeedEnabled() = enabled &&
         // _speedUser.value`, `_speedUser` is true only in Creative mode, so non-Creative blocks
@@ -1490,16 +1490,16 @@ public final class SmartMovingClientState {
                 if (shouldCrawl) {
                     this.initializeCrawling = true;
                     this.toCrawling();
-                    // 🔴 사용자 보고 fix #2 (2026-05-03 — "콜리전 작음, shift 뗀 후 안 풀림"):
-                    //   원본 SmartMovingSelf L2827-L2836 의 후속 처리:
+                    // 🔴 User-reported fix #2 (2026-05-03 — "collision small, shift release doesn't unlock"):
+                    //   Original SmartMovingSelf L2827-L2836 post-processing:
                     //     setHeightOffset(-1F);
                     //     if(!initializeCrawling || sp.worldObj.isRemote) move(0, -1D, 0);
                     //     if(initializeCrawling) wasCrawling = toCrawling();
-                    //   = setHeightOffset(-1F) + move(0,-1,0). 이전 우리 매핑은 toCrawling() 만 호출 →
-                    //     heightOffset=0 잔존 → 콜리전 = SWIMMING (0.6m) 잔존.
-                    //   fix: heightOffset=-1F + calculateDimensions → SM crawl 박스 (0.6 x 0.8) 적용.
-                    //   ignoreNextStopSneakButtonPressed (toCrawling 안 set) → 다음 sneak release 무시
-                    //     = 만약 이게 standUp 막는다면 추가 검토 필요.
+                    //   = setHeightOffset(-1F) + move(0,-1,0). Previous our mapping only called toCrawling() →
+                    //     heightOffset=0 persisted → collision = SWIMMING (0.6m) persisted.
+                    //   fix: heightOffset=-1F + calculateDimensions → apply SM crawl box (0.6 x 0.8).
+                    //   ignoreNextStopSneakButtonPressed (not set in toCrawling) → ignore next sneak release
+                    //     = if this blocks standUp, need additional review.
                     this.heightOffset = -1F;
                     player.refreshDimensions();
                 }
@@ -1695,16 +1695,16 @@ public final class SmartMovingClientState {
             // B-2 (세션 43): wantSneak 신설. Config.isSneakingEnabled() = sneak || !enabled (OR 패턴).
             boolean wantSneak = cfg0.isSneakingEnabled() && wouldWantSneak;
 
-            // B-3a (세션 49): wantSprint 6조건 OR 공식 (원본 L2595-L2615).
-            // 지역 변수 (원본 L2373-L2375 + L2592-L2593 + 여러 Button):
+            // B-3a (Session 49): wantSprint 6-condition OR formula (original L2595-L2615).
+            // Local variables (original L2373-L2375 + L2592-L2593 + various Button):
             //   disabled = !Config.enabled || isRiding || isSleeping || startSleeping
             //     - 1.21.1: isRiding=hasVehicle(), isSleeping=isSleeping(),
-            //       startSleeping 은 정확 대응 없어 getSleepTimer()>0 으로 근사 확장.
+            //       startSleeping has no exact mapping, approximated with getSleepTimer()>0.
             //   moveForwardButtonPressed = esp.movementInput.moveForward > 0F
             //   moveButtonPressed = moveForward != 0 || moveStrafe != 0
             //   sprintButton.Pressed = vanilla sprintKey.isPressed()
             //   jumpButton.Pressed   = vanilla jumpKey.isPressed()
-            //   sneakButton.Pressed  = 이미 sneakPressedRaw 변수로 존재
+            //   sneakButton.Pressed  = already exists as sneakPressedRaw variable
             boolean _disabled3a = !cfg0.enabled
                     || player.isPassenger()
                     || player.isSleeping()
@@ -1715,8 +1715,8 @@ public final class SmartMovingClientState {
             boolean _moveForwardPressed3a = player.input.getMoveVector().y > 0F;
             boolean _movePressed3a = player.input.getMoveVector().y != 0F
                                    || player.input.getMoveVector().x != 0F;
-            // 원본 L2595-L2615: 6-AND — Config.isSprintingEnabled() && !isSliding && sprintPressed
-            //   && (지면 전진 || 등반 || (수영+입력) || (잠수+입력+점프) || (비행+입력+점프/스니크))
+            // Original L2595-L2615: 6-AND — Config.isSprintingEnabled() && !isSliding && sprintPressed
+            //   && (ground forward || climbing || (swimming+input) || (diving+input+jump) || (flying+input+jump/sneak))
             //   && !disabled.
             wantSprint = cfg0.isSprintingEnabled()
                     && !isSliding
@@ -1735,34 +1735,34 @@ public final class SmartMovingClientState {
                     )
                     && !_disabled3a;
 
-            // B-3b (세션 49): wouldIsSneaking 정정 — 원본 L2712 `!wantSprint` (SM 복합)
-            //   기존 `!player.isSprinting()` (vanilla 단순) 제거. 이제 SM 컨텍스트 조건 전부 반영.
+            // B-3b (Session 49): wouldIsSneaking correction — original L2712 `!wantSprint` (SM complex)
+            //   Remove previous `!player.isSprinting()` (vanilla simple). Now reflects all SM context conditions.
             wouldIsSneaking = wouldWantSneak && !wantSprint && !isClimbing;
-            // B-44a (세션 43): wasSneaking 저장을 isSlow 공식 직전으로 이동 (원본 L2716).
+            // B-44a (Session 43): Move wasSneaking save to before isSlow formula (original L2716).
             wasSneaking = isSlow;
-            // B-2 (세션 43): 기존 `sneakContinueInput && wouldIsSneaking` 중복 제거 → 원본 1:1.
+            // B-2 (Session 43): Remove previous `sneakContinueInput && wouldIsSneaking` duplication → original 1:1.
             isSlow = wantSneak && wouldIsSneaking;
 
-            // B-16 (세션 68): 원본 L2721-L2732 wantClimbHolding/isClimbHolding 3-OR 갱신 공식 이식.
-            // 원본 L2718 isSlow 직후 L2721 wantClimbHolding 순서 복원.
-            // B-16c (세션 69): wouldWantClimb 2-OR → 4-OR 확장 (자동 ladder/vine 분기).
-            // B-16a 세션 69 에서 isFacedToLadder / isFacedToSolidVine Climber 이식 완료.
-            // B-16b 세션 69 에서 Config.freeClimbAutoLadder/Vine 필드 + 헬퍼 이식 완료.
-            // ※ 근사 1건 남음 (§7 B-16 근사): `blocked` 는 원본 `currentScreen!=null &&
-            //   !currentScreen.allowUserInput` → 1.21.1 `allowUserInput` 제거됨 →
-            //   `currentScreen != null` 단일 조건 근사. 모든 열린 screen 을 입력 차단으로 간주.
+            // B-16 (Session 68): Port original L2721-L2732 wantClimbHolding/isClimbHolding 3-OR update formula.
+            // Restore order of L2721 wantClimbHolding after original L2718 isSlow.
+            // B-16c (Session 69): Expand wouldWantClimb 2-OR → 4-OR (auto ladder/vine branch).
+            // B-16a Session 69 completed porting isFacedToLadder / isFacedToSolidVine Climber.
+            // B-16b Session 69 completed porting Config.freeClimbAutoLadder/Vine fields + helpers.
+            // ※ 1 approximation remains (§7 B-16 approximation): `blocked` is original `currentScreen!=null &&
+            //   !currentScreen.allowUserInput` → 1.21.1 `allowUserInput` removed →
+            //   `currentScreen != null` single condition approximation. Treat all open screens as input blocked.
             {
                 net.minecraft.client.Minecraft mc16 =
                         net.minecraft.client.Minecraft.getInstance();
                 boolean blocked = mc16.gui.screen() != null;
 
-                // 원본 L2467-L2477 `wouldWantClimb` 4-OR + 억제:
+                // Original L2467-L2477 `wouldWantClimb` 4-OR + suppression:
                 //   (grab || (isClimbHolding && sneak)
                 //    || (Config.isFreeClimbAutoLadderEnabled && isFacedToLadder(isClimbCrawling))
                 //    || (Config.isFreeClimbAutoVineEnabled && isFacedToSolidVine(isClimbCrawling)))
                 //   && (!isSliding || grab+forward) && !isHeadJumping && !wantCrawlNotClimb
                 //   && !disabled
-                // B-36-pre (세션 77): 지역 `wouldWantClimb16` → `this.wouldWantClimb` 필드 승격.
+                // B-36-pre (Session 77): Promote local `wouldWantClimb16` → `this.wouldWantClimb` field.
                 wouldWantClimb =
                         (grabPressed0
                                 || (isClimbHolding && sneakPressedRaw)

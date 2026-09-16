@@ -362,9 +362,9 @@ public abstract class MixinPlayerEntityClient {
     private void sm_tickStatsForRemote(CallbackInfo ci) {
         if (!SmartMovingConfig.Config.enabled) return;
         Object self = (Object) this;
-        // local (= ClientPlayerEntity) 은 MixinEntityClient 에서 이미 처리.
+        // local (= ClientPlayerEntity) already handled in MixinEntityClient.
         if (self instanceof LocalPlayer) return;
-        // remote 만 처리 — AbstractClientPlayerEntity (= 다른 player on client side).
+        // remote only handled — AbstractClientPlayerEntity (= other player on client side).
         if (!(self instanceof net.minecraft.client.player.AbstractClientPlayer remote)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(remote);
 
@@ -431,7 +431,7 @@ public abstract class MixinPlayerEntityClient {
     private void sm_correctOnUpdateRemote(CallbackInfo ci) {
         if (!SmartMovingConfig.Config.enabled) return;
         Object self = (Object) this;
-        if (self instanceof LocalPlayer) return;  // self 는 MixinClientPlayerEntity 가 처리.
+        if (self instanceof LocalPlayer) return;  // self handled by MixinClientPlayerEntity.
         if (!(self instanceof net.minecraft.client.player.AbstractClientPlayer remote)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(remote);
 

@@ -200,13 +200,13 @@ public abstract class MixinClientPlayerEntity {
         //   so even if forced sneaking=false in KeyboardInput, vanilla pose processing for that tick
         //   already progressed so pose persists. Also reset with wasClimbing guard in tickMovement TAIL.
         if (sm.isClimbing || sm.wasClimbing || sm.sneakHeldDuringClimb) {
-            // 1. input.sneaking 강제 false
+            // 1. Force input.sneaking to false
             Input input = player.input.keyPresses;
             player.input.keyPresses = new Input(input.forward(), input.backward(), input.left(), input.right(),
                     input.jump(), false, input.sprint());
-            // 2. SNEAKING flag 강제 false
+            // 2. Force SNEAKING flag to false
             if (player.isShiftKeyDown()) player.setShiftKeyDown(false);
-            // 3. CROUCHING 자세 강제 STANDING
+            // 3. Force CROUCHING pose to STANDING
             if (player.getPose() == Pose.CROUCHING) {
                 player.setPose(Pose.STANDING);
             }
@@ -242,7 +242,7 @@ public abstract class MixinClientPlayerEntity {
         //   not in original → when flyCloseToGround=true (default) blocks auto flight restore = BUG impact.
         //   Fix: Delete guard (only check cfg.flyWhileOnGround).
         if (!cfg.enabled || !cfg.flyWhileOnGround) return;
-        // sneakButton.Pressed: vanilla 키 직접 (SM isSneaking override 우회)
+        // sneakButton.Pressed: vanilla key direct (bypass SM isSneaking override)
         if (net.minecraft.client.Minecraft.getInstance().options.keyShift.isDown()
                 && SmartMovingKeys.grab.isDown()) return;
         if (sm.wasCapabilitiesIsFlying && !player.getAbilities().flying && player.onGround()) {

@@ -1931,9 +1931,9 @@ public class SmartMovingConfig {
         p.setProperty("move.exhaustion.hunger.factor",           String.valueOf(exhaustionLossHungerFactor));
     }
 
-    /** getUserSpeedFactor() 공식: (1 + speedUserFactor)^speedUserExponent */
+    /** getUserSpeedFactor() formula: (1 + speedUserFactor)^speedUserExponent */
     public float getUserSpeedFactor() {
-        // 원본: isUserSpeedAlwaysDefault() = !speedUser || speedUserFactor==1F
+        // Original: isUserSpeedAlwaysDefault() = !speedUser || speedUserFactor==1F
         if (!speedUser || speedUserFactor == 1F || speedUserExponent == 0) return 1F;
         return (float) Math.pow(1F + speedUserFactor, speedUserExponent);
     }
@@ -2067,19 +2067,19 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 원본 SmartMovingProperties.setKeys(String[]) (L90-L97) 1:1 이식.
+     * Original SmartMovingProperties.setKeys(String[]) (L90-L97) 1:1 port.
      *
-     * 원본:
+     * Original:
      *   public void setKeys(String[] keys) {
      *       if (keys == null || keys.length == 0)
-     *           keys = _defaultKeys;          // 단순 on/off 모드 ({null})
+     *           keys = _defaultKeys;          // simple on/off mode ({null})
      *       this.keys = keys;
-     *       toggler = 0;                      // 항상 첫 key 로 초기화
+     *       toggler = 0;                      // always initialize to first key
      *       update();
      *   }
      *
-     * 호출: initializeForGameIfNeccessary(gameType) 에서 게임타입별 keys 배열 전달 (F 섹션).
-     * `save()` 호출은 원본 setKeys 에 없음 — 생략.
+     * Called: passes per-game-type keys array from initializeForGameIfNeccessary(gameType) (F section).
+     * `save()` call not in original setKeys — omitted.
      */
     public void setKeys(String[] keys) {
         if (keys == null || keys.length == 0)
@@ -2089,30 +2089,30 @@ public class SmartMovingConfig {
         updateToggler();
     }
 
-    // H-19 (세션 23): getCurrentKey / getKey / getNextKey / hasKey / setCurrentKey 메서드
-    // 5개 삭제. H-18 후 외부 호출처 0건 확인. 2상태 토글(toggle/setKeys/updateToggler 만
-    // 유지)에 불필요. Medium/Hard 프리셋 복원 시 `focus_09_difficulty_presets.md` 에서 재도입.
-    // 원본 메서드 본체는 `docs/research/original/smartmoving/config/SmartMovingProperties.md`
-    // L99-L156 에 보존.
+    // H-19 (session 23): Deleted 5 methods getCurrentKey / getKey / getNextKey / hasKey / setCurrentKey.
+    // After H-18 confirmed 0 external call sites. Unnecessary for 2-state toggle (only toggle/setKeys/updateToggler
+    // maintained). Will reintroduce from `focus_09_difficulty_presets.md` when restoring Medium/Hard presets.
+    // Original method bodies preserved in `docs/research/original/smartmoving/config/SmartMovingProperties.md`
+    // L99-L156.
 
-    // H-20 (세션 23): initializeForGameIfNeccessary / resetForNewGame 메서드 삭제.
-    // 2상태 토글(configKeys={null}) 유지가 목표이므로 gameType 기반 setKeys 호출 경로 불필요.
-    // 원본 함수 본체는 focus_05 §5 리서치 파일에 보존. Medium/Hard 프리셋 복원 시
-    // `focus_09_difficulty_presets.md` 후속 포커스에서 재도입.
+    // H-20 (session 23): Deleted initializeForGameIfNeccessary / resetForNewGame methods.
+    // Goal is maintaining 2-state toggle (configKeys={null}), so gameType-based setKeys call path unnecessary.
+    // Original function bodies preserved in focus_05 §5 research file. Will reintroduce from subsequent
+    // `focus_09_difficulty_presets.md` focus when restoring Medium/Hard presets.
 
     public void changeSpeed(int difference) {
         speedUserExponent += difference;
     }
 
     /**
-     * 플레이어별 속도 지수 조정.
-     * 원본: SmartMovingServerOptions.changeSingleSpeed(player, difference):
+     * Adjust per-player speed exponent.
+     * Original: SmartMovingServerOptions.changeSingleSpeed(player, difference):
      *   Integer exp = _speedUsersExponents.get(username);
      *   if (exp == null) exp = _speedUserExponent.value;
      *   exp += diff;
      *   _speedUsersExponents.put(username, exp);
      *   saveToOptionsFile();
-     * 개인 값이 없으면 전역 지수를 기준으로 시작.
+     * If no personal value, start with global exponent as reference.
      */
     public synchronized void changeSingleSpeed(String username, int difference) {
         Integer exponent = playerSpeedExponents.get(username);
@@ -2121,7 +2121,7 @@ public class SmartMovingConfig {
         playerSpeedExponents.put(username, exponent);
     }
 
-    /** 현재 속도를 정수 퍼센트 문자열로 반환 (원본: SmartMovingOptions.getSpeedPercent()) */
+    /** Return current speed as integer percent string (original: SmartMovingOptions.getSpeedPercent()) */
     public String getSpeedPercent() {
         return String.valueOf((int)(getUserSpeedFactor() * 100));
     }
@@ -2145,8 +2145,8 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 원본: Value.tryParseIntegerMap(String value) (Value.md L555-568).
-     * `,`으로 분할 → 짝수 인덱스=키, 홀수=값. parseInt 실패 항목은 스킵(원본은 NPE 가능).
+     * Original: Value.tryParseIntegerMap(String value) (Value.md L555-568).
+     * Split by `,` → even indices=keys, odd=values. Failed parseInt items skipped (original could NPE).
      */
     private static Map<String, Integer> parseIntegerMap(String raw) {
         Map<String, Integer> result = new HashMap<>();
@@ -2162,7 +2162,7 @@ public class SmartMovingConfig {
         return result;
     }
 
-    /** parseIntegerMap 역방향 — `"user1,5,user2,-2,..."` 형식 생성. */
+    /** parseIntegerMap reverse — generate `"user1,5,user2,-2,..."` format. */
     private static String serializeIntegerMap(Map<String, Integer> map) {
         StringBuilder sb = new StringBuilder();
         boolean first = true;
@@ -2174,7 +2174,7 @@ public class SmartMovingConfig {
         return sb.toString();
     }
 
-    // H-20 (세션 23): getCsvArray / csvJoin 헬퍼 삭제. 게임타입별 String[] 필드 제거와
-    // 함께 호출처 전부 사라짐. (playerSpeedExponents 는 별도 헬퍼 parseIntegerMap/
-    // serializeIntegerMap 사용)
+    // H-20 (session 23): Deleted getCsvArray / csvJoin helpers. All call sites disappeared with
+    // removal of per-game-type String[] fields. (playerSpeedExponents uses separate helpers parseIntegerMap/
+    // serializeIntegerMap)
 }

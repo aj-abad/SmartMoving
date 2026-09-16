@@ -1317,26 +1317,26 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1953-L1999 `getWallFlag(Orientation direction, int i, int j_offset, int k,
-     * Block block)` — 주어진 위치의 wall/pane/fence/gate 블록이 `direction` 방향으로
-     * "연결되어 있는지" 판정.
+     * Original L1953-L1999 `getWallFlag(Orientation direction, int i, int j_offset, int k,
+     * Block block)` — determines if wall/pane/fence/gate block at given position is
+     * "connected" in `direction` direction.
      *
-     * 원본 분기:
-     *   (1) BlockPane → `canPaneConnectToBlock(neighbor)` 동적 계산
-     *   (2) isFenceBase (Fence/Wall) → `canConnectFenceTo/WallTo(world, x, y, z)` 동적 계산
-     *   (3) BetterMisc reflection → mod 근사 생략
+     * Original branches:
+     *   (1) BlockPane → `canPaneConnectToBlock(neighbor)` dynamic calculation
+     *   (2) isFenceBase (Fence/Wall) → `canConnectFenceTo/WallTo(world, x, y, z)` dynamic calculation
+     *   (3) BetterMisc reflection → mod approximate skipped
      *   (4) isFenceGate → `isClosedFenceGate && isFenceGateFront(metaData)`
-     *   (5) Carpenters → mod 근사 생략
+     *   (5) Carpenters → mod approximate skipped
      *   (6) default → false
      *
-     * **§7 근사** (B-19a1c3b-approx-1): 1.21.1 에서는 Pane/Fence 는 `ConnectingBlock.NORTH/
-     * SOUTH/EAST/WEST` BooleanProperty 를 이미 설정 저장. Wall 은 `WallBlock.NORTH_SHAPE`
-     * 등 `EnumProperty<WallShape>` — `!= WallShape.NONE` 이면 연결. 원본은 호출 시점
-     * 동적 계산, 1.21.1 은 BlockState 캐시 조회 — 대부분의 경우 동치 (neighbor 변경 후
-     * 같은 tick 안에서는 약간 차이 가능).
+     * **§7 approximate** (B-19a1c3b-approx-1): 1.21.1 Pane/Fence use `ConnectingBlock.NORTH/
+     * SOUTH/EAST/WEST` BooleanProperty already set stored. Wall uses `WallBlock.NORTH_SHAPE`
+     * etc `EnumProperty<WallShape>` — `!= WallShape.NONE` means connected. Original dynamic
+     * calculation at call time, 1.21.1 BlockState cache lookup — mostly equivalent (slight
+     * difference possible within same tick after neighbor change).
      *
      * BetterMisc reflection (`_canConnectFenceTo`) + Carpenters (`getCarpentersBlockData`)
-     * 분기 생략.
+     * branches skipped.
      */
     private boolean getWallFlag(Orientation direction, int i, int j_offset, int k, BlockState state) {
         if (state == null) return false;
@@ -1345,32 +1345,32 @@ public class Orientation {
 
         Block block = state.getBlock();
 
-        // 원본 분기 (1): BlockPane — 1.21.1: ConnectingBlock NORTH/SOUTH/EAST/WEST property
+        // Original branch (1): BlockPane — 1.21.1: ConnectingBlock NORTH/SOUTH/EAST/WEST property
         if (block instanceof IronBarsBlock) {
-            // 근사 이식 — 원본과 차이: canPaneConnectToBlock 동적 → BlockState property 캐시
+            // Approximate port — difference from original: canPaneConnectToBlock dynamic → BlockState property cache
             return getConnectingFlag(state, d);
         }
 
-        // 원본 분기 (2): isFenceBase = FenceBlock || WallBlock
+        // Original branch (2): isFenceBase = FenceBlock || WallBlock
         if (isFenceBase(state)) {
             if (block instanceof FenceBlock) {
-                // 근사 이식 — 원본과 차이: canConnectFenceTo 동적 → ConnectingBlock property 캐시
+                // Approximate port — difference from original: canConnectFenceTo dynamic → ConnectingBlock property cache
                 return getConnectingFlag(state, d);
             }
             if (block instanceof WallBlock) {
-                // 근사 이식 — 원본과 차이: canConnectWallTo 동적 → WallBlock *_SHAPE != NONE
+                // Approximate port — difference from original: canConnectWallTo dynamic → WallBlock *_SHAPE != NONE
                 return getWallShapeFlag(state, d);
             }
-            // 근사 이식 — 원본과 차이: BetterMisc `_canConnectFenceTo` reflection 분기 생략
+            // Approximate port — difference from original: BetterMisc `_canConnectFenceTo` reflection branch skipped
             return false;
         }
 
-        // 원본 분기 (4): FenceGate
+        // Original branch (4): FenceGate
         if (isFenceGate(state)) {
             return isClosedFenceGate(state) && isFenceGateFront(state);
         }
 
-        // 원본 분기 (5): Carpenters — 근사 이식 — 원본과 차이: _blockCarpentersLadder 분기 생략
+        // Original branch (5): Carpenters — Approximate port — difference from original: _blockCarpentersLadder branch skipped
         return false;
     }
 
@@ -1397,41 +1397,41 @@ public class Orientation {
     }
 
     /**
-     * 원본 L2300-L2323 `isDoorFrontBlocked(int i, int j_offset, int k)` — 이 Orientation
-     * 방향 이동 시 door 로 막히는지.
+     * Original L2300-L2323 `isDoorFrontBlocked(int i, int j_offset, int k)` — whether blocked by
+     * door when moving in this Orientation direction.
      *
-     * 원본 vanilla 1.7.10 door metadata 매핑:
-     *   case 8: upper half → lower half 재귀
+     * Original vanilla 1.7.10 door metadata mapping:
+     *   case 8: upper half → recursively check lower half
      *   case 4 (EAST open) / case 1 (SOUTH closed):  return this._k < 0
      *   case 5 (SOUTH open) / case 2 (WEST closed): return this._i > 0
      *   case 6 (WEST open) / case 3 (NORTH closed):  return this._k > 0
      *   case 7 (NORTH open) / case 0 (EAST closed):  return this._i < 0
-     *   default: return true (방어적)
+     *   default: return true (defensive)
      *
-     * 1.21.1 매핑: `DoorBlock.FACING` Direction + `DoorBlock.OPEN` Boolean +
-     * `DoorBlock.HALF` DoubleBlockHalf 조합으로 각 case 식별.
+     * 1.21.1 mapping: `DoorBlock.FACING` Direction + `DoorBlock.OPEN` Boolean +
+     * `DoorBlock.HALF` DoubleBlockHalf combination identifies each case.
      */
     private boolean isDoorFrontBlocked(int i, int j_offset, int k) {
         BlockState state = getBlock(i, j_offset, k);
         if (!isDoor(state)) return true;
 
-        // 원본 case 8 — upper half 이면 lower half 재귀 체크
+        // Original case 8 — upper half recursively check lower half
         if (state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER)
             return isDoorFrontBlocked(i, j_offset - 1, k);
 
         Direction facing = state.getValue(DoorBlock.FACING);
         boolean open = state.getValue(DoorBlock.OPEN);
 
-        // 원본 case 4 (EAST open) / case 1 (SOUTH closed): this._k < 0
+        // Original case 4 (EAST open) / case 1 (SOUTH closed): this._k < 0
         if ((facing == Direction.EAST  &&  open) || (facing == Direction.SOUTH && !open))
             return this._k < 0;
-        // 원본 case 5 (SOUTH open) / case 2 (WEST closed): this._i > 0
+        // Original case 5 (SOUTH open) / case 2 (WEST closed): this._i > 0
         if ((facing == Direction.SOUTH &&  open) || (facing == Direction.WEST  && !open))
             return this._i > 0;
-        // 원본 case 6 (WEST open) / case 3 (NORTH closed): this._k > 0
+        // Original case 6 (WEST open) / case 3 (NORTH closed): this._k > 0
         if ((facing == Direction.WEST  &&  open) || (facing == Direction.NORTH && !open))
             return this._k > 0;
-        // 원본 case 7 (NORTH open) / case 0 (EAST closed): this._i < 0
+        // Original case 7 (NORTH open) / case 0 (EAST closed): this._i < 0
         if ((facing == Direction.NORTH &&  open) || (facing == Direction.EAST  && !open))
             return this._i < 0;
 
@@ -1439,25 +1439,25 @@ public class Orientation {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a1c3c (세션 97) — headedToFrontWall + headedToRemoteFlatWall + isRemoteAccessible
-    // 원본: Orientation.java L1741-L1757 (headedToFrontWall),
+    // B-19a1c3c (session 97) — headedToFrontWall + headedToRemoteFlatWall + isRemoteAccessible
+    // Original: Orientation.java L1741-L1757 (headedToFrontWall),
     //       L1941-L1951 (headedToRemoteFlatWall), L2401-L2475 (isRemoteAccessible).
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * 원본 L1741-L1757 `headedToFrontWall(int i, int j_offset, int k, Block block)` —
-     * (i, j_offset, k) 위치 벽/펜스 블록이 4방향 중 어느 방향으로 연결되어 있고, 이 플레이어
-     * Orientation 이 그 방향 반대쪽 (front 에서 접근) 이면 true.
+     * Original L1741-L1757 `headedToFrontWall(int i, int j_offset, int k, Block block)` —
+     * Wall/fence block at (i, j_offset, k) position connected in which of 4 directions, and if this player
+     * Orientation is from opposite direction (approaching from front) then true.
      *
-     * 논리:
-     *   1. 4 방향 wall flag 수집 (`zn`/`zp`/`nz`/`pz` — 블록이 해당 방향으로 연결)
-     *   2. `allOnNone` 블록 (pane) 이고 전부 false 면 4 방향 전부 true 처리 (고립 pane
-     *      은 4 방향 연결 가정)
-     *   3. 이 Orientation 이 NZ/PZ/ZN/ZP (및 ±45°) 중 어디면, 그 반대 방향 wall flag 반환
-     *      - NZ 탐색 시 PZ(동쪽) 연결 확인
-     *      - PZ 탐색 시 NZ(서쪽) 연결 확인
-     *      - ZN 탐색 시 ZP(남쪽) 연결 확인
-     *      - ZP 탐색 시 ZN(북쪽) 연결 확인
+     * Logic:
+     *   1. Collect 4-direction wall flags (`zn`/`zp`/`nz`/`pz` — block connected in that direction)
+     *   2. If `allOnNone` block (pane) and all false then treat all 4 directions as true (isolated pane
+     *      assumes 4-direction connection)
+     *   3. If this Orientation is one of NZ/PZ/ZN/ZP (and ±45°), return opposite direction wall flag
+     *      - When searching NZ, check PZ(east) connection
+     *      - When searching PZ, check NZ(west) connection
+     *      - When searching ZN, check ZP(south) connection
+     *      - When searching ZP, check ZN(north) connection
      */
     private boolean headedToFrontWall(int i, int j_offset, int k, BlockState state) {
         boolean zn = getWallFlag(ZN, i, j_offset, k, state);
@@ -1476,14 +1476,14 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1941-L1951 `headedToRemoteFlatWall(Block block, int j_offset)` — remote 위치
-     * 블록이 "평평한 벽 (flat wall)" 패턴 — 플레이어 진행 방향과 직각으로 연결되고 다른
-     * 방향으로는 연결 안 된 모양 — 인지.
+     * Original L1941-L1951 `headedToRemoteFlatWall(Block block, int j_offset)` — block at remote position
+     * is "flat wall" pattern — connected perpendicular to player movement direction and
+     * not connected in other directions — recognition.
      *
      *   !this-dir && +rotate(90) && !rotate(180) && +rotate(-90)
      *
-     * 즉, 플레이어 탐색 방향 (this) 으로도, 반대 방향 (rotate 180) 으로도 연결 안 되고,
-     * 양 옆 (rotate ±90) 으로만 연결됨.
+     * I.e., not connected in player search direction (this) or opposite direction (rotate 180),
+     * only connected on both sides (rotate ±90).
      */
     private boolean headedToRemoteFlatWall(BlockState state, int j_offset) {
         return !getWallFlag(this,            remote_i, j_offset, remote_k, state)
