@@ -452,19 +452,19 @@ public class SmartMovingConfig {
     public float sprintFactorLevitate = 1.5F;
 
     /**
-     * 원본 SmartMovingConfig L181 `_sprintFactorLevitateVertical = PositiveFactor("move.sprint.factor.levitate.vertical")
-     *   .defaults(0.185F)` — 부유/비행 중 sprint 시 수직 상승 속도 배율 (sprintFactorLevitate 와 곱).
-     * 매 tick 적용: motionY += sprintFactorLevitate * sprintFactorLevitateVertical.
+     * Original SmartMovingConfig L181 `_sprintFactorLevitateVertical = PositiveFactor("move.sprint.factor.levitate.vertical")
+     *   .defaults(0.185F)` — vertical ascent speed factor during levitation/flying sprint (multiplied with sprintFactorLevitate).
+     * Applied every tick: motionY += sprintFactorLevitate * sprintFactorLevitateVertical.
      */
     public float sprintFactorLevitateVertical = 0.185F;
 
     // ── Climbing ────────────────────────────────────────────────
-    // 원본: Options._baseClimb = "standard" (processBlockCode §0 코드). "standard" → true, 그 외 → false
+    // Original: Options._baseClimb = "standard" (processBlockCode §0 code). "standard" → true, other → false
     public boolean baseClimb = true;
     public boolean freeClimb = true;
-    /** 원본: _baseClimb = "simple" — grab 없이 표면 접촉만으로 자동 클라이밍 */
+    /** Original: _baseClimb = "simple" — auto climbing with surface contact only without grab */
     public boolean simpleClimb = false;
-    /** 원본: _baseClimb = "smart" — 인접 블록 substitute 판정으로 자동 클라이밍 */
+    /** Original: _baseClimb = "smart" — auto climbing via adjacent block substitute judgment */
     public boolean smartClimb = false;
     /**
      * Original SmartMovingConfig L119 `_freeClimbingAutoLaddder` Unmodified — default `true`.

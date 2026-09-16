@@ -1720,11 +1720,11 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1809-L1839 `headedToBaseWall(int j_offset, Block block)` — base 위치 wall/pane
-     * 블록이 이 Orientation 의 대각/직교 패턴에 맞게 연결되어 있는지.
+     * Original L1809-L1839 `headedToBaseWall(int j_offset, Block block)` — whether base position wall/pane
+     * block is connected matching this Orientation's diagonal/orthogonal pattern.
      *
-     * base_id/base_kd 의 topHalf 2x2 조합에 따라 4 diagonal 중 하나 선택, 그 diagonal 과
-     * 인접 2 orthogonal 조합을 `headedToBaseWall(diagonal, left, right, ...)` 로 전달.
+     * Based on topHalf 2x2 combination of base_id/base_kd, select one of 4 diagonals, pass that diagonal and
+     * adjacent 2 orthogonals to `headedToBaseWall(diagonal, left, right, ...)`.
      */
     private boolean headedToBaseWall(int j_offset, BlockState state) {
         boolean zn = getWallFlag(ZN, base_i, j_offset, base_k, state);
