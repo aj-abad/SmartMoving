@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// Build the Fabric mod and copy its loadable jar into the Minecraft mods folder.
+// Build the Fabric mod and copy its loadable jar into the launcher profile's mods folder,
+// `<.minecraft>/<minecraft_version>-fabric/mods` (for example `26.2-fabric/mods`).
 //
 //   pnpm deploy            build, then copy
 //   pnpm build             build only
 //   pnpm copy              copy an existing build
 //
-// Use --no-prune to retain older helicopter-*.jar files. MINECRAFT_MODS can
-// override the standard per-platform destination.
+// Use --no-prune to retain older smartmoving-*.jar files. MINECRAFT_PROFILE overrides the
+// profile directory name, and MINECRAFT_MODS overrides the whole destination.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -116,16 +117,20 @@ function findJar(baseName, version) {
   return path.join(libs, jars[0]);
 }
 
-function modsDirectory() {
-  if (process.env.MINECRAFT_MODS) return process.env.MINECRAFT_MODS;
+function minecraftDirectory() {
   if (process.platform === "win32") {
     const appData = process.env.APPDATA ?? path.join(homedir(), "AppData", "Roaming");
-    return path.join(appData, ".minecraft", "mods");
+    return path.join(appData, ".minecraft");
   }
   if (process.platform === "darwin") {
-    return path.join(homedir(), "Library", "Application Support", "minecraft", "mods");
+    return path.join(homedir(), "Library", "Application Support", "minecraft");
   }
-  return path.join(homedir(), ".minecraft", "mods");
+  return path.join(homedir(), ".minecraft");
+}
+
+function modsDirectory(profile) {
+  if (process.env.MINECRAFT_MODS) return process.env.MINECRAFT_MODS;
+  return path.join(minecraftDirectory(), process.env.MINECRAFT_PROFILE ?? profile, "mods");
 }
 
 function pruneOldVersions(destination, baseName, keep) {
@@ -140,6 +145,7 @@ function pruneOldVersions(destination, baseName, keep) {
 
 const baseName = gradleProperty("archives_base_name");
 const version = gradleProperty("mod_version");
+const profile = `${gradleProperty("minecraft_version")}-fabric`;
 
 if (!skipBuild) {
   const jdk = resolveGradleJdk();
@@ -154,7 +160,7 @@ if (!skipBuild) {
 
 if (!skipCopy) {
   const jar = findJar(baseName, version);
-  const destination = modsDirectory();
+  const destination = modsDirectory(profile);
   mkdirSync(destination, { recursive: true });
   const name = path.basename(jar);
   if (!skipPrune) pruneOldVersions(destination, baseName, name);
