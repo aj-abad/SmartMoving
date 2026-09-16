@@ -14,33 +14,33 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 🔴 v26.18 (BUG-7 server tick 순서 race 진짜 root fix) — head/below ClimbableBlock 가드 추가.
+ * 🔴 v26.18 (BUG-7 server tick order race real root fix) — add head/below ClimbableBlock guard.
  *
- * vanilla `MinecraftServer.tickWorlds` 정확 순서:
+ * vanilla `MinecraftServer.tickWorlds` exact order:
  *   1. playerManager.forEach(playerTick) → ServerPlayerEntity.playerTick → super.tick →
- *      PlayerEntity.tick → LivingEntity.tick → tickMovement → travel → 우리 inject.
+ *      PlayerEntity.tick → LivingEntity.tick → tickMovement → travel → our inject.
  *   2. ServerWorld.tick (= entity tick + EntityTrackerEntry broadcast).
- *   3. networkIo.tick (= packet 처리, processStatePacket, onPlayerMove).
+ *   3. networkIo.tick (= packet processing, processStatePacket, onPlayerMove).
  *
- * ★★★ packet 처리가 우리 inject + broadcast 후. 즉 우리 inject 시점:
- *   - sm.isClimbCrawling 등 = 이전 server tick 의 packet 처리 결과 (= 1 tick lag).
- *   - server.player.x/y/z = 이전 server tick 의 PlayerMoveC2SPacket 결과.
+ * ★★★ packet processing occurs after our inject + broadcast. That is, at our inject point:
+ *   - sm.isClimbCrawling etc = previous server tick's packet processing result (= 1 tick lag).
+ *   - server.player.x/y/z = previous server tick's PlayerMoveC2SPacket result.
  *
- * "가끔 됨" 의 진짜 root: client packet 도달 timing 운에 따라 server tick N-1 또는 N 의
- * networkIo 에 도달. N-1 도달 = server tick N 에 가드 통과. N 도달 = server tick N+1 까지 lag.
+ * True root of "sometimes works": depending on client packet arrival timing, it reaches
+ * server tick N-1 or N networkIo. N-1 arrival = guard passes on server tick N. N arrival = lag until server tick N+1.
  *
- * v26.17 한계:
- *   - vanilla `player.isClimbing()` = player.getBlockPos() (= 발 위치) 의 BlockState 검사.
- *   - 사다리 끝 + 0.5m 위치 ICC 진입 시점 = floor(y) → AIR → isClimbing()=false → 가드 미통과.
- *   - self side `onClimbable` = SmartMovingClimber 의 hands(머리=y+1)/feet(y) 둘 다 검사. 더 넓음.
+ * v26.17 limitations:
+ *   - vanilla `player.isClimbing()` = BlockState check of player.getBlockPos() (= feet position).
+ *   - ladder end + 0.5m ICC entry point = floor(y) → AIR → isClimbing()=false → guard fails.
+ *   - self side `onClimbable` = SmartMovingClimber checks both hands(head=y+1)/feet(y). Broader.
  *
  * v26.18 fix:
- *   - server-side 가드에 head/feet/below ClimbableBlock 검사 추가.
- *   - head BlockPos (y+1) ClimbableBlock 검사 → 사다리 끝 도달 시 cover.
- *   - below BlockPos (y-1) ClimbableBlock 검사 → 사다리 끝 통과 직후 frame cover.
- *   - 이 가드 = self side onClimbable 의 server-side substitute 더 정확.
+ *   - add head/feet/below ClimbableBlock checks to server-side guard.
+ *   - head BlockPos (y+1) ClimbableBlock check → covers ladder end reach case.
+ *   - below BlockPos (y-1) ClimbableBlock check → covers immediately after ladder end case.
+ *   - this guard = server-side substitute of self side onClimbable, more accurate.
  *
- * vanilla travel cancel + clamp + move 매핑은 v26.16 그대로 유지.
+ * vanilla travel cancel + clamp + move mapping kept as v26.16.
  */
 @Mixin(LivingEntity.class)
 public abstract class MixinLivingEntityServer {

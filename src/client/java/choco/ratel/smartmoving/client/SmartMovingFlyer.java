@@ -40,13 +40,13 @@ public class SmartMovingFlyer {
         //   1.21.1: sm_travel_client reached after handleSwimming/handleLava = SM swimming branch ci.cancel
         //   not applied only → swimming/lava processing not done = reset meaning identical (already maintained false). Mapping omitted.
 
-        // 원본 L611-L620: sneak/jump → motionY ± 0.15 + moveUpward ± 0.98 (esp.movementInput 직접)
-        // 🔴 sneak 검사 정정 (사용자 보고 fix — 비행 sneak 빠른 하강 BUG, 2026-05-03):
-        //   기존 `player.isSneaking()` 은 SM `MixinClientPlayerEntity.sm_isSneaking_ClientPlayer`
-        //   inject 가 비행 시 false 반환 → 분기 미진입 → vanilla -=0.15 cancel 실패 + SM moveFlying
-        //   미적용 + damping x0.91 만 → 매 frame -=0.15 누적 → 수렴 -1.5/tick = -30m/sec 무시무시한 하강.
-        //   원본 SmartMovingSelf L611 = `esp.movementInput.sneak` 직접 검사. player.input.sneaking
-        //   으로 변경 = 원본 1:1.
+        // Original L611-L620: sneak/jump → motionY ± 0.15 + moveUpward ± 0.98 (esp.movementInput direct)
+        // 🔴 sneak check correction (user report fix — flying sneak fast descend BUG, 2026-05-03):
+        //   Existing `player.isSneaking()` via SM `MixinClientPlayerEntity.sm_isSneaking_ClientPlayer`
+        //   inject returns false when flying → branch not entered → vanilla -=0.15 cancel failed + SM moveFlying
+        //   not applied + damping x0.91 only → per frame -=0.15 accumulated → converges to -1.5/tick = -30m/sec terrifying descent.
+        //   Original SmartMovingSelf L611 = `esp.movementInput.sneak` direct check. Changed to player.input.sneaking
+        //   = original 1:1.
         float moveUpward = 0F;
         if (player.input.keyPresses.shift()) {
             Vec3 vel = player.getDeltaMovement();
@@ -62,39 +62,39 @@ public class SmartMovingFlyer {
         float moveForward = (float) movementInput.z;
         float moveStrafe  = (float) movementInput.x;
 
-        // 🔴 BUG-25 정정 (Flying Phase F-6 / 세션 40): getNonSlowInputSpeedFactor 누락 보강.
-        //   원본 SmartMovingSelf L119 `speedFactor = getConfigSpeedFactor * getPotionSpeedFactor *
+        // 🔴 BUG-25 correction (Flying Phase F-6 / session 40): getNonSlowInputSpeedFactor missing supplement.
+        //   Original SmartMovingSelf L119 `speedFactor = getConfigSpeedFactor * getPotionSpeedFactor *
         //   getNonSlowInputSpeedFactor(moveForward, moveStrafing)`.
-        //   getNonSlowInputSpeedFactor (L197-L227) 본체:
+        //   getNonSlowInputSpeedFactor (L197-L227) body:
         //     if (isFast) speedFactor *= (!isLevitating ? sprintFactor : sprintFactorLevitate);
-        //     if (isClimbing) ... (비행 무관)
-        //   → 비행 시 sprint 키 hold + 비행 가능 = 1.5F (sprintFactor) 또는 sprintFactorLevitate (Levitate)
-        //   곱셈. 1.21.1 SmartMovingMover.getCombinedSpeedFactor (= getConfigSpeedFactor *
-        //   getPotionSpeedFactor) 만 있어 NonSlow 의 sprint 곱셈 누락 → 비행 sprint 시 1.5배 느림.
-        //   해결: isFast 시 sprintFactor (또는 isLevitating 시 sprintFactorLevitate) 곱셈 추가.
+        //     if (isClimbing) ... (flying irrelevant)
+        //   → when flying, sprint key hold + flying possible = 1.5F (sprintFactor) or sprintFactorLevitate (Levitate)
+        //   multiplication. 1.21.1 SmartMovingMover.getCombinedSpeedFactor (= getConfigSpeedFactor *
+        //   getPotionSpeedFactor) only, NonSlow sprint multiplication missing → flying sprint 1.5x slower.
+        //   Solution: Add sprintFactor (or sprintFactorLevitate when isLevitating) multiplication when isFast.
         float combinedFactor = SmartMovingMover.getCombinedSpeedFactor(player, cfg);
         if (sm.isFast) {
             combinedFactor *= sm.isLevitating ? cfg.sprintFactorLevitate : cfg.sprintFactor;
         }
         float flyingSpeed    = combinedFactor * 0.05F * cfg.flyingSpeedFactor;
 
-        // 원본: moveFlying(moveUpward, moveStrafing, moveForward, speed, Options._flyControlVertical)
-        // 🔴 BUG-27 강제 정정 (Flying Phase / 세션 50): 사용자 환경 config 파일 disk 의존성 제거.
-        //   원본 Unmodified default = true (Properties.java L171-L172). 자동 마이그레이션 (세션
-        //   48/49) 효과 없을 가능성 (marker 이미 있거나 다른 disk 위치) → cfg 값 무시하고 강제
-        //   true 적용 → 마우스 pitch → W 진행 방향 효과 (원본 default 1:1) 보장.
-        boolean treeDimensional = true;  // 원본 default 강제. 사용자 옵션은 별도 코드 변경 시만.
+        // Original: moveFlying(moveUpward, moveStrafing, moveForward, speed, Options._flyControlVertical)
+        // 🔴 BUG-27 mandatory correction (Flying Phase / session 50): Remove user environment config file disk dependency.
+        //   Original Unmodified default = true (Properties.java L171-L172). Auto-migration (sessions
+        //   48/49) may not work (marker already present or different disk location) → ignore cfg value and force
+        //   true application → mouse pitch → W progress direction effect (original default 1:1) guaranteed.
+        boolean treeDimensional = true;  // Force original default. User option only on code change.
         moveFlying(player, moveUpward, moveStrafe, moveForward, flyingSpeed, treeDimensional);
 
-        // 🔴 BUG-1+8 (세션 37): 원본 SmartMovingSelf.handleAlternativeFlying L624
-        //   `sp.moveEntity(sp.motionX, sp.motionY, sp.motionZ)` 매핑 — **이전 누락**.
-        //   sm_travel_client 가 ci.cancel() 으로 vanilla travel() 차단 → vanilla move() 호출 안 됨
-        //   → 기존 setVelocity 만으로는 motion 적용 안 됨 = 비행 시 몸 고정 (BUG-1).
-        //   수정: motion 계산 후 player.move() 명시 호출 → vanilla collision/위치 갱신 처리.
+        // 🔴 BUG-1+8 (session 37): Original SmartMovingSelf.handleAlternativeFlying L624
+        //   `sp.moveEntity(sp.motionX, sp.motionY, sp.motionZ)` mapping — **previously missing**.
+        //   sm_travel_client blocks vanilla travel() via ci.cancel() → vanilla move() not called
+        //   → motion not applied by setVelocity alone = body fixed when flying (BUG-1).
+        //   Fix: after motion calculation, explicitly call player.move() → vanilla collision/position update handling.
         Vec3 motion = player.getDeltaMovement();
         player.move(MoverType.SELF, motion);
 
-        // 감쇠 (HorizontalAirDamping = 0.91F) — 원본 L626-L628
+        // Damping (HorizontalAirDamping = 0.91F) — original L626-L628
         Vec3 velAfterMove = player.getDeltaMovement();
         player.setDeltaMovement(velAfterMove.x * 0.91F, velAfterMove.y * 0.91F, velAfterMove.z * 0.91F);
 
@@ -102,13 +102,13 @@ public class SmartMovingFlyer {
     }
 
     /**
-     * 원본: SmartMovingBase.moveFlying(moveUpward, moveStrafing, moveForward, speedFactor, treeDimensional)
+     * Original: SmartMovingBase.moveFlying(moveUpward, moveStrafing, moveForward, speedFactor, treeDimensional)
      *
-     * 단계:
-     *   1. YAW 기반 수평 방향 벡터 계산 (input 정규화 + sin/cos 분해)
-     *   2. pitch 기반 수직 보정 (treeDimensional=true 시)
-     *   3. 최종 속도 증분 계산 (비표준 정규화: sqrt(sqrt(x²+z²) + y²))
-     *   4. player velocity에 합산
+     * Steps:
+     *   1. Calculate YAW-based horizontal direction vector (input normalization + sin/cos decomposition)
+     *   2. pitch-based vertical correction (when treeDimensional=true)
+     *   3. Final velocity increment calculation (non-standard normalization: sqrt(sqrt(x²+z²) + y²))
+     *   4. Sum into player velocity
      */
     static void moveFlying(LocalPlayer player,
                            float moveUpward, float moveStrafing, float moveForward,
@@ -116,10 +116,10 @@ public class SmartMovingFlyer {
         float diffMotionXStrafing = 0F, diffMotionXForward = 0F;
         float diffMotionZStrafing = 0F, diffMotionZForward = 0F;
 
-        // 1단계: YAW 기반 수평 방향 벡터
+        // Step 1: YAW-based horizontal direction vector
         float total = (float) Math.sqrt(moveStrafing * moveStrafing + moveForward * moveForward);
         if (total >= 0.01F) {
-            if (total < 1.0F) total = 1.0F;  // 정규화 하한 (원본 동일)
+            if (total < 1.0F) total = 1.0F;  // Normalization lower bound (original same)
             float moveStrafingFactor = moveStrafing / total;
             float moveForwardFactor  = moveForward  / total;
             float yawRad = (float) Math.toRadians(player.getYRot());
@@ -131,22 +131,22 @@ public class SmartMovingFlyer {
             diffMotionZForward  =  moveForwardFactor  * cos;
         }
 
-        // 2단계: pitch 기반 수직 보정 (treeDimensional=true 시 pitch → 라디안)
+        // Step 2: pitch-based vertical correction (when treeDimensional=true pitch → radians)
         // RadiantToAngle = 180/π → rotationPitch / RadiantToAngle = toRadians(pitch)
         float rotation = treeDimensional ? (float) Math.toRadians(player.getXRot()) : 0F;
         float divingHorizontalFactor = (float) Math.cos(rotation);
-        // signum(moveForward): 앞으로 볼 때(forward>0) 위를 보면 올라감, 뒤를 볼 때는 반전
+        // signum(moveForward): when looking forward (forward>0) looking up ascends, looking back inverts
         float divingVerticalFactor   = -(float) Math.sin(rotation) * Math.signum(moveForward);
 
-        // 3단계: 최종 속도 증분
+        // Step 3: Final velocity increment
         float diffMotionX = diffMotionXForward * divingHorizontalFactor + diffMotionXStrafing;
-        // diffMotionY: forward 수평 크기 × 수직 인자 + 스니크/점프 이동량
+        // diffMotionY: forward horizontal magnitude × vertical factor + sneak/jump movement
         float diffMotionY = (float) Math.sqrt(
                 diffMotionXForward * diffMotionXForward + diffMotionZForward * diffMotionZForward
         ) * divingVerticalFactor + moveUpward;
         float diffMotionZ = diffMotionZForward * divingHorizontalFactor + diffMotionZStrafing;
 
-        // 비표준 정규화: sqrt(sqrt(x²+z²) + y²) — 원본 SmartMovingBase 동일 공식
+        // Non-standard normalization: sqrt(sqrt(x²+z²) + y²) — original SmartMovingBase same formula
         float totalNorm = (float) Math.sqrt(
                 Math.sqrt(diffMotionX * diffMotionX + diffMotionZ * diffMotionZ) + diffMotionY * diffMotionY
         );

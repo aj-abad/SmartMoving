@@ -7,7 +7,7 @@
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingClient.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingClientState.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingClimber.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingFlyer.java
+- [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingFlyer.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingHud.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingJumper.java
 - [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingLivingEntityAccess.java
