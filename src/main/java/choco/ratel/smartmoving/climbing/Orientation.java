@@ -842,10 +842,10 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1366-L1384 `getOpenTrapDoorOrientation(World world, int i, int j, int k)` —
-     * 열린 trap door 의 facing 방향을 Orientation 으로 역매핑.
+     * Original L1366-L1384 `getOpenTrapDoorOrientation(World world, int i, int j, int k)` —
+     * Reverse maps open trap door facing direction to Orientation.
      *
-     * 원본 매핑:
+     * Original mapping:
      *   0 (SOUTH) → ZP, 1 (NORTH) → ZN, 2 (EAST) → PZ, 3 (WEST) → NZ
      */
     public static Orientation getOpenTrapDoorOrientation(Level world, int i, int j, int k) {
@@ -862,10 +862,10 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1361-L1364 `isRemoteSolid(World world, int i, int j, int k)` — (i+_i, j, k+_k)
-     * 위치 블록이 solid 인지 (이 방향 인접 블록).
+     * Original L1361-L1364 `isRemoteSolid(World world, int i, int j, int k)` — Whether block
+     * at (i+_i, j, k+_k) is solid (adjacent block in this direction).
      *
-     * Material API 제거 근사 (B-19a1a-approx-3 연동 — `isSolidBlock`).
+     * Material API removal approximate (linked to B-19a1a-approx-3 — `isSolidBlock`).
      */
     public boolean isRemoteSolid(Level world, int i, int j, int k) {
         BlockPos pos = new BlockPos(i + _i, j, k + _k);
@@ -874,12 +874,12 @@ public class Orientation {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a1c1 (세션 93) — 블록 식별 + stair/slab/fence/wall/door 헬퍼
-    // 원본: Orientation.java L1544-L1615 (stair metadata), L2026-L2063 (slab),
-    //       L2177-L2222 (fence/fenceGate), L2289-L2323 (door/doorFrontBlocked),
-    //       L2333-L2340 (wallBlock).
+    // B-19a1c1 (session 93) — Block identification + stair/slab/fence/wall/door helpers
+    // Original: Orientation.java L1544-L1615 (stair metadata), L2026-L2063 (slab),
+    //           L2177-L2222 (fence/fenceGate), L2289-L2323 (door/doorFrontBlocked),
+    //           L2333-L2340 (wallBlock).
     //
-    // 1.21.1 매핑 핵심:
+    // 1.21.1 mapping essentials:
     //   - vanilla 1.7.10 stair `metadata & 3` (0=EAST/1=WEST/2=SOUTH/3=NORTH) ↔
     //     `StairsBlock.FACING` Direction property
     //   - `metadata & 4` (TOP half bit) ↔ `StairsBlock.HALF == BlockHalf.TOP`
@@ -888,7 +888,7 @@ public class Orientation {
     //   - fenceGate `metadata & 4 == 0` (closed) ↔ `!FenceGateBlock.OPEN`
     // ════════════════════════════════════════════════════════════════════════
 
-    // ── Stair (원본 L1544-L1615) ────────────────────────────────────────────
+    // ── Stair (original L1544-L1615) ────────────────────────────────────────
 
     /**
      * 원본 L2059-L2063 `isStairCompact(Block)`.

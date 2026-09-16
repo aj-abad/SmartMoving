@@ -1212,34 +1212,34 @@ public final class SmartMovingClimber {
         double actuallySolidHeight = getMinPlayerSolidBetween(player, jd, jd + 0.6, 0.2);
         if (jgap >= 1.9 || actuallySolidHeight >= jd + 0.5) return;
 
-        // 🔴 motionY = jgap 기반 anchor 보간 (원본 SmartMovingSelf L1145-1166 정밀 1:1).
-        //   원본 메커니즘 = 자연스러운 anchor 수렴:
-        //     jgap > 1.2  (천장에서 멀음) → motionY=0.12 → setLandMotions 후 +0.0392 (위로)
-        //     jgap > 1.115 (anchor 범위)  → motionY=0.08 → 0 (정지)
-        //     else        (천장 가까움)   → motionY=0.04 → -0.0392 (아래로 → jgap 회복)
-        //   → 평형점 jgap=1.115~1.2 로 수렴. 사용자 가설 "부드러운 anchor 보간" 의 원본 구현.
-        //   case 3 의 0.04 떨어짐이 anchor 보간의 핵심 (이전 0.08 변경은 anchor 보간 깨뜨림).
+        // 🔴 motionY = jgap-based anchor interpolation (original SmartMovingSelf L1145-1166 precise 1:1).
+        //   Original mechanism = natural anchor convergence:
+        //     jgap > 1.2  (far from ceiling) → motionY=0.12 → after setLandMotions +0.0392 (up)
+        //     jgap > 1.115 (anchor range)    → motionY=0.08 → 0 (stop)
+        //     else        (close to ceiling) → motionY=0.04 → -0.0392 (down → jgap recovery)
+        //   → equilibrium point jgap=1.115~1.2 converges. Original implementation of user hypothesis "smooth anchor interpolation".
+        //   case 3 0.04 drop is key to anchor interpolation (previous 0.08 change broke it).
         double climbValue;
         if (jgap > 1.2) {
             climbValue = 0.12D;
         } else if (jgap > 1.115) {
             climbValue = HOLD_MOTION;  // 0.08
         } else {
-            climbValue = 0.04D;  // 원본 1:1 — anchor 보간 (천천히 아래로 → jgap 증가)
+            climbValue = 0.04D;  // Original 1:1 — anchor interpolation (slowly down → jgap recovery)
         }
 
-        // 🔴 motionX/Z: 원본 1:1 — handleCeilingClimbing 안에서 직접 set 하지 않음.
-        //   원본 SmartMovingSelf L658 handleCeilingClimbing 은 motionY 만 set.
-        //   motionX/Z 는 별도 흐름 (L653 landMotion 의 L718 sp.moveFlying — vanilla
-        //   addVelocity 식). 우리 코드도 MixinLivingEntityClient L290 updateVelocity 가
-        //   동일 식 처리 → handleCeilingClimbing 에서 추가 직접 set 하면 누적 → 원본보다 빠름.
-        //   해결: 직접 set 제거. L290 만 사용 → 원본 1:1.
+        // 🔴 motionX/Z: original 1:1 — don't directly set inside handleCeilingClimbing.
+        //   Original SmartMovingSelf L658 handleCeilingClimbing only sets motionY.
+        //   motionX/Z is separate flow (L653 landMotion's L718 sp.moveFlying — vanilla
+        //   addVelocity formula). Our code also MixinLivingEntityClient L290 updateVelocity
+        //   handles same formula → if we additionally directly set in handleCeilingClimbing, accumulates → faster than original.
+        //   Solution: remove direct set. Use only L290 → original 1:1.
 
-        // fallDistance = 0 (필수 — 낙하 데미지 방지)
+        // fallDistance = 0 (required — prevent fall damage)
         player.fallDistance = 0;
 
-        // 🔴 motionY 만 setShouldClimbSpeed 호출 — 일반 grab hold 와 동일 메커니즘
-        //   (relevant 가드: value < 0 || value > motionY).
+        // 🔴 Only call setShouldClimbSpeed for motionY — same mechanism as general grab hold
+        //   (relevant guard: value < 0 || value > motionY).
         double combinedFactor = SmartMovingMover.getCombinedSpeedFactor(player, cfg);
         boolean climbIsUp = climbValue >= HOLD_MOTION;
         setShouldClimbSpeed(player, sm, climbValue, climbIsUp, combinedFactor);

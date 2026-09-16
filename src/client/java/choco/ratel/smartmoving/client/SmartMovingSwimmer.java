@@ -587,12 +587,12 @@ public final class SmartMovingSwimmer {
             motionZ += fly.z;
 
         } else if (sm.isSwimming_sm) {
-            // **B-9c 해소 (세션 129, B-9h 갱신 세션 130)**: 원본 L317-L348 A 경로 swimming
-            //   11단계 테이블 복원 + swimDown 분기 (원본 L320-L321).
-            //   B 경로는 isSwimming_sm=false 로 재분류되므로 이 분기 진입 없음.
-            //   원본 L320: if (swimDown) motionYDiff = -0.05 * (isFast ? sprintFactor : 1)
-            //   원본 L322 부터 `if (offset < 1.6)` 등은 swimDown 분기 뒤 별도 if — swimDown 이
-            //   true 여도 offset 조건 충족하면 덮어쓰기 (원본 구조 그대로 이식).
+            // **B-9c Resolution (Session 129, B-9h update Session 130)**: Original L317-L348 A path swimming
+            //   Restore 11-step table + swimDown branch (original L320-L321).
+            //   B path reclassified as isSwimming_sm=false, so this branch not entered.
+            //   Original L320: if (swimDown) motionYDiff = -0.05 * (isFast ? sprintFactor : 1)
+            //   From original L322 onwards `if (offset < 1.6)` etc. separate if after swimDown branch — even if swimDown
+            //   true, overwrite if offset condition met (original structure as-is ported).
             double offset = sm.dippingDepth + 0.1625D;
             double motionYDiff;
             if (swimDown) {
@@ -600,9 +600,9 @@ public final class SmartMovingSwimmer {
             } else if (offset < 1.5D) {
                 motionYDiff = -0.02D;
             } else {
-                motionYDiff = 0D;   // 원본 L320 들어가지 않은 경로의 초기값
+                motionYDiff = 0D;   // Initial value for path not entering original L320
             }
-            // 원본 L324 이후는 `if` (not else-if) — offset 조건 충족 시 덮어쓰기
+            // After original L324 is `if` (not else-if) — overwrite if offset condition met
             if      (offset < 1.6D)   motionYDiff = -0.01D;
             else if (offset < 1.62D)  motionYDiff = -0.005D;
             else if (offset < 1.64D)  motionYDiff = -0.0025D;
@@ -616,8 +616,8 @@ public final class SmartMovingSwimmer {
             else if (offset < 1.8D)   motionYDiff =  0.01D;
             else                       motionYDiff =  0.02D;
 
-            // 🔵 (BUG 4 fix #106) damping 순서 정정 — 원본 L450-471 (damping 먼저) →
-            //   L502 (motionY += motionYDiff). damp 먼저 → fly + diff 가산.
+            // 🔵 (BUG 4 fix #106) Correct damping order — original L450-471 (damping first) →
+            //   L502 (motionY += motionYDiff). Damp first → add fly + diff.
             motionX *= DAMPING_SWIMMING;
             motionY *= DAMPING_SWIMMING;
             motionZ *= DAMPING_SWIMMING;

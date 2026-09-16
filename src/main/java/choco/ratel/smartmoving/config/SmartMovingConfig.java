@@ -1195,27 +1195,27 @@ public class SmartMovingConfig {
         return sprintExhaustion && enabled;
     }
 
-    // ── B-24 (세션 53) — isHeadJumping 해제 엣지 handleCrash Config 필드 ───────────
+    // ── B-24 (session 53) — isHeadJumping release edge handleCrash Config fields ───────────
 
     /**
-     * 원본 `SmartMovingConfig.java` L264 (포커스 #2.5 A-5d 이식 완결):
+     * Original `SmartMovingConfig.java` L264 (focus #2.5 A-5d porting complete):
      *   `_headFallDamageStartDistance = Positive("move.fall.head.damage.start.distance").values(2F, 1F, 3F);`
-     * 기본값 2F (values: default=2F, min=1F, max=3F). 사용처: `handleCrash(startDistance, factor)`
-     * (원본 L2538) — 헤드점프 해제 엣지 + 자유 클라이밍 낙하 데미지 시작 거리.
+     * default 2F (values: default=2F, min=1F, max=3F). Usage: `handleCrash(startDistance, factor)`
+     * (original L2538) — head jump release edge + free climbing fall damage start distance.
      */
     public float headFallDamageStartDistance = 2F;
 
     /**
-     * 원본 `SmartMovingConfig.java` L265 (포커스 #2.5 A-5e 이식 완결):
-     *   `_headFallDamageFactor = IncreasingFactor("move.fall.head.damage.factor").defaults(2F);` ★ 오버라이드
-     * 기본값 2F (IncreasingFactor 기본 1F → defaults(2F) 오버라이드). 사용처: handleCrash 낙하 데미지 배율.
+     * Original `SmartMovingConfig.java` L265 (focus #2.5 A-5e porting complete):
+     *   `_headFallDamageFactor = IncreasingFactor("move.fall.head.damage.factor").defaults(2F);` ★ override
+     * default 2F (IncreasingFactor default 1F → defaults(2F) override). Usage: handleCrash fall damage multiplier.
      */
     public float headFallDamageFactor = 2F;
 
-    // ── 활성화 플래그 ──────────────────────────────────────────
+    // ── Activation flag ──────────────────────────────────────────
     /**
-     * SM 활성화 상태. 원본 SmartMovingProperties.enabled (L33).
-     * `update()` 호출 시 `toggler != -1` 로 파생 — 직접 쓰기 금지, toggle()/setCurrentKey 경유.
+     * SM enabled state. Original SmartMovingProperties.enabled (L33).
+     * Derived as `toggler != -1` on `update()` call — direct writing prohibited, use toggle()/setCurrentKey instead.
      */
     public boolean enabled = true;
 

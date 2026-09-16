@@ -112,21 +112,21 @@ public abstract class MixinClientPlayerEntity {
     }
 
     /**
-     * 🔴 (세션 145 BUG-점프): 크롤/슬라이드 등 SM 상태 시 vanilla 점프 차단 1:1 매핑.
+     * 🔴 (Session 145 BUG-jump): 1:1 mapping of blocking vanilla jump when SM states like crawl/slide.
      *
-     * 원본 SmartMovingSelf L2366-L2370 `setIsJumpingField(...)` 가드:
+     * Original SmartMovingSelf L2366-L2370 `setIsJumpingField(...)` guard:
      *   movementInput.jump && !isCrawling && !isSliding
      *   && !(headJumpEnabled && grab && sprint)
      *   && !(jumpChargeEnabled && wouldIsSneaking && onGround && isStanding)
      *   && !blockJumpTillButtonRelease
      *
-     * 1.21.1 vanilla 흐름:
-     *   ClientPlayerEntity.tickNewAi() 안에서 `this.jumping = this.input.jumping` (offset 38-41).
-     *   기존 sm_jumpingFilter (LivingEntity.tickMovement HEAD) 는 tickNewAi 보다 먼저 실행 →
-     *   가드 적용 후 vanilla 가 다시 input.jumping 으로 set → 무력화. 점프 발동 BUG 직접 원인.
+     * 1.21.1 vanilla flow:
+     *   Inside ClientPlayerEntity.tickNewAi() `this.jumping = this.input.jumping` (offset 38-41).
+     *   Existing sm_jumpingFilter (LivingEntity.tickMovement HEAD) executes before tickNewAi →
+     *   after applying guard vanilla sets again with input.jumping → negates. Direct cause of jump fire BUG.
      *
-     * 해결: ClientPlayerEntity.tickNewAi TAIL inject — vanilla `this.jumping = input.jumping`
-     *       이후 우리 가드 적용해 false 로 강제 set.
+     * Fix: ClientPlayerEntity.tickNewAi TAIL inject — after vanilla `this.jumping = input.jumping`
+     *      apply our guard to force set false.
      */
     @Inject(method = "applyInput", at = @At("TAIL"))
     private void sm_jumpingFilter_tickNewAi(CallbackInfo ci) {

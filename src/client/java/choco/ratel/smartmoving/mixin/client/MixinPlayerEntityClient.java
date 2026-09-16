@@ -342,21 +342,21 @@ public abstract class MixinPlayerEntityClient {
         if (self instanceof LocalPlayer player
                 && SmartMovingConfig.Config.enabled
                 && SmartMovingClientState.get(player).isFlying) {
-            // SM 비행 시 motionY *= 0.6 차단 — handleFlying 가 set 한 motionY 보존.
-            // X/Z 는 vanilla 인자 그대로 (handleFlying 결과와 동일).
+            // Block motionY *= 0.6 during SM flight — preserve motionY set by handleFlying.
+            // X/Z vanilla arguments as-is (same as handleFlying result).
             self.setDeltaMovement(velocity.x, self.getDeltaMovement().y, velocity.z);
             return;
         }
-        // 비SM 비행 (vanilla) → 원본 동작 그대로 (motionY *= 0.6).
+        // Non-SM flight (vanilla) → original behavior as-is (motionY *= 0.6).
         self.setDeltaMovement(velocity);
     }
 
     /**
-     * 🔴 (2026-05-05 Phase 1-A) 다른 player 도 매 tick stats 갱신 — 비행 자세 등의
-     *   walkFactor/standFactor/totalDistance 식 source.
-     *   자기 자신 (= ClientPlayerEntity) 은 MixinEntityClient.sm_afterMove_client 에서 갱신.
-     *   다른 player (= AbstractClientPlayerEntity, ClientPlayerEntity 아님) 만 여기 처리.
-     *   PlayerEntity.tickMovement TAIL — 모든 player tick 적용. instanceof 분기로 remote only.
+     * 🔴 (2026-05-05 Phase 1-A) other players also update stats each tick — source for
+     *   walkFactor/standFactor/totalDistance formulas like flying pose etc.
+     *   self (= ClientPlayerEntity) updated in MixinEntityClient.sm_afterMove_client.
+     *   only other players (= AbstractClientPlayerEntity, not ClientPlayerEntity) handled here.
+     *   PlayerEntity.tickMovement TAIL — applied to all player ticks. remote only via instanceof branch.
      */
     @Inject(method = "tick", at = @At("TAIL"))
     private void sm_tickStatsForRemote(CallbackInfo ci) {
@@ -369,11 +369,11 @@ public abstract class MixinPlayerEntityClient {
         SmartMovingClientState sm = SmartMovingClientState.get(remote);
 
         // 🔴 (Phase 1-B fix-2) stats source: getVelocity() → position delta.
-        //   원본 SmartStatistics.calculateAllStats: `diffX = sp.posX - sp.prevPosX` (= delta).
-        //   기존 매핑은 server-sync velocity 가정했으나 vanilla 1.21.1 server 가
-        //   다른 player 의 velocity field 를 sync 안 함 → 항상 (0,0,0) → stats 입력 0
-        //   → 다른 player 팔다리 swing 안 흔들림 (BUG-D).
-        //   fix: 원본대로 prev/cur position delta. interpolation 진동은 stats 자체 EMA 가 평균화.
+        //   Original SmartStatistics.calculateAllStats: `diffX = sp.posX - sp.prevPosX` (= delta).
+        //   previous mapping assumed server-synced velocity but vanilla 1.21.1 server
+        //   doesn't sync other player's velocity field → always (0,0,0) → stats input 0
+        //   → other player limbs don't swing (BUG-D).
+        //   fix: like original use prev/cur position delta. interpolation oscillation smoothed by stats own EMA.
         double dx = remote.getX() - remote.xo;
         double dy = remote.getY() - remote.yo;
         double dz = remote.getZ() - remote.zo;

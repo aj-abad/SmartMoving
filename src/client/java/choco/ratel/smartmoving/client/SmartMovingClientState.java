@@ -1273,41 +1273,41 @@ public final class SmartMovingClientState {
         isFeetVineClimbing   = ((bits >> 25) & 1) != 0;  // bit 25
         isHandsVineClimbing  = ((bits >> 26) & 1) != 0;  // bit 26
         isClimbJumping    = ((bits >> 27) & 1) != 0;
-        isClimbBackJumping   = ((bits >> 28) & 1) != 0;  // bit 28 (onStartClimbBackJump 미이식)
+        isClimbBackJumping   = ((bits >> 28) & 1) != 0;  // bit 28 (onStartClimbBackJump not ported)
         isSlow            = ((bits >> 29) & 1) != 0;
         isFast            = ((bits >> 30) & 1) != 0;
         isWallJumping     = ((bits >> 31) & 1) != 0;
         isRopeSliding     = ((bits >> 32) & 1) != 0;
-        // 🔴 (Phase 2 multi BUG-7) bit 34 isClimbCrawling 갱신 추가.
-        //   server-side 가 bit 34 broadcast — self 측 박스 +1m offset 동기화용 (메모리
-        //   project_isclimbcrawling_complete.md). remote 측 client-side 도 isClimbCrawling 종료
-        //   edge 감지 위해 갱신 필수 — sm_handleRemoteIccCrawlExitYSync inject 가 검사.
+        // 🔴 (Phase 2 multi BUG-7) bit 34 isClimbCrawling update added.
+        //   server-side broadcasts bit 34 — for self box +1m offset synchronization (see
+        //   project_isclimbcrawling_complete.md). remote client-side also needs isClimbCrawling end
+        //   edge detection — sm_handleRemoteIccCrawlExitYSync inject checks for it.
         isClimbCrawling   = ((bits >> 34) & 1) != 0;
-        // 🔴 fix #96 (2026-05-13): bit 35 wasSelfSlideFire 갱신 — remote 측 여우무빙 시각 fix
-        //   #81/#94/#95 (= X 회전 즉시 π/2 + Y 회전 즉시 이동 방향) 적용 조건 동기화.
-        //   self 측 tickEssential L2144 에서 자체슬라이딩 발사 시 set / 슬라이딩 phase 진입 시 false.
-        //   remote 측은 packet 으로만 갱신 (= tickEssential 호출 안 됨).
+        // 🔴 fix #96 (2026-05-13): bit 35 wasSelfSlideFire update — remote side view fix for sliding
+        //   #81/#94/#95 (= X rotation immediate π/2 + Y rotation immediate movement direction) condition synchronization.
+        //   self-side tickEssential L2144 sets on self-sliding fire / false on sliding phase entry.
+        //   remote-side only updates from packet (= tickEssential not called).
         wasSelfSlideFire  = ((bits >> 35) & 1) != 0;
     }
 
     // ── 4-2: tickEssential() ─────────────────────────────────────────
 
     /**
-     * isActive 여부 무관하게 매 틱 실행되는 필수 처리.
-     * 원본: SmartMovingPlayerBase.updateEntityActionState() → moving.tickEssential()
+     * Essential processing executed every tick regardless of isActive state.
+     * Original: SmartMovingPlayerBase.updateEntityActionState() → moving.tickEssential()
      */
     public void tickEssential(LocalPlayer player) {
-        // 이전 틱 값 초기화 — vanilla jump() 가로채기(sm_jump)에서 당 틱에 새로 설정됨
+        // Previous tick value initialization — set fresh in this tick by vanilla jump() interception (sm_jump)
         jumpAvoided = false;
-        // 🔴 (세션 55): isJumping 매 틱 false reset (원본 SmartMovingSelf L1744 1:1).
-        //   원본: tryJump 시 true (L2132), updateEntityActionState 시작 시 false reset.
-        //   tryJump 안에서만 true → 한 틱만 유지 (다음 틱 시작 시 reset).
+        // 🔴 (Session 55): isJumping false reset every tick (original SmartMovingSelf L1744 1:1).
+        //   Original: true on tryJump (L2132), false reset at start of updateEntityActionState.
+        //   true only inside tryJump → maintained for only one tick (reset at next tick start).
         isJumping = false;
-        // 🔴 fix #19 (2026-05-08): justEndedHeadJump 1-tick 플래그 reset.
-        //   handleCrash 분기 진입 시 set, 다음 tick 시작 시 reset → setPos(y+1) 1 tick 한정.
+        // 🔴 fix #19 (2026-05-08): justEndedHeadJump 1-tick flag reset.
+        //   Set on handleCrash branch entry, reset at next tick start → setPos(y+1) limited to 1 tick.
         this.justEndedHeadJump = false;
-        // 🔴 fix #21 (2026-05-08): slideToHeadCooldown 카운터 감소.
-        //   handleCrash 분기 set 후 N tick 동안 자동 전환 차단.
+        // 🔴 fix #21 (2026-05-08): slideToHeadCooldown counter decrement.
+        //   After handleCrash branch set, blocks auto transition for N ticks.
         if (this.slideToHeadCooldown > 0) this.slideToHeadCooldown--;
 
         // H-15 (세션 22): 2상태 토글 강제 복원. 원본 `initializeForGameIfNeccessary` 가
