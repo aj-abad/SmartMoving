@@ -252,13 +252,13 @@ public abstract class MixinClientPlayerEntity {
     }
 
     /**
-     * correctOnUpdate: 수영/크롤링 등 낮은 속도 이동 시 bodyYaw 보정.
-     * 원본: SmartMovingBase.correctOnUpdate(isSmall, reverseMaterialAcceleration)
+     * correctOnUpdate: bodyYaw correction during low-speed movement like swimming/crawling.
+     * Original: SmartMovingBase.correctOnUpdate(isSmall, reverseMaterialAcceleration)
      *       isSmall = isSwimming||isDiving||isDipping||isCrawling
      *       reverseMaterialAcceleration(isSwimming) → 1.21.1 N/A
      *
-     * 0.02 < f < 0.05 구간(느린 이동)에서 renderYawOffset(=bodyYaw)을 이동 방향으로 서서히 정렬.
-     * sp.swingProgress > 0 시에는 rotationYaw 고정.
+     * In 0.02 < f < 0.05 range (slow movement), gradually align renderYawOffset(=bodyYaw) to movement direction.
+     * When sp.swingProgress > 0, fix rotationYaw.
      */
     @Inject(method = "aiStep", at = @At("TAIL"))
     private void sm_correctOnUpdate(CallbackInfo ci) {

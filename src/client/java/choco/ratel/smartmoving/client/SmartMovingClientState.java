@@ -1418,18 +1418,18 @@ public final class SmartMovingClientState {
             }
         }
 
-        // SM 비활성 시 이동 상태 전체 초기화 (원본: !isActive() → resetState())
+        // Reset entire movement state when SM disabled (original: !isActive() → resetState())
         // isActive = !Compat.isBlockedByIncompatibility(sp) && Config.enabled
-        // 1.7.10 Compat: StarMiner/Ships → N/A, EtFuturum elytra → isFallFlying(), 스펙테이터 → isSpectator()
+        // 1.7.10 Compat: StarMiner/Ships → N/A, EtFuturum elytra → isFallFlying(), spectator → isSpectator()
         if (!SmartMovingConfig.Config.enabled || player.isSpectator() || player.isFallFlying()) {
             resetState();
         } else {
-            // 원본 R-09 토글 블록 이전 값 저장 (willStartSneak/willStartCrawl 엣지 계산용).
-            // B-44 (세션 43): wasSneaking 저장은 isSlow 공식 직전(L2716)으로 이동 — B-2 함께.
-            // B-44c (세션 82): wasClimbCrawling 저장은 B-18 isClimbCrawling 공식 직전
-            //   (원본 L2786 대응) 으로 이동 완료.
-            // B-44b (세션 84): wasCrawling 저장도 B-33 isCrawling 매 틱 공식 직전 (원본 L2441)
-            //   으로 이동 완료 — 여기 일괄 저장 전부 제거됨.
+            // Save previous value of original R-09 toggle block (for willStartSneak/willStartCrawl edge calculation).
+            // B-44 (Session 43): wasSneaking save moved before isSlow formula (L2716) — with B-2.
+            // B-44c (Session 82): wasClimbCrawling save moved before B-18 isClimbCrawling formula
+            //   (corresponds to original L2786) completed.
+            // B-44b (Session 84): wasCrawling save also moved before B-33 isCrawling per-tick formula (original L2441)
+            //   completed — all batch saves here removed.
 
             // ── mustCrawl / inputContinueCrawl / contextContinueCrawl 해제 / wantCrawl pre-compute ─
             // 원본 L1792-L1794 (mustCrawl), L2407-L2418 (inputContinueCrawl + contextContinueCrawl 해제),

@@ -1048,32 +1048,32 @@ public class Orientation {
         return isFence(getBlock(i, j_offset, k));
     }
 
-    // ── Wall / Door (원본 L2289-L2340) ─────────────────────────────────────
+    // ── Wall / Door (original L2289-L2340) ─────────────────────────────────
 
     /**
-     * 원본 L2333-L2340 `isWallBlock(Block, int i, int j_offset, int k)`.
+     * Original L2333-L2340 `isWallBlock(Block, int i, int j_offset, int k)`.
      *   `BlockPane || isFence(block, i, j_offset, k) || (Carpenters && ...)`.
      *
-     * **§7 근사** (B-19a1c1-approx-4): Carpenters `_blockCarpentersLadder` 분기 +
-     * `_knownThinWallBlocks` (mod pane 리스트) 생략. vanilla PaneBlock + FenceBlock +
-     * WallBlock (FenceBase) + closed FenceGate 만.
+     * **§7 approximate** (B-19a1c1-approx-4): Carpenters `_blockCarpentersLadder` branch +
+     * `_knownThinWallBlocks` (mod pane list) skipped. Only vanilla PaneBlock + FenceBlock +
+     * WallBlock (FenceBase) + closed FenceGate.
      */
     public static boolean isWallBlock(BlockState state) {
-        // 근사 이식 — 원본과 차이: _knownThinWallBlocks + _blockCarpentersLadder 제외
+        // Approximate port — difference from original: _knownThinWallBlocks + _blockCarpentersLadder excluded
         if (state == null) return false;
         return state.getBlock() instanceof IronBarsBlock || isFence(state);
     }
 
     /**
-     * 원본 L2289-L2293 `isDoor(Block)` — vanilla wooden_door / iron_door.
-     * 1.21.1: `DoorBlock` 은 oak/spruce/birch/... + iron + copper 등 전부 포괄.
+     * Original L2289-L2293 `isDoor(Block)` — vanilla wooden_door / iron_door.
+     * 1.21.1: `DoorBlock` covers oak/spruce/birch/... + iron + copper etc.
      */
     public static boolean isDoor(BlockState state) {
         return state != null && state.getBlock() instanceof DoorBlock;
     }
 
     /**
-     * 원본 L2295-L2298 `isDoorTop(int metaData)` — `metaData == 8` (upper half 마커).
+     * Original L2295-L2298 `isDoorTop(int metaData)` — `metaData == 8` (upper half marker).
      * 1.21.1: `DoorBlock.HALF == DoubleBlockHalf.UPPER`.
      */
     public static boolean isDoorTop(BlockState state) {
@@ -1081,25 +1081,25 @@ public class Orientation {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a1c2 (세션 94) — isEmpty + isBaseAccessible + 좌표 기반 trapdoor 래퍼
-    // 원본: Orientation.java L2224-L2238 (trapdoor 좌표 래퍼),
-    //       L2342-L2399 (isBaseAccessible 2 오버로드), L2537-L2541 (isEmpty).
+    // B-19a1c2 (session 94) — isEmpty + isBaseAccessible + coordinate-based trapdoor wrappers
+    // Original: Orientation.java L2224-L2238 (trapdoor coordinate wrappers),
+    //           L2342-L2399 (isBaseAccessible 2 overloads), L2537-L2541 (isEmpty).
     // ════════════════════════════════════════════════════════════════════════
 
-    // ── Trapdoor 좌표 기반 래퍼 (원본 L2224-L2238) ─────────────────────────
+    // ── Trapdoor Coordinate-based Wrappers (original L2224-L2238) ─────────
 
-    /** 원본 L2236-L2238 `isTrapDoor(int i, int j_offset, int k)` — 좌표 → BlockState 래퍼. */
+    /** Original L2236-L2238 `isTrapDoor(int i, int j_offset, int k)` — Coordinate → BlockState wrapper. */
     protected static boolean isTrapDoor(int i, int j_offset, int k) {
         return isTrapDoor(getBlock(i, j_offset, k));
     }
 
-    /** 원본 L2230-L2233 `isClosedTrapDoor(int i, int j_offset, int k)` — 좌표 래퍼. */
+    /** Original L2230-L2233 `isClosedTrapDoor(int i, int j_offset, int k)` — Coordinate wrapper. */
     protected static boolean isClosedTrapDoor(int i, int j_offset, int k) {
         BlockState state = getBlock(i, j_offset, k);
         return isTrapDoor(state) && isClosedTrapDoor(state);
     }
 
-    /** 원본 L2224-L2227 `isOpenTrapDoor(int i, int j_offset, int k)` — 좌표 래퍼. */
+    /** Original L2224-L2227 `isOpenTrapDoor(int i, int j_offset, int k)` — Coordinate wrapper. */
     protected static boolean isOpenTrapDoor(int i, int j_offset, int k) {
         BlockState state = getBlock(i, j_offset, k);
         return isTrapDoor(state) && !isClosedTrapDoor(state);

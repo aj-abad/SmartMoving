@@ -1339,16 +1339,16 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 원본 SmartMovingClientConfig L47-50 `isTotalFreeLadderClimb()`:
+     * Original SmartMovingClientConfig L47-50 `isTotalFreeLadderClimb()`:
      *   return isFreeBaseClimb() && _freeBaseLadderClimb.value;
-     * MixinLivingEntityClient.travel notTotalFreeClimbing 가드에서 사용.
+     * Used in notTotalFreeClimbing guard in MixinLivingEntityClient.travel.
      */
     public boolean isTotalFreeLadderClimb() {
         return isFreeBaseClimb() && freeBaseLadderClimb;
     }
 
     /**
-     * 원본 SmartMovingClientConfig L52-55 `isTotalFreeVineClimb()`:
+     * Original SmartMovingClientConfig L52-55 `isTotalFreeVineClimb()`:
      *   return isFreeBaseClimb() && _freeBaseVineClimb.value;
      */
     public boolean isTotalFreeVineClimb() {
@@ -1356,23 +1356,23 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 원본 `SmartMovingOptions.java` L449-L455 `isSneakToggleEnabled()`:
+     * Original `SmartMovingOptions.java` L449-L455 `isSneakToggleEnabled()`:
      *   return _sneakToggle.value && enabled;
-     * **AND 패턴** — SM 비활성 시 토글 모드 비허용.
-     * 사용처: sneakContinueInput (원본 L2576) / R-09 블록 진입 (원본 L2968) / wantSneak_
-     * 계산 (원본 L2981 부근).
-     * B-45a (세션 45).
+     * **AND pattern** — disallow toggle mode when SM disabled.
+     * Usage: sneakContinueInput (original L2576) / R-09 block entry (original L2968) / wantSneak_
+     * calculation (around original L2981).
+     * B-45a (session 45).
      */
     public boolean isSneakToggleEnabled() {
         return sneakToggle && enabled;
     }
 
     /**
-     * 원본 `SmartMovingOptions.java` L462-L469 `isCrawlToggleEnabled()`:
+     * Original `SmartMovingOptions.java` L462-L469 `isCrawlToggleEnabled()`:
      *   return _crawlToggle.value && enabled;
-     * **AND 패턴**. 사용처: inputContinueCrawl (원본 L2407) / R-09 블록 (원본 L2969) /
-     * toCrawling() (원본 L3050).
-     * B-45a (세션 45).
+     * **AND pattern**. Usage: inputContinueCrawl (original L2407) / R-09 block (original L2969) /
+     * toCrawling() (original L3050).
+     * B-45a (session 45).
      */
     public boolean isCrawlToggleEnabled() {
         return crawlToggle && enabled;
