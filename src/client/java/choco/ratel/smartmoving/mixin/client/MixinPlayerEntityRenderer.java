@@ -236,37 +236,37 @@ public class MixinPlayerEntityRenderer {
         }
 
         // 🔵 (2026-05-21, fix #119) Remove isLevitating branch — guarantee swim/dive branch matches first.
-        //   로그 실측 cause (docs/log_temp.txt):
-        //   - tick 237/238 (= 이동 종료 직후, isLevitating=false): swim/dive 분기 매치 → fix #118
-        //     4단계 패턴 적용 (smBodyYawOverride=0 + extraYaw fade + entity.bodyYaw force).
-        //   - tick 239+ (= 가만히 시 isLevitating=true): 기존 isLevitating 분기 매치 + early return →
-        //     fix #118 swim/dive 분기 도달 X.
-        //   기존 isLevitating 분기 식 `smBodyYawOverride = currentCameraAngle (deg)`:
-        //     → vanilla matrix R_y(180 - camera_deg) → 매트릭스 자체가 mouse 즉시 추적 (fade 없음).
-        //     → smSwimDiveExtraYaw_target 갱신 X → 마지막 값 잔존.
-        //     → entity.bodyYaw force 없음 → vanilla netHeadYaw 잔존.
-        //   = 사용자 보고 "가만히 시 마우스 회전 → 몸도 회전" 정확 cause.
-        //   해결: isLevitating 분기 제거. swim/dive 분기가 `dist < threshold ? camera : horizontal`
-        //     동등 식 보유 (= 가만히 시 dist=0 < 0.015 → camera 매치) + fix #118 패턴 (matrix cancel +
-        //     extraYaw fade + entity.bodyYaw force) 적용.
-        //   원본 1:1: SmartMovingRender L132-L134 의 "levitating 시 currentHorizontalAngle = camera"
-        //     강제는 swim/dive 분기 식의 가만히 threshold 통해 자연 매치 (= 식 동등).
+        //   Log measurement cause (docs/log_temp.txt):
+        //   - tick 237/238 (= movement end, isLevitating=false): swim/dive branch match → fix #118
+        //     4-stage pattern applied (smBodyYawOverride=0 + extraYaw fade + entity.bodyYaw force).
+        //   - tick 239+ (= idle isLevitating=true): existing isLevitating branch match + early return →
+        //     fix #118 swim/dive branch unreached.
+        //   Existing isLevitating branch formula `smBodyYawOverride = currentCameraAngle (deg)`:
+        //     → vanilla matrix R_y(180 - camera_deg) → matrix itself tracks mouse immediately (no fade).
+        //     → smSwimDiveExtraYaw_target not updated → last value persists.
+        //     → entity.bodyYaw no force → vanilla netHeadYaw persists.
+        //   = User report "idle mouse rotation → body also rotates" exact cause.
+        //   Solution: Remove isLevitating branch. swim/dive branch maintains equivalent formula `dist < threshold ? camera : horizontal`
+        //     (= idle dist=0 < 0.015 → camera match) + fix #118 pattern (matrix cancel +
+        //     extraYaw fade + entity.bodyYaw force) applied.
+        //   Original 1:1: SmartMovingRender L132-L134 "levitating forces currentHorizontalAngle = camera"
+        //     naturally matches via swim/dive branch idle threshold (= formula equivalent).
 
-        // ── 원본 SmartMovingModel 상태별 bipedOuter.rotateAngleY 1:1 이식 ──────
-        // 1.21.1 은 bipedOuter 계층이 없어 bodyYaw 단일 경로로 근사. 라디안→도 변환.
-        // 원본 if-else 체인 우선순위 순서:
+        // ── Original SmartMovingModel per-state bipedOuter.rotateAngleY 1:1 port ──────
+        // 1.21.1 has no bipedOuter hierarchy → approximate via single bodyYaw path. Radian→degree conversion.
+        // Original if-else chain priority order:
         //   1. isRopeSliding (L279) — currentHorizontalAngle
         //   2. isClimb/isClimbCrawling (L308) — forwardRotation / RadiantToAngle
         //   4. isCeilingClimb (L463+L476) — rotateY + horizontalAngle (threshold 0.015)
         //   5. isSwim (L495/L511) — horizontalAngle (threshold 0.005/0.015 isGenericSneaking)
-        //   6. isDive (L553/L564) — horizontalAngle (totalDistance 기준)
+        //   6. isDive (L553/L564) — horizontalAngle (based on totalDistance)
         //   7. isCrawl (L668) — currentHorizontalAngle
         //   9. isFlying (L704/L713) — horizontalAngle (threshold 0.05)
         //  10. isHeadJumping (L740) — currentHorizontalAngle
 
-        // isCeilingClimb (원본 L463 + L475-L476):
+        // isCeilingClimb (original L463 + L475-L476):
         //   distance = totalHorizontalDistance * 0.7F
-        //   walkFactor = Factor(currentHorizontalSpeed, 0, 0.12951545F)  // 0→1 보간
+        //   walkFactor = Factor(currentHorizontalSpeed, 0, 0.12951545F)  // 0→1 interpolation
         //   horizontalAngle = horizontalDistance < 0.015F ? currentCameraAngle : currentHorizontalAngle
         //   rotateY = cos(distance) * 0.44F * walkFactor
         //   bipedOuter.rotateAngleY = rotateY + horizontalAngle
@@ -278,10 +278,10 @@ public class MixinPlayerEntityRenderer {
                     ? sm.stats.currentCameraAngle
                     : sm.stats.currentHorizontalAngle;
             float rotateY = (float) Math.cos(distance) * 0.44F * walkFactor;
-            // 🔴 fade 보간 적용 (사용자 보고 — 마우스 회전 시 몸통 회전 보간 원본과 다름):
-            //   원본 SmartRenderModel L209: bipedOuter.fadeRotateAngleY = true (기본).
-            //   ModelRotationRenderer.fadeIntermediate 가 매 frame target 으로 0.2*deltaTime lerp.
-            //   1.21.1 매핑: lerpFadeAngle 헬퍼 (라디안 단위, 0.2 factor) 사용. 비행 패턴 차용.
+            // 🔴 Apply fade interpolation (user report — body rotation interpolation differs from original):
+            //   Original SmartRenderModel L209: bipedOuter.fadeRotateAngleY = true (default).
+            //   ModelRotationRenderer.fadeIntermediate lerps every frame target by 0.2*deltaTime.
+            //   1.21.1 mapping: use lerpFadeAngle helper (radian unit, 0.2 factor). Adopted flying pattern.
             float targetYawRad = rotateY + horizontalAngle;
             float laggedYawRad = lerpFadeAngle(sm.smCeilingYaw_prev, targetYawRad,
                                                sm.smCeilingFade_prevTime, animationProgress);
