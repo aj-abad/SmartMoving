@@ -1200,29 +1200,29 @@ public class Orientation {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a1c3a (세션 95) — remoteLadderClimbing + isAccessAccessible + isDoorFrontBlocked
-    // 원본: Orientation.java L1115-L1118 (remoteLadderClimbing),
+    // B-19a1c3a (session 95) — remoteLadderClimbing + isAccessAccessible + isDoorFrontBlocked
+    // Original: Orientation.java L1115-L1118 (remoteLadderClimbing),
     //       L2477-L2484 (isAccessAccessible), L2300-L2323 (isDoorFrontBlocked).
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * 원본 L1115-L1118 `remoteLadderClimbing(int j_offset)` — remote 위치에 ladder 가 있고
-     * 그 ladder 가 **플레이어 반대 방향으로 (back)** 붙어있는지.
+     * Original L1115-L1118 `remoteLadderClimbing(int j_offset)` — ladder exists at remote position and
+     * that ladder is attached in **opposite player direction (back)**.
      *
-     * 의미: 이 Orientation 방향으로 탐색 시, remote 위치에 ladder 가 back-facing 이면
-     * "현재 위치에서 등반 중" 으로 간주 (즉 이 방향 블록 통과 차단).
+     * Meaning: when searching in this Orientation direction, if ladder at remote position is back-facing then
+     * considered "currently climbing" (blocks passage in this direction).
      *
-     * 의존: B-19a1b `isBehindLadder` + `isOnLadderBack`.
+     * Dependencies: B-19a1b `isBehindLadder` + `isOnLadderBack`.
      */
     protected boolean remoteLadderClimbing(int j_offset) {
         return isBehindLadder(j_offset) && isOnLadderBack(j_offset);
     }
 
     /**
-     * 원본 L2477-L2484 `isAccessAccessible(int j_offset)` — diagonal 방향 접근 시 필요.
-     * orthogonal 에서는 항상 true. diagonal 에서는 두 개의 수직 경계 (remote_i/base_k
-     * 및 base_i/remote_k) 가 모두 비어있어야 함 — 즉 diagonal 진입 시 양쪽 orthogonal
-     * 위치도 통과 가능해야 함.
+     * Original L2477-L2484 `isAccessAccessible(int j_offset)` — needed for diagonal direction approach.
+     * Always true for orthogonal. For diagonal, both perpendicular boundaries (remote_i/base_k
+     * and base_i/remote_k) must be empty — diagonal entry requires both adjacent orthogonal
+     * positions passable.
      */
     protected boolean isAccessAccessible(int j_offset) {
         if (!_isDiagonal) return true;
@@ -1231,21 +1231,21 @@ public class Orientation {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a1c3b (세션 96) — wall-flag 인프라
-    // 원본: Orientation.java L1727-L1738 (isFenceGateFront), L1801-L1807 (headedToWall),
+    // B-19a1c3b (session 96) — wall-flag infrastructure
+    // Original: Orientation.java L1727-L1738 (isFenceGateFront), L1801-L1807 (headedToWall),
     //       L1953-L1999 (getWallFlag), L2001-L2004 (getAllWallsOnNoWall),
     //       L2006-L2009 (isTopHalf).
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * Orientation → 1.21.1 Direction 매핑 (orthogonal 4방향만). diagonal/ZZ 는 null.
-     * 내부 사용 전용. `getWallFlag` / fence gate 등 property 조회 시 필요.
+     * Orientation → 1.21.1 Direction mapping (orthogonal 4 directions only). diagonal/ZZ is null.
+     * Internal use only. Needed for `getWallFlag` / fence gate etc. property queries.
      *
-     * 기준:
-     *   NZ (-X, 서쪽 탐색) ↔ Direction.WEST
-     *   PZ (+X, 동쪽 탐색) ↔ Direction.EAST
-     *   ZN (-Z, 북쪽 탐색) ↔ Direction.NORTH
-     *   ZP (+Z, 남쪽 탐색) ↔ Direction.SOUTH
+     * Reference:
+     *   NZ (-X, west search) ↔ Direction.WEST
+     *   PZ (+X, east search) ↔ Direction.EAST
+     *   ZN (-Z, north search) ↔ Direction.NORTH
+     *   ZP (+Z, south search) ↔ Direction.SOUTH
      */
     private Direction toBlockDirection() {
         if (this == NZ) return Direction.WEST;

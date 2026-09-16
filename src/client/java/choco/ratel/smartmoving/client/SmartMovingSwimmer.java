@@ -825,12 +825,12 @@ public final class SmartMovingSwimmer {
         return moveFlying(player, 0F, strafe, forward, speed, false);
     }
 
-    // ── [Phase C-3] handleLava (포커스 #2.6 세션 4) ───────────────────────────
+    // ── [Phase C-3] handleLava (Focus #2.6 Session 4) ───────────────────────────
 
     /**
-     * Phase C-3 (포커스 #2.6 세션 4) — handleLava 본체 1:1 이식.
+     * Phase C-3 (Focus #2.6 Session 4) — handleLava main body 1:1 port.
      *
-     * 원본 `SmartMovingSelf.handleLava()` L578-L600 (③ 리서치 §2 발췌):
+     * Original `SmartMovingSelf.handleLava()` L578-L600 (from research §2):
      * <pre>
      * private boolean handleLava(float moveForward, float moveStrafing,
      *                            boolean handledSwimming, boolean isLiquidClimbing) {
@@ -856,41 +856,41 @@ public final class SmartMovingSwimmer {
      * }
      * </pre>
      *
-     * <p><b>호출 위치</b>: {@link choco.ratel.smartmoving.mixin.client.MixinLivingEntityClient}
-     * 의 {@code sm_travel_client} 에서 handleSwimming 직후 (handledSwimming=false 분기).
-     * 진입 시 ci.cancel() 로 vanilla travel 차단.
+     * <p><b>Call Location</b>: {@link choco.ratel.smartmoving.mixin.client.MixinLivingEntityClient}
+     * in {@code sm_travel_client} right after handleSwimming (handledSwimming=false branch).
+     * On entry, block vanilla travel with ci.cancel().
      *
-     * <p><b>진입 조건 (4-AND)</b>:
+     * <p><b>Entry Conditions (4-AND)</b>:
      * <ul>
-     *   <li>{@code !sm.isFlying} (SM 비행 X)</li>
-     *   <li>{@code !handledSwimming} — 호출 위치 보장 (handleSwimming false 후 진입)</li>
-     *   <li>{@code !sm.isLiquidClimbing} (액체 클라이밍 X)</li>
-     *   <li>{@code player.isInLava()} (lava 안)</li>
+     *   <li>{@code !sm.isFlying} (no SM flying)</li>
+     *   <li>{@code !handledSwimming} — guaranteed by call location (enter after handleSwimming false)</li>
+     *   <li>{@code !sm.isLiquidClimbing} (no liquid climbing)</li>
+     *   <li>{@code player.isInLava()} (inside lava)</li>
      * </ul>
      *
-     * <p><b>부작용 평가</b> (포커스 #2.6 세션 4 전수 조사):
+     * <p><b>Side Effect Evaluation</b> (exhaustive Focus #2.6 Session 4):
      * <ul>
-     *   <li>swimUpward (점프 +0.04F): tickMovement L2649 외부 → vanilla 자동 처리 ✅</li>
-     *   <li>lava damage (setOnFireFromLava): {@code Entity.tick} 별개 → 차단 안 됨 ✅</li>
-     *   <li>lava sound / particle: 별개 시스템 → 차단 안 됨 ✅</li>
-     *   <li>vanilla travel() lava 분기 (L2123-L2142): SM 이 동등 처리 (벽 점프 motionY=0.3 포함)</li>
+     *   <li>swimUpward (jump +0.04F): outside tickMovement L2649 → vanilla auto-handled ✅</li>
+     *   <li>lava damage (setOnFireFromLava): separate {@code Entity.tick} → not blocked ✅</li>
+     *   <li>lava sound / particle: separate systems → not blocked ✅</li>
+     *   <li>vanilla travel() lava branch (L2123-L2142): SM handles equivalently (wall jump motionY=0.3 included)</li>
      * </ul>
      *
-     * <p><b>vanilla 와의 미세 차이 (원본 1.7.10 충실)</b>:
+     * <p><b>Subtle Differences from Vanilla (Original 1.7.10 Faithful)</b>:
      * <ul>
-     *   <li>damping Y: 원본 {@code 0.5D} vs vanilla {@code 0.8F} (SM 가 더 빠른 낙하)</li>
-     *   <li>중력: 원본 {@code -0.02D} 고정 vs vanilla {@code -d/4} (gravity attribute, slow_falling 영향)</li>
+     *   <li>damping Y: original {@code 0.5D} vs vanilla {@code 0.8F} (SM has faster fall)</li>
+     *   <li>gravity: original {@code -0.02D} fixed vs vanilla {@code -d/4} (gravity attribute, slow_falling effect)</li>
      * </ul>
      *
-     * <p><b>호출 컨텍스트</b>:
+     * <p><b>Call Context</b>:
      * <ul>
-     *   <li>{@code lavaLikeWater = true} (Creative): handleSwimming 가 lava 처리 →
-     *     handledSwimming=true → 본 메서드 진입 X</li>
-     *   <li>{@code lavaLikeWater = false} (Survival 기본): handleSwimming false →
-     *     본 메서드 진입 → SM 자체 lava 이동 (즉사 전 짧은 motion)</li>
+     *   <li>{@code lavaLikeWater = true} (Creative): handleSwimming handles lava →
+     *     handledSwimming=true → this method not entered</li>
+     *   <li>{@code lavaLikeWater = false} (Survival default): handleSwimming false →
+     *     this method entered → SM itself handles lava movement (brief motion before death)</li>
      * </ul>
      *
-     * @return true 시 호출 측에서 ci.cancel() 처리하여 vanilla travel 차단
+     * @return true when caller should ci.cancel() to block vanilla travel
      */
     public static boolean handleLava(LocalPlayer player, SmartMovingClientState sm,
                                       Vec3 movementInput) {

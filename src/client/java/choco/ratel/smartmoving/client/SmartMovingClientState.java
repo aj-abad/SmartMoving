@@ -1610,9 +1610,9 @@ public final class SmartMovingClientState {
                     AABB bbCtx = player.getBoundingBox();
                     double crawlStandUpLiquidCeiling = getMinPlayerLiquidBetween(player,
                             bbCtx.maxY, bbCtx.maxY + 1.1D);
-                    // crawlStandUpBottom 은 mustCrawl 분기에서 isCrawling||isClimbCrawling 시 계산됨.
-                    //   여기서는 contextContinueCrawl=true 이고 isCrawling 가드 안 — 따라서
-                    //   원본 동일 시점 (mustCrawl 계산 후) 의 crawlStandUpBottom 재계산.
+                    // crawlStandUpBottom is calculated in mustCrawl branch when isCrawling||isClimbCrawling.
+                    //   Here contextContinueCrawl=true and inside isCrawling guard — therefore
+                    //   recalculate crawlStandUpBottom at same point as original (after mustCrawl calculation).
                     double horizontalToleranceCtx = cfg0.crawlOverEdge ? 0 : -0.05;
                     double crawlStandUpBottomCtx = getMaxPlayerSolidBetween(player,
                             bbCtx.minY - (initializeCrawling ? 0D : 1D), bbCtx.minY, horizontalToleranceCtx);
@@ -1623,17 +1623,17 @@ public final class SmartMovingClientState {
                 }
             }
 
-            // wouldWantCrawl (원본 L2419-L2430): isCrawling 유지 경로 + 신규 진입 경로.
-            // wantCrawl = isCrawlingEnabled && wouldWantCrawl (원본 L2431-L2432).
+            // wouldWantCrawl (original L2419-L2430): isCrawling maintenance path + new entry path.
+            // wantCrawl = isCrawlingEnabled && wouldWantCrawl (original L2431-L2432).
             boolean crawlingEnabled_  = cfg0.crawl && cfg0.enabled;
-            // B-36-pre (세션 77): 지역 `wouldWantCrawl_` → `this.wouldWantCrawl` 필드 승격.
-            // B-36 grab.StartPressed 3분기 (원본 L2838-L2861) 에서 필드 참조 예정.
-            // 🔴 사용자 의도: 사다리/덩굴 정면 + grab + sneak → crawl 진입 X (등반 우선).
-            //   원본 SmartMovingSelf L2419-2428 의 분기 2 (grabJustPressed && sneak && onGround)
-            //   는 사다리/덩굴 인접 케이스에서도 첫 틱 isCrawling=true 활성 → SM crawl 자세
-            //   1 틱 visible (사용자 "엎드리기 발동" 인식).
-            //   해결: grabJustPressed 분기에 사다리/덩굴 정면 가드 추가. 사용자 grab+sneak
-            //   누름 시 등반 의도 (사다리/덩굴 정면) 면 crawl 진입 차단.
+            // B-36-pre (Session 77): Local `wouldWantCrawl_` → promote to `this.wouldWantCrawl` field.
+            // B-36 grab.StartPressed 3-branch (original L2838-L2861) will reference field.
+            // 🔴 User intent: ladder/vine front + grab + sneak → no crawl entry (climbing priority).
+            //   Original SmartMovingSelf L2419-2428 branch 2 (grabJustPressed && sneak && onGround)
+            //   activates isCrawling=true even on ladder/vine adjacent case → SM crawl pose
+            //   1 tick visible (user "crouch triggered" perception).
+            //   Solution: Add ladder/vine front guard to grabJustPressed branch. When user presses grab+sneak
+            //   with climbing intent (facing ladder/vine), block crawl entry.
             boolean facedClimbable_ = SmartMovingClimber.isFacedToLadder(player, isClimbCrawling)
                     || SmartMovingClimber.isFacedToSolidVine(player, isClimbCrawling);
             wouldWantCrawl =

@@ -1560,20 +1560,20 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 이 인스턴스의 설정을 flat String[] [k1,v1,k2,v2,...] 배열로 직렬화한다.
-     * 원본: SmartMovingServerOptions.writeToProperties() 정상 경로 (config_system.md M-12)
-     * 서버가 클라이언트에게 ConfigContent 패킷으로 전송할 때 사용한다.
+     * Serialize this instance's config to flat String[] [k1,v1,k2,v2,...] array.
+     * Original: SmartMovingServerOptions.writeToProperties() normal path (config_system.md M-12)
+     * Used when server sends ConfigContent packet to client.
      */
     public String[] toArray() {
         return toArray(null);
     }
 
     /**
-     * 플레이어별 속도 치환 포함 직렬화.
-     * 원본: SmartMovingServerOptions.writeToProperties(mp, key) 내부 iteration 중
-     *       `entry.setValue(config._speedUserExponent.getValueString(userExponent))` 로직.
-     * username != null + playerSpeedExponents 에 값 존재 시 `move.speed.user.exponent` 키 값을
-     * 해당 플레이어 개인 지수로 치환. 전역 전송(username=null)은 모든 플레이어 공통값.
+     * Serialization with per-player speed substitution.
+     * Original: SmartMovingServerOptions.writeToProperties(mp, key) inner iteration logic
+     *       `entry.setValue(config._speedUserExponent.getValueString(userExponent))`.
+     * When username != null and value exists in playerSpeedExponents, `move.speed.user.exponent` key value is
+     * replaced with that player's personal exponent. Global transmission (username=null) is common value for all players.
      */
     public String[] toArray(String username) {
         Properties props = new Properties();
@@ -1939,11 +1939,11 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 원본 `SmartMovingClientConfig.getFactor(hunger, 14상태)` L554-L595 1:1 이식.
-     * 허기/소진 배율 2단계 공식. 호출자는 `handleExhaustion` L862(hunger=true) /
-     * L888(hunger=false) 에서 현재 이동/행동 상태를 전달.
+     * Original `SmartMovingClientConfig.getFactor(hunger, 14-state)` L554-L595 1:1 port.
+     * Hunger/exhaustion multiplier 2-stage formula. Caller passes current movement/action state from
+     * `handleExhaustion` L862 (hunger=true) / L888 (hunger=false).
      *
-     * **원본 본체** (focus_05 §5.4 참조, SmartMovingClientConfig.java L554-L595):
+     * **Original body** (see focus_05 §5.4, SmartMovingClientConfig.java L554-L595):
      *
      * <pre>
      * isClimbing |= isClimbCrawling;
@@ -1954,16 +1954,16 @@ public class SmartMovingConfig {
      * isSneaking = isSneaking & !isStanding;
      *
      * float factor = hunger ? _baseHungerGainFactor : _baseExhautionLossFactor;
-     * // 1단계 — 이동속도 배율 (airBorne / sprinting / running / sneaking / standing / walking)
-     * // ⚠️ airBorne + hunger 는 0F 하드코딩 (대응 필드 없음)
-     * // 2단계 — 행동 배율 (climbing / crawling / ceilClimbing / swimming / diving / dipping / normal)
-     * // ⚠️ L589 onGround + L591 else 모두 normal 참조 (의도된 중복)
+     * // Stage 1 — movement speed multiplier (airBorne / sprinting / running / sneaking / standing / walking)
+     * // WARNING: airBorne + hunger hardcoded to 0F (no corresponding field)
+     * // Stage 2 — action multiplier (climbing / crawling / ceilClimbing / swimming / diving / dipping / normal)
+     * // WARNING: L589 onGround + L591 else both reference normal (intentional duplicate)
      * </pre>
      *
-     * 파라미터 순서는 원본과 동일(14개 boolean).
+     * Parameter order identical to original (14 booleans).
      *
-     * @param hunger true → hunger gain 배율, false → exhaustion loss 배율
-     * @return 배율값 (base × 1단계 × 2단계)
+     * @param hunger true → hunger gain multiplier, false → exhaustion loss multiplier
+     * @return multiplier value (base × stage 1 × stage 2)
      */
     public float getFactor(boolean hunger, boolean onGround, boolean isStanding, boolean isStill,
             boolean isSneaking, boolean isRunning, boolean isSprinting,
