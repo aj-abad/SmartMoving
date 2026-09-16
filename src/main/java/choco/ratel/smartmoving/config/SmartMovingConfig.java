@@ -1595,8 +1595,8 @@ public class SmartMovingConfig {
 
     private void readFrom(Properties p) {
         enabled                  = getBool(p,   "move.enabled",                   enabled);
-        // H-20 (세션 23): 게임타입별 6키 (move.config.{survival,creative,adventure}.keys{,.default})
-        // 읽기 삭제. 필드/메서드 제거와 함께. 기존 세이브 파일의 해당 키는 무시됨.
+        // H-20 (session 23): Per-game-type 6 keys (move.config.{survival,creative,adventure}.keys{,.default})
+        // Read deleted. Removed with fields/methods. Existing save file keys ignored.
         speedFactor              = getFloat(p,  "move.speed.factor",              speedFactor);
         speedUser                = getBool(p,   "move.speed.user",                speedUser);
         speedUserFactor          = getFloat(p,  "move.speed.user.factor",         speedUserFactor);
