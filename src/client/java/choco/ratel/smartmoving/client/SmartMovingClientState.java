@@ -1390,16 +1390,16 @@ public final class SmartMovingClientState {
         }
 
         // IMPL-05: 속도 키 처리 (원본: speedIncreaseButton/speedDecreaseButton StartPressed → changeSpeed)
-        // 서버에 SpeedChangePayload 전송 → 서버가 권한 확인 후 결과를 S2C로 돌려줌
-        // B-6 (세션 26): Creative 전용 게이트. 원본 `isUserSpeedEnabled() = enabled &&
-        // _speedUser.value` 에서 `_speedUser` 가 Creative 때만 true 이므로 Creative 아니면
-        // 키 입력 자체가 차단됨. 원본 SmartMovingSelf L2326 `if(Config.isUserSpeedEnabled()
-        // && !Config.isUserSpeedAlwaysDefault() && ...)` 와 등가.
+        // Send SpeedChangePayload to server → server verifies permission and returns result via S2C
+        // B-6 (Session 26): Creative-only gate. In original `isUserSpeedEnabled() = enabled &&
+        // _speedUser.value`, `_speedUser` is true only in Creative mode, so non-Creative blocks
+        // key input itself. Equivalent to original SmartMovingSelf L2326 `if(Config.isUserSpeedEnabled()
+        // && !Config.isUserSpeedAlwaysDefault() && ...)`.
         //
-        // ⚠️ DEFER (세션 35 통합테스트 BUG-6): I/O 키 비활성화 — 사용자 임시 비활성화 요청.
-        //   재활성화 = 아래 `boolean userSpeedEnabled = false;` 라인 삭제 + 원래 조건 주석 복원.
-        //   상세 = docs/fix/integration_test_bugs.md §BUG-6 참조.
-        boolean userSpeedEnabled = false;   // 임시 비활성화 (세션 35)
+        // ⚠️ DEFER (Session 35 integration test BUG-6): I/O key disabled — user temporary disablement request.
+        //   Re-enable = delete line below `boolean userSpeedEnabled = false;` + restore original condition comment.
+        //   Details = see docs/fix/integration_test_bugs.md §BUG-6.
+        boolean userSpeedEnabled = false;   // Temporary disabled (Session 35)
         // boolean userSpeedEnabled = SmartMovingConfig.Config.enabled
         //         && SmartMovingConfig.Config.speedUser
         //         && MinecraftClient.getInstance().interactionManager != null

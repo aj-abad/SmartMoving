@@ -1325,13 +1325,13 @@ public class SmartMovingConfig {
     }
 
     /**
-     * 원본 SmartMovingConfig `_isFreeBaseClimb = _baseClimb.is("free").and(_freeClimb)` Property
-     * (`baseClimb` String 이 "free" AND `freeClimb` true).
+     * Original SmartMovingConfig `_isFreeBaseClimb = _baseClimb.is("free").and(_freeClimb)` Property
+     * (`baseClimb` String is "free" AND `freeClimb` true).
      *
-     * **§7 근사** (B-19a2c-approx-config): 1.21.1 에서는 `baseClimb` 를 String 대신
-     * 4 boolean (freeClimb/simpleClimb/smartClimb/standardClimb) 으로 이식. `freeClimb`
-     * 단독으로 "Free Base Climb 모드" 판정 가능 — String "free" 일 때 `freeClimb=true`
-     * 설정이라 동치. B-19a2c (세션 104).
+     * **§7 approximation** (B-19a2c-approx-config): in 1.21.1, `baseClimb` ported as
+     * 4 booleans (freeClimb/simpleClimb/smartClimb/standardClimb) instead of String. Can determine
+     * "Free Base Climb mode" with `freeClimb` alone — equivalent to when String is "free" and `freeClimb=true`.
+     * B-19a2c (session 104).
      */
     public boolean isFreeBaseClimb() {
         // 근사 이식 — 원본과 차이: `_baseClimb.is("free")` 체크 생략 (boolean 4 필드 이식 구조)

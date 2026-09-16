@@ -235,12 +235,12 @@ public abstract class MixinClientPlayerEntity {
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
-        // 🔴 잉여 정정 (Flying Phase F-6 / 세션 40): !cfg.flyCloseToGround 가드 삭제.
-        //   원본 SmartMovingSelf L1827 = `_flyWhileOnGround.value && !(sneak+grab) &&
-        //   wasCapabilitiesIsFlying && !sp.capabilities.isFlying && sp.onGround` 만 검사 —
-        //   _flyCloseToGround 가드 없음. 1.21.1 의 추가 `!cfg.flyCloseToGround` 가드는 원본에
-        //   없는 잉여 → flyCloseToGround=true (기본값) 시 자동 비행 복원 차단 = BUG 영향.
-        //   해결: 가드 삭제 (cfg.flyWhileOnGround 만 검사).
+        // 🔴 Remove extraneous guard (Flying Phase F-6 / Session 40): Remove !cfg.flyCloseToGround guard.
+        //   Original SmartMovingSelf L1827 = only checks `_flyWhileOnGround.value && !(sneak+grab) &&
+        //   wasCapabilitiesIsFlying && !sp.capabilities.isFlying && sp.onGround` —
+        //   no _flyCloseToGround guard. 1.21.1 additional `!cfg.flyCloseToGround` guard is extraneous
+        //   not in original → when flyCloseToGround=true (default) blocks auto flight restore = BUG impact.
+        //   Fix: Delete guard (only check cfg.flyWhileOnGround).
         if (!cfg.enabled || !cfg.flyWhileOnGround) return;
         // sneakButton.Pressed: vanilla 키 직접 (SM isSneaking override 우회)
         if (net.minecraft.client.Minecraft.getInstance().options.keyShift.isDown()
