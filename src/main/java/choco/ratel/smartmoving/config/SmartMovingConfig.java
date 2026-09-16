@@ -439,7 +439,7 @@ public class SmartMovingConfig {
     // ── Movement Modes ──────────────────────────────────────────
     public boolean vanillaStyle = false;
     public float sneakFactor = 0.3F;
-    public float crawlFactor = 0.15F;
+    public float crawlFactor = 0.225F;
     public float runFactor = 1.3F;
     public float sprintFactor = 1.5F;
 
