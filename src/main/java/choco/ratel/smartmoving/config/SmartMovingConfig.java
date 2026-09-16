@@ -1334,7 +1334,7 @@ public class SmartMovingConfig {
      * B-19a2c (session 104).
      */
     public boolean isFreeBaseClimb() {
-        // 근사 이식 — 원본과 차이: `_baseClimb.is("free")` 체크 생략 (boolean 4 필드 이식 구조)
+        // Approximate port — difference from original: `_baseClimb.is("free")` check skipped (4 boolean field port structure)
         return freeClimb;
     }
 
@@ -1457,11 +1457,11 @@ public class SmartMovingConfig {
             return;
         }
         INSTANCE.readFrom(props);
-        // 🔴 BUG-26 자동 마이그레이션 (Flying Phase / 세션 44): 이전 잘못된 default (true) 가
-        //   사용자 환경에 저장된 경우 강제 false 로 마이그레이션 + save.
-        //   원본 net.smart.properties.Properties.getDefaultValue(Modified) = false 가 정답인데
-        //   1.21.1 매핑이 true 로 잘못 저장되어 있으면 vanilla 자동 착지 무효화 (BUG-26 직접 원인).
-        //   마이그레이션 마커: move.config.migration.flying = "session_44_done".
+        // 🔴 BUG-26 automatic migration (Flying Phase / session 44): if previous wrong default (true) is
+        //   saved in user environment force migrate to false + save.
+        //   Original net.smart.properties.Properties.getDefaultValue(Modified) = false is correct, but
+        //   1.21.1 mapping saved as true disables vanilla auto-landing (BUG-26 direct cause).
+        //   Migration marker: move.config.migration.flying = "session_44_done".
         String marker = props.getProperty("move.config.migration.flying", "");
         if (!"session_44_done".equals(marker)) {
             INSTANCE.flyCloseToGround = false;
@@ -1473,12 +1473,12 @@ public class SmartMovingConfig {
                 marker2.store(out, null);
             } catch (IOException ignored) {}
         }
-        // 🔴 BUG-27 자동 마이그레이션 (Flying Phase / 세션 48): _flyControlVertical / _diveControlVertical
-        //   default = true (원본 Unmodified default = true, Properties.java L171-L172).
-        //   사용자 환경 disk 에 이전 false 저장됐을 가능성 → pitch 방향 W 진행 효과 무효 (BUG-27 직접 원인).
-        //   마이그레이션 마커: move.config.migration.flying.vertical = "session_48_done".
-        // 세션 49 재실행 강제 — 세션 48 마이그레이션 효과 없을 가능성 대응 (사용자 환경 disk
-        //   에 marker 가 이미 있으면 skip 됐을 수 있음). 새 marker 로 한 번 더 강제.
+        // 🔴 BUG-27 automatic migration (Flying Phase / session 48): _flyControlVertical / _diveControlVertical
+        //   default = true (original Unmodified default = true, Properties.java L171-L172).
+        //   Possibility of previous false saved on user disk → pitch direction forward progress effect disabled (BUG-27 direct cause).
+        //   Migration marker: move.config.migration.flying.vertical = "session_48_done".
+        // Session 49 forced re-run — handles possibility of session 48 migration having no effect (if marker
+        //   already exists on user disk may have been skipped). Force once more with new marker.
         String marker48 = props.getProperty("move.config.migration.flying.vertical", "");
         if (!"session_49_done".equals(marker48)) {
             INSTANCE.flyControlVertical = true;
@@ -1490,12 +1490,12 @@ public class SmartMovingConfig {
                 marker2.store(out, null);
             } catch (IOException ignored) {}
         }
-        // 🔴 fence 클라이밍 자동 마이그레이션 — _freeFenceClimbing default = true 강제.
-        //   원본 SmartMovingConfig L123 `_freeFenceClimbing = Unmodified("move.climb.free.fence")`
-        //   → Properties.java L171-172 Unmodified default true. 우리 1.21.1 이식 초기 default 가
-        //   false 로 잘못 저장돼 있는 환경 → fence 자체등반/위잡기 작동 안 함 (사용자 보고 #1, #3).
-        //   BUG-26/27 동일 패턴: 마커 없으면 default true 강제 + save + 마커 추가.
-        //   사용자가 마이그레이션 후 의도적으로 false 로 바꾸면 그건 존중 (1:1 옵션 보존).
+        // 🔴 fence climbing automatic migration — force _freeFenceClimbing default = true.
+        //   Original SmartMovingConfig L123 `_freeFenceClimbing = Unmodified("move.climb.free.fence")`
+        //   → Properties.java L171-172 Unmodified default true. Our 1.21.1 port initial default incorrectly
+        //   saved as false in user environment → fence self-climbing/top-grab not working (user reports #1, #3).
+        //   BUG-26/27 same pattern: if no marker force default true + save + add marker.
+        //   If user intentionally changes to false after migration, respect it (1:1 option preservation).
         String fenceMarker = props.getProperty("move.config.migration.fence", "");
         if (!"session_104_done".equals(fenceMarker)) {
             INSTANCE.freeFenceClimbing = true;
@@ -1506,13 +1506,13 @@ public class SmartMovingConfig {
                 marker2.store(out, null);
             } catch (IOException ignored) {}
         }
-        // 🔴 사다리/덩굴 자동 진입 마이그레이션 — _freeClimbingAutoLaddder /
-        //   _freeClimbingAutoVine default = true 강제.
-        //   원본 SmartMovingConfig L119-120 `Unmodified("move.climb.free.ladder.auto" /
-        //   "move.climb.free.vine.auto")` → Properties.java L171-172 Unmodified default true.
-        //   사용자 환경 disk 에 이전 false 저장됐을 가능성 → 사다리/덩굴 자동 진입
-        //   (grab 키 없이 정면 사다리/덩굴 시) 작동 안 함.
-        //   fence 마이그레이션 동일 패턴 — 마커 없으면 default true 강제.
+        // 🔴 ladder/vine automatic entry migration — force _freeClimbingAutoLaddder /
+        //   _freeClimbingAutoVine default = true.
+        //   Original SmartMovingConfig L119-120 `Unmodified("move.climb.free.ladder.auto" /
+        //   "move.climb.free.vine.auto")` → Properties.java L171-L172 Unmodified default true.
+        //   Possibility of previous false saved on user disk → ladder/vine automatic entry
+        //   (facing ladder/vine without grab key) not working.
+        //   Fence migration same pattern — if no marker force default true.
         String autoLadderVineMarker = props.getProperty("move.config.migration.ladder.vine.auto", "");
         if (!"session_ladder_vine_auto_done".equals(autoLadderVineMarker)) {
             INSTANCE.freeClimbAutoLadder = true;
@@ -1728,7 +1728,7 @@ public class SmartMovingConfig {
         perspectiveSpeedFactorMax= getFloat(p,  "move.perspective.speed.factor.max", perspectiveSpeedFactorMax);
         perspectiveRunFactor     = getFloat(p,  "move.perspective.run.factor",    perspectiveRunFactor);
         perspectiveSprintFactor  = getFloat(p,  "move.perspective.sprint.factor", perspectiveSprintFactor);
-        // Exhaustion/Hunger factor 1단계 (원본 getFactor L563-L575). ⚠️ Exhaution 오타 유지.
+        // Exhaustion/Hunger factor stage 1 (original getFactor L563-L575). ⚠️ Keep "Exhaution" typo.
         baseExhautionLossFactor       = getFloat(p, "move.exhaustion.loss.factor",       baseExhautionLossFactor);
         baseHungerGainFactor          = getFloat(p, "move.hunger.gain.factor",           baseHungerGainFactor);
         fallExhautionLossFactor       = getFloat(p, "move.exhaustion.fall.loss.factor",  fallExhautionLossFactor);
@@ -1742,8 +1742,8 @@ public class SmartMovingConfig {
         standingExhautionLossFactor   = getFloat(p, "move.exhaustion.stand.loss.factor", standingExhautionLossFactor);
         walkingHungerGainFactor       = getFloat(p, "move.hunger.walk.gain.factor",      walkingHungerGainFactor);
         walkingExhautionLossFactor    = getFloat(p, "move.exhaustion.walk.loss.factor",  walkingExhautionLossFactor);
-        // Exhaustion/Hunger factor 2단계 (원본 getFactor L577-L592). 2단계는 `Exhaustion` 정타.
-        // 키 순서 이상 주의: ceilClimbing 은 `climb.gain.ceiling` / `climb.ceiling.loss` (원본).
+        // Exhaustion/Hunger factor stage 2 (original getFactor L577-L592). Stage 2 uses correct `Exhaustion` spelling.
+        // Note key order: ceilClimbing uses `climb.gain.ceiling` / `climb.ceiling.loss` (original).
         climbingHungerGainFactor      = getFloat(p, "move.hunger.climb.gain.factor",         climbingHungerGainFactor);
         climbingExhaustionLossFactor  = getFloat(p, "move.exhaustion.climb.loss.factor",     climbingExhaustionLossFactor);
         crawlingHungerGainFactor      = getFloat(p, "move.hunger.crawl.gain.factor",         crawlingHungerGainFactor);
@@ -1758,14 +1758,14 @@ public class SmartMovingConfig {
         dippingExhaustionLossFactor   = getFloat(p, "move.exhaustion.dip.loss.factor",       dippingExhaustionLossFactor);
         normalHungerGainFactor        = getFloat(p, "move.hunger.normal.gain.factor",        normalHungerGainFactor);
         normalExhaustionLossFactor    = getFloat(p, "move.exhaustion.normal.loss.factor",    normalExhaustionLossFactor);
-        // handleExhaustion 기타 (원본 SmartMovingSelf L863/L893). Easy 값 default.
+        // handleExhaustion other (original SmartMovingSelf L863/L893). Easy value default.
         alwaysHungerGain              = getFloat(p, "move.hunger.always.gain",               alwaysHungerGain);
         exhaustionLossHungerFactor    = getFloat(p, "move.exhaustion.hunger.factor",         exhaustionLossHungerFactor);
     }
 
     private void writeTo(Properties p) {
         p.setProperty("move.enabled",                    String.valueOf(enabled));
-        // H-20 (세션 23): 게임타입별 6키 writeTo 삭제 (readFrom 과 대칭).
+        // H-20 (session 23): Deleted per-game-type 6-key writeTo (symmetrical with readFrom).
         p.setProperty("move.speed.factor",               String.valueOf(speedFactor));
         p.setProperty("move.speed.user",                 String.valueOf(speedUser));
         p.setProperty("move.speed.user.factor",          String.valueOf(speedUserFactor));

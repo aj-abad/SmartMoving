@@ -1751,14 +1751,13 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1841-L1855 `headedToBaseWall(Orientation diagonal, Orientation left, Orientation
-     * right, ...)` — 이 Orientation 이 diagonal/left/right 중 어느 하나와 매치하는지로
-     * 결과 분기.
+     * Original L1841-L1855 `headedToBaseWall(Orientation diagonal, Orientation left, Orientation
+     * right, ...)` — branch result based on whether this Orientation matches one of diagonal/left/right.
      *
-     * diagonal 이면 `leaf || coreOnly`.
-     * left 이면 `headedToBaseWall(leftFront, rightFrontOpposite, rightFront,
+     * If diagonal return `leaf || coreOnly`.
+     * If left return `headedToBaseWall(leftFront, rightFrontOpposite, rightFront,
      *                              leftFrontOpposite, coreOnly)`.
-     * right 이면 `headedToBaseWall(rightFront, leftFrontOpposite, leftFront,
+     * If right return `headedToBaseWall(rightFront, leftFrontOpposite, leftFront,
      *                               rightFrontOpposite, coreOnly)`.
      */
     private boolean headedToBaseWall(Orientation diagonal, Orientation left, Orientation right,
@@ -1776,8 +1775,8 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1857-L1863 `headedToBaseWall(boolean front, boolean sideOpposite, boolean side,
-     * boolean frontOpposite, boolean coreOnly)` — 5 개 flag 의 OR 조합.
+     * Original L1857-L1863 `headedToBaseWall(boolean front, boolean sideOpposite, boolean side,
+     * boolean frontOpposite, boolean coreOnly)` — OR combination of 5 flags.
      *
      *   front || (sideOpposite && !side) || (frontOpposite && !front && !side) || coreOnly
      */
@@ -1790,16 +1789,16 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1865-L1915 `headedToBaseGrabWall(int j_offset, Block block)` — grab 방향 wall
-     * 패턴 판정. base + above (j_offset+1) 위치의 wall flag 를 조합하여 결정.
+     * Original L1865-L1915 `headedToBaseGrabWall(int j_offset, Block block)` — grab direction wall
+     * pattern judgment. Determined by combining wall flags at base + above (j_offset+1) positions.
      *
-     * 논리:
-     *   1. base 위치 4방향 wall flag 수집
-     *   2. above 블록이 fullEmpty → 4방향 above 전부 false
-     *      isWallBlock → 4방향 above flag 수집
-     *      기타 → 4방향 above 전부 true
-     *   3. base_id/base_kd topHalf 2x2 조합으로 `headedToBaseGrabWall(i, k, ...)` 호출
-     *      (front/side/frontOpposite/sideOpposite 및 above 4개 파라미터 전달)
+     * Logic:
+     *   1. Collect 4-direction wall flags at base position
+     *   2. If above block is fullEmpty → all 4-direction above false
+     *      If isWallBlock → collect 4-direction above flags
+     *      Otherwise → all 4-direction above true
+     *   3. Based on topHalf 2x2 combination of base_id/base_kd, call `headedToBaseGrabWall(i, k, ...)`
+     *      (pass front/side/frontOpposite/sideOpposite and 4 above parameters)
      */
     private boolean headedToBaseGrabWall(int j_offset, BlockState state) {
         boolean zn = getWallFlag(ZN, base_i, j_offset, base_k, state);
@@ -1841,10 +1840,10 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1917-L1938 `headedToBaseGrabWall(int i, int k, ...)` — 10 boolean flag 조합으로
-     * grab wall 판정. i/k 는 플레이어 방향 부호 (± 1 / 0).
+     * Original L1917-L1938 `headedToBaseGrabWall(int i, int k, ...)` — grab wall determination by
+     * 10 boolean flag combination. i/k are player direction signs (± 1 / 0).
      *
-     * 5 분기 OR:
+     * 5-branch OR:
      *   (1) sideOpposite && !aboveSideOpposite && !front && !aboveFront && i == 1
      *   (2) frontOpposite && !aboveFrontOpposite && !side && !aboveSide && k == 1
      *   (3) side && !aboveSide && k >= 0
@@ -1873,8 +1872,8 @@ public class Orientation {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // B-19a2a2 (세션 100) — vine 보조 (baseVineClimbing + remoteVineClimbing 각 2 오버로드)
-    // 원본: Orientation.java L1087-L1103 + L1105-L1113 (baseVineClimbing),
+    // B-19a2a2 (Session 100) — vine auxiliary (baseVineClimbing + remoteVineClimbing 2 overloads each)
+    // Original: Orientation.java L1087-L1103 + L1105-L1113 (baseVineClimbing),
     //       L1120-L1132 + L1134-L1146 (remoteVineClimbing).
     // ════════════════════════════════════════════════════════════════════════
 
