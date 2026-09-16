@@ -109,32 +109,32 @@ public abstract class MixinPlayerEntityClient {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
-        // 🔴 비행 콜리전 — 사용자 명시 (2026-05-02): "비행은 건드리지 마".
-        //   기존 매핑 (567dbec) 유지: dim=(0.6, 0.8, 1.62) + MixinEntity.sm_offsetBoundingBoxForFlying
-        //   가드 (eyeHeight > 1) 통과 → 박스 +1 적용 → 사용자 시점 보존 매핑 그대로.
-        //   ICC 와 다른 매핑 (ICC 는 setPos(y+1) + eyeHeight 0.62 원본 1:1).
+        // 🔴 Flying collision — user explicit (2026-05-02): "don't touch flying".
+        //   maintain existing mapping (567dbec): dim=(0.6, 0.8, 1.62) + MixinEntity.sm_offsetBoundingBoxForFlying
+        //   guard (eyeHeight > 1) passes → box +1 applied → user viewpoint preserved mapping as-is.
+        //   Different mapping from ICC (ICC is setPos(y+1) + eyeHeight 0.62 original 1:1).
         if (sm.isFlying || sm.isLevitating) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
-        // 🔴 isCrawlClimbing 추가 (사용자 보고 fix — 콜리전 standing 크기 BUG, 2026-05-03):
-        //   isCrawlClimbing 진입 엣지 (원본 L2752 1:1) 에서 isCrawling=false 강제 → 다음 tick까지
-        //   isCrawling=false 잔존 → smSmall 분기 미매치 → vanilla pose dim (CROUCHING 1.5) 통과
-        //   = "standing 크기 콜리전" 사용자 보고. ICC 활성 + 사다리 grip 시 isCrawling=false 시점에
-        //   도 동일 문제로 박스 더 작아짐 (vanilla SWIMMING 0.6).
-        //   해결: smSmall 에 isCrawlClimbing 직접 추가 → 자가유지 동안 항상 (0.8, 0.62) 보장.
-        //   eye=0.62 → mixin offset 가드 (eye>1) 미매치 → 박스 +1m offset 안 됨 → ICC EXIT 후
-        //   entity.y +1m 위치에 박스 (entity.y, entity.y+0.8) = (old+1, old+1.8) = 원본 1:1.
-        // 🔴 v26.12 — v26.5 가드 폐기 (= STANDING dim 거치는 BUG root).
-        //   사용자 보고 "레더류 클라이밍-크롤 시 진입 전 한번 콜리전이 스탠딩이 됐다가 엎드림":
-        //   v26.5 의 `&& !(isCrawling && isClimbing && !isClimbCrawling)` 가드가 transition frame
-        //   에서 smSmall 미매치 → vanilla STANDING dim fall through → bb 1.8h. 다음 frame ICC
-        //   dim 진입 → bb 0.8h. 사용자 인지 "STANDING → 엎드림" transition.
-        //   해결: v26.5 가드 폐기. 메모리 *project_isCrawlClimbing_complete* Fix 7 의 의도
-        //   (= smSmall 에 isCrawlClimbing 추가 → 항상 0.8/0.62 보장) 1:1 복원.
-        // 🔴 isHeadJumping 별도 분기 (2026-05-08, 다단계 fix 후 정착):
-        //   원본 setHeightOffset(-1F) = boundingBox.minY +=1m + height -=1m + **posY 변경 X**.
-        //   카메라 = posY + 1.62F (STANDING eyeHeight). 진입 시 카메라 변화 X (스무스).
+        // 🔴 isCrawlClimbing added (user report fix — STANDING collision size BUG, 2026-05-03):
+        //   At isCrawlClimbing entry edge (original L2752 1:1) isCrawling=false forced → isCrawling=false
+        //   residual until next tick → smSmall branch no match → vanilla pose dim (CROUCHING 1.5) passes
+        //   = "STANDING size collision" user report. During ICC active + ladder grip at isCrawling=false moment
+        //   same problem box even smaller (vanilla SWIMMING 0.6).
+        //   Solution: add isCrawlClimbing directly to smSmall → always guarantee (0.8, 0.62) during self-maintenance.
+        //   eye=0.62 → mixin offset guard (eye>1) no match → box +1m offset not applied → after ICC EXIT
+        //   box at entity.y +1m position (entity.y, entity.y+0.8) = (old+1, old+1.8) = original 1:1.
+        // 🔴 v26.12 — v26.5 guard removed (= STANDING dim passing BUG root).
+        //   User report "ladder-type climbing-crawl, before entry collision becomes STANDING once then crouch":
+        //   v26.5's `&& !(isCrawling && isClimbing && !isClimbCrawling)` guard in transition frame
+        //   smSmall no match → vanilla STANDING dim fall through → bb 1.8h. next frame ICC
+        //   dim entry → bb 0.8h. user perceives "STANDING → crouch" transition.
+        //   Solution: remove v26.5 guard. restore memory *project_isCrawlClimbing_complete* Fix 7 intent
+        //   (= add isCrawlClimbing to smSmall → always guarantee 0.8/0.62) 1:1.
+        // 🔴 isHeadJumping separate branch (2026-05-08, settled after multi-stage fix):
+        //   Original setHeightOffset(-1F) = boundingBox.minY +=1m + height -=1m + **posY unchanged**.
+        //   camera = posY + 1.62F (STANDING eyeHeight). no camera change on entry (smooth).
         //
         //   1차 시도: dim (0.6, 0.8, 1.62F) → MixinEntity.sm_offsetBoundingBoxForFlying 의
         //     가드 (height<1 && eyeHeight>1) 매치 → 박스 +1m offset 자동 적용 → 박스 발 =

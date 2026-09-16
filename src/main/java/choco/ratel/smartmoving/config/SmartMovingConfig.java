@@ -954,16 +954,16 @@ public class SmartMovingConfig {
     public float standingExhautionLossFactor = 2F;
 
     /**
-     * 원본 `_walkingHungerGainFactor` L427 = `PositiveFactor("move.hunger.walk.gain.factor")
+     * Original `_walkingHungerGainFactor` L427 = `PositiveFactor("move.hunger.walk.gain.factor")
      *   .key("move.hunger.gain.walk.factor", _pre_sm_1_3)`.
-     * default=PF 기본(1F). 난이도 체인 없음.
+     * default=PF default (1F). No difficulty chain.
      */
     public float walkingHungerGainFactor = 1F;
 
     /**
-     * 원본 `_walkingExhautionLossFactor` L403 = `PositiveFactor("move.exhaustion.walk.loss.factor")
+     * Original `_walkingExhautionLossFactor` L403 = `PositiveFactor("move.exhaustion.walk.loss.factor")
      *   .up(1F, _runningExhautionLossFactor)`.
-     * default=1F. 난이도 체인 없음. up() 하한 = `_runningExhautionLossFactor` 값 이상 — 근사.
+     * default=1F. No difficulty chain. up() lower bound = >= `_runningExhautionLossFactor` value — approximation.
      */
     public float walkingExhautionLossFactor = 1F;
 

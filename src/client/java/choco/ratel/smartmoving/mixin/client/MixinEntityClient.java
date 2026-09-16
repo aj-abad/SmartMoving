@@ -71,16 +71,16 @@ public abstract class MixinEntityClient {
         //     player.setPos(player.getX(), player.getY() + sm.heightOffset, player.getZ());
         // }
 
-        // 수영 소리 누적 (8-6)
-        // isSwimming_sm: SM 수면 수영 상태 (vanilla isSwimming()과 구별하기 위해 필드명 구분)
+        // Accumulate swimming sound (8-6)
+        // isSwimming_sm: SM swimming state (field name separated to distinguish from vanilla isSwimming())
         if (sm.isSwimming_sm) {
             sm.distanceSwom += movement.horizontalDistance();
             // SwimSoundDistance = 1/0.7F (swim_dive.md: "distanceSwom > SwimSoundDistance (= 1/0.7F ≈ 1.4286F)")
             final float SWIM_SOUND_DISTANCE = 1.0F / 0.7F;
             if (sm.distanceSwom > SWIM_SOUND_DISTANCE) {
                 sm.distanceSwom -= SWIM_SOUND_DISTANCE;
-                // 원본 소리: "random.splash" → 1.21.1: SoundEvents.ENTITY_PLAYER_SWIM
-                // volume=0.05F, pitch=1.0F ± rand*0.4F (swim_dive.md 기록값)
+                // Original sound: "random.splash" → 1.21.1: SoundEvents.ENTITY_PLAYER_SWIM
+                // volume=0.05F, pitch=1.0F ± rand*0.4F (swim_dive.md recorded value)
                 player.playSound(
                         SoundEvents.PLAYER_SWIM,
                         0.05F,

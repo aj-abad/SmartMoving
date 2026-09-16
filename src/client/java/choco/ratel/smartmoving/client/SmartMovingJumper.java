@@ -547,8 +547,8 @@ public final class SmartMovingJumper {
             }
         }
 
-        // 기존 A/D/S 더블탭 회피는 호환성을 위해 유지한다.
-        // [IMPL-03] 더블클릭 leftJumpCount/rightJumpCount/backJumpCount == -1 시 발동.
+        // Existing A/D/S double-tap dodge maintained for compatibility.
+        // [IMPL-03] Double-click triggers when leftJumpCount/rightJumpCount/backJumpCount == -1.
         if (!dodgeTriggered) {
             int left = 0, back = 0;
             if (sm.leftJumpCount  == -1) left++;
@@ -576,7 +576,7 @@ public final class SmartMovingJumper {
     }
 
     /**
-     * 바인딩된 dodge 키를 현재 WASD 방향으로 발동한다. 방향 입력이 없으면 동작하지 않는다.
+     * Trigger bound dodge key with current WASD direction. Does not activate without directional input.
      */
     private static boolean tryKeyboundDodge(LocalPlayer player, SmartMovingClientState sm,
                                              SmartMovingConfig cfg, int forward, int right) {
@@ -599,8 +599,8 @@ public final class SmartMovingJumper {
     }
 
     /**
-     * 상대 방향(0°=전방)을 angle jump 물리와 1~8 방향 상태로 변환한다.
-     * 코드 8은 전방이며 상태 패킷 bit 36으로 상위 비트를 동기화한다.
+     * Convert relative direction (0°=forward) to angle jump physics and 1~8 directional state.
+     * Code 8 is forward and syncs high bit to state packet bit 36.
      */
     private static boolean tryAngleJump(LocalPlayer player, SmartMovingClientState sm, int relAngle) {
         int normalizedAngle = Math.floorMod(relAngle, 360);
@@ -619,10 +619,10 @@ public final class SmartMovingJumper {
     // ── [10-5] Wall jump state update ─────────────────────────────────────────────
 
     /**
-     * 매 틱 벽 점프 상태(canWallJumping / wallJumpCount / triggerWallJumping /
-     * wantWallJumping / continueWallJumping) 갱신.
+     * Update wall jump state every tick (canWallJumping / wallJumpCount / triggerWallJumping /
+     * wantWallJumping / continueWallJumping).
      *
-     * 원본: SmartMovingSelf (L2863-2897) + jump.md L629-668 1:1 이식.
+     * Original: SmartMovingSelf (L2863-2897) + jump.md L629-668 1:1 port.
      *
      *   canWallJumping = isWallJumpEnabled && !isHeadJumping && !onGround
      *                    && !isClimbing && !isSwimming && !isDiving
