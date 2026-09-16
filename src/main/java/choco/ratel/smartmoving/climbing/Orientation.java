@@ -669,20 +669,20 @@ public class Orientation {
     // ── Ladder Orientation Reverse Mapping (original L1274-L1359) ───────────
 
     /**
-     * 원본 L1325-L1359 `hasLadderOrientation(int i, int j_offset, int k)` — 이 Orientation
-     * 에서 (i, j_offset, k) 위치의 ladder 가 **이 방향으로 접근 가능한지** 판정.
+     * Original L1325-L1359 `hasLadderOrientation(int i, int j_offset, int k)` — Judges whether
+     * ladder at (i, j_offset, k) is **accessible from this orientation**.
      *
-     * 원본 매핑 (vanilla 1.7.10 ladder `metadata & 0x7`):
-     *   5 → NZ (EAST facing → 서쪽 접근)
-     *   4 → PZ (WEST facing → 동쪽 접근)
-     *   2 → ZP (NORTH facing → 남쪽 접근)
-     *   3 → ZN (SOUTH facing → 북쪽 접근)
+     * Original mapping (vanilla 1.7.10 ladder `metadata & 0x7`):
+     *   5 → NZ (EAST facing → approach from west)
+     *   4 → PZ (WEST facing → approach from east)
+     *   2 → ZP (NORTH facing → approach from south)
+     *   3 → ZN (SOUTH facing → approach from north)
      *
-     * 1.21.1 매핑: `state.get(LadderBlock.FACING)` Direction 직접 비교. facing 방향의
-     * 반대쪽 = 플레이어 탐색 방향.
+     * 1.21.1 mapping: `state.get(LadderBlock.FACING)` Direction compared directly. Opposite of facing direction
+     * = player search direction.
      *
-     * **§7 근사** (B-19a1b-approx-1): 원본 `_ladderKitLadderTypes` 분기 + `carpentersBlockData`
-     * 분기 생략 (LadderKit / Carpenters 모드 미이식).
+     * **§7 approximate** (B-19a1b-approx-1): Original `_ladderKitLadderTypes` branch + `carpentersBlockData`
+     * branch skipped (LadderKit / Carpenters mods not ported).
      */
     private boolean hasLadderOrientation(int i, int j_offset, int k) {
         BlockState state = getBlock(i, j_offset, k);
@@ -696,19 +696,19 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1311-L1323 `hasVineOrientation(World world, int i, int j, int k)` — (i, j, k)
-     * 위치의 vine 이 이 Orientation 방향으로 붙어있는지.
+     * Original L1311-L1323 `hasVineOrientation(World world, int i, int j, int k)` — Whether vine
+     * at (i, j, k) is attached in this Orientation direction.
      *
-     * 원본 매핑 (vanilla 1.7.10 vine `metadata` 비트):
+     * Original mapping (vanilla 1.7.10 vine `metadata` bits):
      *   bit 0 (0x1) = SOUTH → ZP
      *   bit 1 (0x2) = WEST  → NZ
      *   bit 2 (0x4) = NORTH → ZN
      *   bit 3 (0x8) = EAST  → PZ
      *
-     * 1.21.1 매핑: `VineBlock.NORTH/SOUTH/EAST/WEST` BooleanProperty 직접 조회.
+     * 1.21.1 mapping: `VineBlock.NORTH/SOUTH/EAST/WEST` BooleanProperty queried directly.
      *
-     * **인스턴스 메서드** + `world` 파라미터 (static state 의존 없음) — static context
-     * 밖에서도 호출 가능.
+     * **Instance method** + `world` parameter (no static state dependency) — callable
+     * outside static context.
      */
     public boolean hasVineOrientation(Level world, int i, int j, int k) {
         BlockState state = world.getBlockState(new BlockPos(i, j, k));
@@ -721,14 +721,14 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1274-L1309 `getKnownLadderOrientation(World world, int i, int j, int k)` —
-     * (i, j, k) 의 ladder facing 방향을 Orientation 으로 역매핑.
+     * Original L1274-L1309 `getKnownLadderOrientation(World world, int i, int j, int k)` —
+     * Reverse maps ladder facing direction at (i, j, k) to Orientation.
      *
-     * 원본 `metadata & 0x7` 매핑은 `hasLadderOrientation` 과 동일. 1.21.1 `LadderBlock.FACING`
-     * 직접 사용.
+     * Original `metadata & 0x7` mapping same as `hasLadderOrientation`. 1.21.1 uses `LadderBlock.FACING`
+     * directly.
      *
-     * **§7 근사** (B-19a1b-approx-1): `_ladderKitLadderTypes` (`metadata & 0x3`) 분기 생략.
-     * 순수 vanilla ladder 만 역매핑.
+     * **§7 approximate** (B-19a1b-approx-1): `_ladderKitLadderTypes` (`metadata & 0x3`) branch skipped.
+     * Only pure vanilla ladder reverse-mapped.
      */
     public static Orientation getKnownLadderOrientation(Level world, int i, int j, int k) {
         BlockState state = world.getBlockState(new BlockPos(i, j, k));

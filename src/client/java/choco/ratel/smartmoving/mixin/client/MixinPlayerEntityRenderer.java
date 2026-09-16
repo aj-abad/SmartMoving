@@ -144,34 +144,34 @@ public class MixinPlayerEntityRenderer {
 
         sm.smBodyYawActive = false;
         sm.smFlyingExtraYaw = 0f;
-        sm.smStandardFadeActive = false;  // 낙하/기본 상태 fade flag reset.
-        sm.smFallingFadeMode = false;     // 낙하 mode flag reset.
-        sm.smCrawlMode = false;            // isCrawl 전용 flag reset (head 보정 skip).
-        // 🔴 (세션 52b): partial tick 캐시 저장 (Mixin private static 제약 우회 — SmartMovingClientState 사용).
-        //   setAngles inject (sm_animateFlying 등) 에서 getCurrentSpeed/getTotalDistance lerped getter 호출용.
-        //   tickDelta 는 player 무관 cursor 라 static 유지.
+        sm.smStandardFadeActive = false;  // falling/standard state fade flag reset.
+        sm.smFallingFadeMode = false;     // falling mode flag reset.
+        sm.smCrawlMode = false;            // isCrawl-only flag reset (skip head correction).
+        // 🔴 (session 52b): cache partial tick (bypass Mixin private static constraint — use SmartMovingClientState).
+        //   for calling getCurrentSpeed/getTotalDistance lerped getters in setAngles inject (sm_animateFlying, etc.).
+        //   tickDelta is player-agnostic cursor so keep static.
         SmartMovingClientState.globalCachedTickDelta = tickDelta;
-        // 🔴 (2026-04-27) animationProgress 캐시 — 낙하/기본 상태 body fade 식 deltaT 계산용.
+        // 🔴 (2026-04-27) cache animationProgress — for calculating deltaT in falling/standard state body fade formula.
         sm.smCachedAnimationProgress = animationProgress;
-        // body fade adjustment skip 가드 (force 분기 시 true).
+        // body fade adjustment skip guard (true when force branch).
         sm.smBodyYawActive_publicShared = false;
-        // 🔴 (Phase 1-A) bodyYaw force/fade 는 local 만 처리.
-        //   force 값 = sm.stats.currentHorizontalAngle 등 — stats 는 매 tick local 계산만,
-        //   다른 player 에 sync 안 됨 → force 시 default 0 적용 → 잘못된 yaw → "앞뒤 반대" BUG.
-        //   다른 player 는 vanilla bodyYaw 그대로 (= server-sync entity.bodyYaw 사용).
+        // 🔴 (Phase 1-A) bodyYaw force/fade handle local only.
+        //   force value = sm.stats.currentHorizontalAngle, etc. — stats calculate local only per tick,
+        //   not synced to other players → apply force default 0 → wrong yaw → "front/back reversed" BUG.
+        //   Other players keep vanilla bodyYaw as-is (= use server-sync entity.bodyYaw).
 
-        // 🔴 (Phase 2 fix-3-2) ClientPlayerEntity 가드 제거 — 모든 player force/fade 분기 처리.
-        //   force 값 (sm.stats.currentXxx) 은 fix-2 의 position delta 기반 stats 로 remote 도 정확.
-        //   localPlayer 변수명 그대로 두지만 실제 = 모든 player (local + remote, AbstractClientPlayerEntity).
+        // 🔴 (Phase 2 fix-3-2) Remove ClientPlayerEntity guard — process force/fade branches for all players.
+        //   force values (sm.stats.currentXxx) are position delta-based stats from fix-2 so remote also accurate.
+        //   Keep localPlayer variable name as-is but actually = all players (local + remote, AbstractClientPlayerEntity).
         AbstractClientPlayer localPlayer = player;
-        // 🔴 (Phase 2 fix-3-2) cfg.enabled 검사 self-only 화 — BUG-CONFIG-2 fix 와 일관성.
-        //   self disabled → 자기 SM state 모두 false → 자동으로 vanilla.
-        //   remote 는 cfg 무관 SM 분기 진입 → SM state 따라 force 적용.
+        // 🔴 (Phase 2 fix-3-2) Make cfg.enabled check self-only — consistent with BUG-CONFIG-2 fix.
+        //   self disabled → all own SM states false → automatically vanilla.
+        //   remote enters SM branch regardless of cfg → apply force by SM state.
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
-        // 🔴 (Phase 2 fix-3-1) sm 인스턴스는 reset 단계에서 이미 정의 (L139). 재선언 제거.
+        // 🔴 (Phase 2 fix-3-1) sm instance already defined in reset stage (L139). Remove redeclaration.
 
-        // 원본 SmartMovingRender.rotatePlayer L271-274 조건 1:1.
-        // 원본에는 isRopeSliding/isCrawling 단독 없음, 대신 isClimbCrawling 포함.
+        // Original SmartMovingRender.rotatePlayer L271-L274 condition 1:1.
+        // Original doesn't have isRopeSliding/isCrawling alone, instead includes isClimbCrawling.
         boolean smActive = sm.isClimbing || sm.isClimbCrawling || sm.isCrawlClimbing
                 || sm.isFlying || sm.isSwimming_sm || sm.isDiving
                 || sm.isCeilingClimbing || sm.isHeadJumping

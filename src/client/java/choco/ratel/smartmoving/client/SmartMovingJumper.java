@@ -746,39 +746,39 @@ public final class SmartMovingJumper {
             jumpType = wasCollH ? WALL_UP_SLIDE : WALL_UP;
         }
 
-        // 원본 L1965-L1975: wasCollidedHorizontally=false → 반사 각도; true → 벽 법선 각도 그대로.
-        // 🔴 fix #164 (2026-05-27): jumpMotion=0 시 fallback movementAngle = player.getYaw().
-        //   dump 정밀 분석 (docs/log_temp.txt 시나리오 A trigger 1/3 t=2109/2401):
-        //     박스 -X 벽 매치 + yaw=90 + jumpMotion=0 → fix #163 식 (= movementAngle=hCA=270) →
-        //     jumpAngle = 270*2 - 270 + 180 = 90. setYaw(90) = 변경 X. 사용자 보고 "정방향 또는
-        //     90도만 틀어진 방향" 매치.
-        //   분석:
-        //     W hold + 박스 벽 향함 → vel direction = yaw forward direction. 즉 vel direction 의
-        //     atan2 결과 = vanilla yaw 좌표계의 yaw. jumpMotion=0 시 vel direction 정보 손실 →
-        //     fallback 으로 player.getYaw() 사용해야 일관성.
-        //   검증 (모든 4축 매치 case):
-        //     +Z 벽 (yaw=0): jumpAngle = 0-0+180 = 180 ✓
-        //     -Z 벽 (yaw=180): jumpAngle = 360-180+180 = 360 mod 360 = 0 ✓
-        //     +X 벽 (yaw=270): jumpAngle = 180-270+180 = 90 ✓ (벽 법선 yaw=270 → 반대 +X→-X)
-        //     -X 벽 (yaw=90): jumpAngle = 540-90+180 = 270 ✓
-        //   = 모두 180° 회전 (= 벽 반대 방향). 사용자 의도 매치.
-        // 🔴 fix #168 (2026-05-27): jumpAngle 식 단순화 — vanilla collision clamp 영향 차단.
-        //   dump 분석 (t=2774): 박스 +Z 벽 매치 + 사용자 yaw=15° + jumpMotion=(-0.022, 0) (=
-        //   vanilla collision clamp 가 vel.z 만 clamp, vel.x 잔존). 식 movementAngle =
-        //   atan2(0.022, 0) = 90° → jumpAngle = 0*2 - 90 + 180 = **90°** → setYaw(90) → -X 방향
-        //   (= 벽 평행 90° 회전). 사용자 의도 = -Z 방향 (= 사용자 정면 반대).
-        //   원본 식도 동일 mechanism — vel.x 잔존 시 movementAngle ±90° → jumpAngle 벽 평행.
-        //   해결:
-        //     1. jumpMotion 가 충분히 큰 경우 (= 사용자 의도 strafe) 만 원본 식 사용.
-        //     2. jumpMotion 미세 (= vanilla clamp 잔존) 시 fallback: jumpAngle = yaw + 180
-        //        (= 사용자 정면 반대) 직접 set. 식 우회.
-        //   threshold = 0.05 (= W input motion 의 약 절반). vanilla clamp 후 잔존 0.02 미만
-        //   범위 cover. 사용자 strafe (0.1+) case 영향 X.
+        // Original L1965-L1975: wasCollidedHorizontally=false → reflection angle; true → wall normal angle as-is.
+        // 🔴 fix #164 (2026-05-27): jumpMotion=0 fallback movementAngle = player.getYaw().
+        //   Detailed dump analysis (docs/log_temp.txt scenario A trigger 1/3 t=2109/2401):
+        //     Box -X wall match + yaw=90 + jumpMotion=0 → fix #163 formula (= movementAngle=hCA=270) →
+        //     jumpAngle = 270*2 - 270 + 180 = 90. setYaw(90) = no change. User report "forward direction or
+        //     only 90° off direction" matches.
+        //   Analysis:
+        //     W hold + aiming box wall → vel direction = yaw forward direction. i.e. vel direction
+        //     atan2 result = vanilla yaw coordinate system yaw. jumpMotion=0 loses vel direction info →
+        //     fallback must use player.getYaw() for consistency.
+        //   Verification (all 4-axis match cases):
+        //     +Z wall (yaw=0): jumpAngle = 0-0+180 = 180 ✓
+        //     -Z wall (yaw=180): jumpAngle = 360-180+180 = 360 mod 360 = 0 ✓
+        //     +X wall (yaw=270): jumpAngle = 180-270+180 = 90 ✓ (wall normal yaw=270 → opposite +X→-X)
+        //     -X wall (yaw=90): jumpAngle = 540-90+180 = 270 ✓
+        //   = All 180° rotation (= opposite wall direction). User intent matches.
+        // 🔴 fix #168 (2026-05-27): Simplify jumpAngle formula — block vanilla collision clamp effect.
+        //   Dump analysis (t=2774): Box +Z wall match + user yaw=15° + jumpMotion=(-0.022, 0) (=
+        //   vanilla collision clamp only clamps vel.z, vel.x persists). Formula movementAngle =
+        //   atan2(0.022, 0) = 90° → jumpAngle = 0*2 - 90 + 180 = **90°** → setYaw(90) → -X direction
+        //   (= 90° rotation parallel to wall). User intent = -Z direction (= opposite user facing).
+        //   Original formula has same mechanism — vel.x persists causes movementAngle ±90° → jumpAngle parallel to wall.
+        //   Solution:
+        //     1. Use original formula only when jumpMotion large enough (= user intent strafe).
+        //     2. When jumpMotion tiny (= vanilla clamp persists) fallback: jumpAngle = yaw + 180
+        //        (= opposite user facing) set directly. Bypass formula.
+        //   threshold = 0.05 (= about half of W input motion). Covers sub-0.02 residual after vanilla clamp.
+        //   User strafe (0.1+) case unaffected.
         float jumpAngle;
         if (!wasCollH) {
             double jmMag = Math.abs(sm.jumpMotionX) + Math.abs(sm.jumpMotionZ);
             if (jmMag < 0.05D) {
-                // fallback: 사용자 정면 반대 방향 (= yaw + 180). jumpMotion 미세 영향 차단.
+                // fallback: opposite user facing direction (= yaw + 180). Block tiny jumpMotion effect.
                 jumpAngle = player.getYRot() + 180F;
             } else {
                 float movementAngle = (float) Math.toDegrees(Math.atan2(-sm.jumpMotionX, sm.jumpMotionZ));

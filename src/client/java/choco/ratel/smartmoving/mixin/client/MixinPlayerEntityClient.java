@@ -214,20 +214,20 @@ public abstract class MixinPlayerEntityClient {
     }
 
     /**
-     * 11-4 (클라이언트): SM 비행 비활성화 시 공중 이동 억제.
+     * 11-4 (client): suppress air movement when SM flight disabled.
      *
      * vanilla: flying → flySpeed, !flying+sprinting → 0.026F, otherwise → 0.02F.
-     * SM: flying && !cfg.fly → 0.05F (A-30 확인값).
-     * 이 메서드를 0.05F로 제한하면 vanilla travel()의 공중 XZ 가속이 억제된다.
+     * SM: flying && !cfg.fly → 0.05F (verified A-30).
+     * limiting this method to 0.05F suppresses air XZ acceleration in vanilla travel().
      */
     /**
-     * 🔴 fix #84 (2026-05-12, fix #83 부작용 차단):
-     *   vanilla PlayerEntity.clipAtLedge() = return isSneaking(). fix #83 의 isSliding 추가로
-     *   슬라이딩 시 isSneaking()=true → clipAtLedge()=true → adjustMovementForSneaking 매치 →
-     *   절벽 너머 step-back → 슬라이딩 → 떨어짐 시나리오 차단 BUG.
-     *   해결: 슬라이딩 시 clipAtLedge() override → false 반환. step-back 차단.
-     *   bobbing/footstep/비행 토글 (= fix #83 효과) 는 isSneaking() 만 사용하므로 영향 X.
-     *   @Mixin(PlayerEntity.class) 대상 — ClientPlayerEntity 가 inherit.
+     * 🔴 fix #84 (2026-05-12, block fix #83 side effects):
+     *   vanilla PlayerEntity.clipAtLedge() = return isSneaking(). fix #83 adds isSliding so
+     *   during sliding isSneaking()=true → clipAtLedge()=true → adjustMovementForSneaking match →
+     *   step-back beyond cliff → sliding → fall scenario block BUG.
+     *   Solution: during sliding clipAtLedge() override → return false. block step-back.
+     *   bobbing/footstep/flight toggle (= fix #83 effect) only uses isSneaking() so no impact.
+     *   @Mixin(PlayerEntity.class) target — ClientPlayerEntity inherits.
      */
     @Inject(method = "isStayingOnGroundSurface", at = @At("HEAD"), cancellable = true)
     private void sm_clipAtLedge_slidingException(CallbackInfoReturnable<Boolean> cir) {
@@ -248,9 +248,9 @@ public abstract class MixinPlayerEntityClient {
             cir.setReturnValue(0.05F);
             return;
         }
-        // 🔴 (2026-04-28) SM 공중 가속 임시 비활성 — 사용자 보고 "점프 시 엄청 빨라짐" 디버깅.
-        //   땅 (getMovementSpeed) 만 SM factor 적용 + 공중 (getOffGroundSpeed) 은 vanilla 그대로.
-        //   가속 사라지면 공중 매핑 식 재설계.
+        // 🔴 (2026-04-28) SM air acceleration temporarily disabled — debug user report "extremely fast on jump".
+        //   apply SM factor only on ground (getMovementSpeed) + keep air (getOffGroundSpeed) vanilla as-is.
+        //   redesign air mapping formula once acceleration disappears.
     }
 
     /**

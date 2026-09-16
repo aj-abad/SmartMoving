@@ -13,13 +13,13 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 4-2: tickEssential() 무조건 호출 Mixin.
+ * 4-2: Unconditional tickEssential() call Mixin.
  *
- * ClientPlayerEntity.tickMovement() HEAD에서 SM isActive 여부 무관하게
- * tickEssential()을 항상 호출한다.
+ * Always call tickEssential() in ClientPlayerEntity.tickMovement() HEAD
+ * regardless of SM isActive status.
  *
- * 원본: SmartMovingPlayerBase.updateEntityActionState()
- *       → moving.tickEssential()  ← isActive() 체크 없이 항상 호출
+ * Original: SmartMovingPlayerBase.updateEntityActionState()
+ *       → moving.tickEssential()  ← always called without isActive() check
  *       → isActive() ? moving.updateEntityActionState(false) : localUpdateEntityActionState()
  */
 @Mixin(LocalPlayer.class)

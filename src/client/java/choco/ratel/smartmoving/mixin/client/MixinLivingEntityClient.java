@@ -718,34 +718,34 @@ public abstract class MixinLivingEntityClient {
             cir.setReturnValue(false);
             return;
         }
-        // 🔴 (2026-05-04 사용자 보고 — "슬라이딩 → standing 시 잠깐 수영 애니"):
-        //   원인: SM crawl 종료 후 standing 진입 시 1 frame 동안 server→client pose sync
-        //         lag 로 pose=SWIMMING 잔존 (SM swim state 모두 false 인데도). vanilla
-        //         updateLeaningPitch 가 isInSwimmingPose=true → leaningPitch +=0.09.
-        //         다음 6~7 frame 동안 lerp down 하며 vanilla setupTransforms 가 -90° X
-        //         회전 lerp 적용 → 잠깐 수영 자세 보임.
-        //   해결: SM enabled + pose=SWIMMING + SM swim 분기 모두 false = orphan pose.
-        //         isInSwimmingPose=false 강제 → leaningPitch +=0.09 차단 → 누적 X.
+        // 🔴 (2026-05-04 user report — "brief swim animation when sliding → standing"):
+        //   Cause: 1 frame of server→client pose sync lag after SM crawl ends and standing begins,
+        //         pose=SWIMMING persists (despite all SM swim states false). vanilla
+        //         updateLeaningPitch sees isInSwimmingPose=true → leaningPitch +=0.09.
+        //         Over next 6~7 frames lerp down while vanilla setupTransforms applies -90° X
+        //         rotation lerp → brief swim pose visible.
+        //   Fix: SM enabled + pose=SWIMMING + all SM swim branches false = orphan pose.
+        //        Force isInSwimmingPose=false → block leaningPitch +=0.09 → no accumulation.
         if (player.getPose() == net.minecraft.world.entity.Pose.SWIMMING) {
             cir.setReturnValue(false);
         }
     }
 
     /**
-     * 🔴 사용자 보고 fix (2026-05-04 — "1칸 공간 재진입 시 잠깐 SWIMMING 모델 보임"):
-     *   원인: vanilla PlayerEntityRenderer.setupTransforms L261-L282 의
+     * 🔴 User report fix (2026-05-04 — "brief SWIMMING model visible when re-entering 1-block space"):
+     *   Cause: vanilla PlayerEntityRenderer.setupTransforms L261-L282
      *     `m = lerp(leaningPitch, 0, -90); matrices.rotate(POSITIVE_X(m));` →
-     *     leaningPitch>0 시 모델 X 회전. 우리 SM crawl R_x(-78.75°) 매핑과 합산.
-     *   leaningPitch field 는 LivingEntity.updateLeaningPitch 에서 매 tick lerp.
-     *     SM mixin 의 isInSwimmingPose=false 강제로 -=0.09 → 0 까지 감소. 근데 게임
-     *     재진입 시 첫 client tick 전 (= server sync 직후) entity 의 leaningPitch 가
-     *     이미 일정 값 잔존 가능 (= server tick 누적 값 sync).
-     *   fix: SM crawl 활성 시 getLeaningPitch HEAD inject 로 0 강제 → setupTransforms
-     *     의 R_x(0) → 회전 영향 X. anySmState 모두 적용.
+     *     when leaningPitch>0 model X rotates. Adds to our SM crawl R_x(-78.75°) mapping.
+     *   leaningPitch field lerps every tick in LivingEntity.updateLeaningPitch.
+     *     SM mixin forces isInSwimmingPose=false so -= 0.09 → decreases to 0. But on game
+     *     re-entry before first client tick (= right after server sync) entity leaningPitch
+     *     may already have some value persisting (= synced accumulated server tick value).
+     *   fix: Force getLeaningPitch HEAD inject to 0 when SM crawl active → setupTransforms
+     *     R_x(0) → no rotation effect. Apply to all SM states.
      */
     @Inject(method = "getSwimAmount", at = @At("HEAD"), cancellable = true)
     private void sm_getLeaningPitch(float tickDelta, CallbackInfoReturnable<Float> cir) {
-        // 🔴 (Phase 2 multi BUG-2/2.5) ClientPlayerEntity 가드 → AbstractClientPlayerEntity.
+        // 🔴 (Phase 2 multi BUG-2/2.5) ClientPlayerEntity guard → AbstractClientPlayerEntity.
         if (!((Object) this instanceof net.minecraft.client.player.AbstractClientPlayer player)) return;
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
@@ -754,9 +754,9 @@ public abstract class MixinLivingEntityClient {
             cir.setReturnValue(0F);
             return;
         }
-        // 🔴 orphan SWIMMING pose 가드 (sm_isInSwimmingPose_client 와 동일 가드):
-        //   pose=SWIMMING 인데 SM swim 분기 모두 false → leaningPitch field 잔존 가능 →
-        //   setupTransforms 의 swim 회전 lerp 적용 차단.
+        // 🔴 Orphan SWIMMING pose guard (same as sm_isInSwimmingPose_client):
+        //   pose=SWIMMING but all SM swim branches false → leaningPitch field may persist →
+        //   block swim rotation lerp in setupTransforms.
         if (player.getPose() == net.minecraft.world.entity.Pose.SWIMMING) {
             cir.setReturnValue(0F);
         }

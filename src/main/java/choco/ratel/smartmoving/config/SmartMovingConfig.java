@@ -1062,24 +1062,24 @@ public class SmartMovingConfig {
     // ── handleExhaustion misc fields (original SmartMovingSelf L849-L916 hunger formula) ─────
 
     /**
-     * 원본 `_alwaysHungerGain` L439 = `Positive("move.hunger.always.gain")
+     * Original `_alwaysHungerGain` L439 = `Positive("move.hunger.always.gain")
      *   .defaults(Value(0F).h(0.005F)).defaults(0F, _pre_sm_1_5)`.
-     * 난이도별: default=0F, Easy=0F, Hard=0.005F. 버전 폴백 `_pre_sm_1_5` → 0F 고정.
+     * By difficulty: default=0F, Easy=0F, Hard=0.005F. Version fallback `_pre_sm_1_5` → fixed 0F.
      * Easy 1:1 → 0F (default = Easy).
-     * 소비처: `SmartMovingSelf.handleExhaustion` L863 —
+     * Consumer: `SmartMovingSelf.handleExhaustion` L863 —
      *   `hungerIncrease += _alwaysHungerGain.value + relevantMovementFactor * 0.0001F * hungerGainFactor`.
-     * 매 틱 상시 허기 증가 (Easy 에선 0 → 상시 증가 없음, Hard 에선 0.005 누적).
+     * Every tick passive hunger increase (Easy = 0 → no passive increase, Hard = 0.005 accumulation).
      */
     public float alwaysHungerGain = 0F;
 
     /**
-     * 원본 `_exhaustionLossHungerFactor` L417 = `PositiveFactor("move.exhaustion.hunger.factor")
+     * Original `_exhaustionLossHungerFactor` L417 = `PositiveFactor("move.exhaustion.hunger.factor")
      *   .defaults(Value(0.05F).e(0.02F).h(0.08F)).defaults(0.05F, _pre_sm_1_5)`.
-     * 난이도별: default=0.05F, Easy=**0.02F**, Hard=0.08F. 버전 폴백 `_pre_sm_1_5` → 0.05F 고정.
-     * Easy 1:1 → 0.02F 채택.
-     * 소비처: `SmartMovingSelf.handleExhaustion` L893 —
+     * By difficulty: default=0.05F, Easy=**0.02F**, Hard=0.08F. Version fallback `_pre_sm_1_5` → fixed 0.05F.
+     * Easy 1:1 → adopt 0.02F.
+     * Consumer: `SmartMovingSelf.handleExhaustion` L893 —
      *   `hungerIncrease += _exhaustionLossHungerFactor.value * exhaustionLoss`.
-     * exhaustion 감소분 × 이 factor 만큼 허기 추가 증가.
+     * Exhaustion loss × this factor = additional hunger increase.
      */
     public float exhaustionLossHungerFactor = 0.02F;
 
@@ -1093,17 +1093,17 @@ public class SmartMovingConfig {
     public boolean ceilingClimbing = true;
 
     /**
-     * 원본 `SmartMovingConfig.java` L313:
+     * Original `SmartMovingConfig.java` L313:
      *   `public final Property<Boolean> _sprintEnableStanding = Unmodified("move.sprint.enable.ground");`
-     * 기본값 false — `Unmodified` 는 기본 생성자에서 `value=false`.
-     * 사용처: isFast 공식 `isGroundSprinting && (!standing || _sprintEnableStanding)` (원본 L2689).
-     * true 설정 시 standing 상태에서도 Ground Sprint 인정 (정지 스프린트 허용).
-     * B-1a (세션 40).
+     * default false — `Unmodified` sets `value=false` in default constructor.
+     * Usage: isFast formula `isGroundSprinting && (!standing || _sprintEnableStanding)` (original L2689).
+     * When true, Ground Sprint recognized even while standing (allow stationary sprint).
+     * B-1a (session 40).
      *
-     * 🔴 (2026-04-28) default false → true 변경. 사용자 의도 "SM 모드 시 vanilla 보다 빠름".
-     *   원본 default false 시 onGround 일반 sprint = isFast=false → nonSlow=1.0 → vanilla 동일.
-     *   true 시 isFast=true → nonSlow=sprintFactor (1.5) → vanilla * 1.154x.
-     *   원본 식 (isFast 시 1.5x) 그대로 발동되도록 default 변경.
+     * RED (2026-04-28) default false → changed to true. User intent "SM mode faster than vanilla".
+     *   Original default false: onGround normal sprint = isFast=false → nonSlow=1.0 → vanilla identical.
+     *   With true: isFast=true → nonSlow=sprintFactor (1.5) → vanilla * 1.154x.
+     *   Changed default to apply original formula (isFast = 1.5x) as-is.
      */
     public boolean sprintEnableStanding = true;
 

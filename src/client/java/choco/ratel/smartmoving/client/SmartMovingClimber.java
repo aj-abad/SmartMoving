@@ -1111,28 +1111,28 @@ public final class SmartMovingClimber {
 
         float jumpAngle = player.getYRot() + 180F;
 
-        // Phase H BUG-3 1:1 정정: 원본 L1069 `if (tryJump(type, null, null, jumpAngle))` + 후처리.
-        //   tryJump 가 D-15 head 분기 시 isHeadJumping/setPoseSmall/heightOffset 처리 + D-11 angle
-        //   분기 시 motion 계산 (factor + getJumpMoving). 호출 측 inline motion 식 모두 제거.
+        // Phase H BUG-3 1:1 fix: original L1069 `if (tryJump(type, null, null, jumpAngle))` + post-processing.
+        //   tryJump handles D-15 head branch isHeadJumping/setPoseSmall/heightOffset + D-11 angle
+        //   branch motion calculation (factor + getJumpMoving). Remove all inline motion formulas on caller side.
         if (SmartMovingJumper.tryJump(player, sm, type, null, null, jumpAngle)) {
-            sm.continueWallJumping = !sm.isHeadJumping;     // 원본 L1071
-            sm.isClimbing = false;                            // 원본 L1072
-            player.setYRot(jumpAngle);                         // 원본 L1073
-            player.yBodyRot = jumpAngle;                       // 1.21.1 추가 — 회전 동기화 (Phase G 패턴)
-            // 원본 L1074 onStartClimbBackJump():
-            //   - prev rotateAngleY += isHeadJumping ? Half : Quarter  ← 보류 (애니메이션 사이클 / 사용자 원본 확인 대기)
+            sm.continueWallJumping = !sm.isHeadJumping;     // Original L1071
+            sm.isClimbing = false;                            // Original L1072
+            player.setYRot(jumpAngle);                         // Original L1073
+            player.yBodyRot = jumpAngle;                       // 1.21.1 addition — rotation sync (Phase G pattern)
+            // Original L1074 onStartClimbBackJump():
+            //   - prev rotateAngleY += isHeadJumping ? Half : Quarter  ← Pending (animation cycle / waiting for user original check)
             //   - isClimbBackJumping = true  (SmartMoving.java L147)
             sm.isClimbBackJumping = true;
         }
     }
 
     /**
-     * 자유 클라이밍 낙하 데미지 처리.
-     * 원본: SmartMovingSelf.handleCrash(startDistance, factor)
-     * fallDistance > startDistance 시 초과분 * factor 데미지 적용.
+     * Free climbing fall damage handling.
+     * Original: SmartMovingSelf.handleCrash(startDistance, factor)
+     * When fallDistance > startDistance, apply (excess * factor) damage.
      */
     private static void handleCrash(LocalPlayer player, float startDistance, float factor) {
-        // Phase E BUG-2 1:1 정정 (handleCrash 두 번째 복사본 — free climb 용)
+        // Phase E BUG-2 1:1 fix (handleCrash second copy — for free climb)
         if (player.fallDistance >= 2.0F) {
             player.awardStat(Stats.FALL_ONE_CM, (int) Math.round(player.fallDistance * 100D));
         }
@@ -1140,7 +1140,7 @@ public final class SmartMovingClimber {
             float damage = (float) Math.ceil((player.fallDistance - startDistance) * factor);
             player.hurt(player.damageSources().fall(), damage);
         }
-        // Phase E BUG-1 1:1 정정: 원본 L2242 fallDistance reset
+        // Phase E BUG-1 1:1 fix: original L2242 fallDistance reset
         player.fallDistance = 0F;
     }
 
