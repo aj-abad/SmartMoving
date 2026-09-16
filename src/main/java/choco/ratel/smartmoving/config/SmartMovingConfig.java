@@ -1897,7 +1897,7 @@ public class SmartMovingConfig {
         p.setProperty("move.perspective.speed.factor.max", String.valueOf(perspectiveSpeedFactorMax));
         p.setProperty("move.perspective.run.factor",     String.valueOf(perspectiveRunFactor));
         p.setProperty("move.perspective.sprint.factor",  String.valueOf(perspectiveSprintFactor));
-        // Exhaustion/Hunger factor 1단계 (원본 getFactor L563-L575). ⚠️ Exhaution 오타 유지.
+        // Exhaustion/Hunger factor stage 1 (original getFactor L563-L575). ⚠️ Exhaution typo preserved.
         p.setProperty("move.exhaustion.loss.factor",         String.valueOf(baseExhautionLossFactor));
         p.setProperty("move.hunger.gain.factor",             String.valueOf(baseHungerGainFactor));
         p.setProperty("move.exhaustion.fall.loss.factor",    String.valueOf(fallExhautionLossFactor));
@@ -1911,7 +1911,7 @@ public class SmartMovingConfig {
         p.setProperty("move.exhaustion.stand.loss.factor",   String.valueOf(standingExhautionLossFactor));
         p.setProperty("move.hunger.walk.gain.factor",        String.valueOf(walkingHungerGainFactor));
         p.setProperty("move.exhaustion.walk.loss.factor",    String.valueOf(walkingExhautionLossFactor));
-        // Exhaustion/Hunger factor 2단계 (원본 getFactor L577-L592). 2단계는 `Exhaustion` 정타.
+        // Exhaustion/Hunger factor stage 2 (original getFactor L577-L592). Stage 2 uses correct `Exhaustion` spelling.
         p.setProperty("move.hunger.climb.gain.factor",           String.valueOf(climbingHungerGainFactor));
         p.setProperty("move.exhaustion.climb.loss.factor",       String.valueOf(climbingExhaustionLossFactor));
         p.setProperty("move.hunger.crawl.gain.factor",           String.valueOf(crawlingHungerGainFactor));
@@ -1926,7 +1926,7 @@ public class SmartMovingConfig {
         p.setProperty("move.exhaustion.dip.loss.factor",         String.valueOf(dippingExhaustionLossFactor));
         p.setProperty("move.hunger.normal.gain.factor",          String.valueOf(normalHungerGainFactor));
         p.setProperty("move.exhaustion.normal.loss.factor",      String.valueOf(normalExhaustionLossFactor));
-        // handleExhaustion 기타 (원본 SmartMovingSelf L863/L893).
+        // handleExhaustion other (original SmartMovingSelf L863/L893).
         p.setProperty("move.hunger.always.gain",                 String.valueOf(alwaysHungerGain));
         p.setProperty("move.exhaustion.hunger.factor",           String.valueOf(exhaustionLossHungerFactor));
     }
