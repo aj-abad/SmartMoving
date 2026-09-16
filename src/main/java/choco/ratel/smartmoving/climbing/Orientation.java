@@ -1277,10 +1277,10 @@ public class Orientation {
     }
 
     /**
-     * 원본 L1801-L1807 `headedToWall(Orientation base, boolean result)` — 이 Orientation
-     * 이 `base` 또는 ±45° 회전 결과와 같으면 `result` 반환, 아니면 false.
+     * Original L1801-L1807 `headedToWall(Orientation base, boolean result)` — if this Orientation
+     * equals `base` or ±45° rotation result, return `result`, otherwise false.
      *
-     * 예: base=NZ, this=NZ/NN/NP 중 하나면 result 반환.
+     * Example: base=NZ, if this is one of NZ/NN/NP then return result.
      */
     private boolean headedToWall(Orientation base, boolean result) {
         if (this == base || this == base.rotate(45) || this == base.rotate(-45))
@@ -1289,29 +1289,28 @@ public class Orientation {
     }
 
     /**
-     * 원본 L2001-L2004 `getAllWallsOnNoWall(Block block)` — `block instanceof BlockPane`.
+     * Original L2001-L2004 `getAllWallsOnNoWall(Block block)` — `block instanceof BlockPane`.
      *
-     * 의미: pane 블록은 주변 연결 대상 없으면 4방향 "wall flag" 를 모두 off 로 반환하는데,
-     * 그 경우 호출자가 이를 "전방향 wall 가정" 으로 재해석한다는 표시. `headedToFrontWall`
-     * 에서 사용.
+     * Meaning: pane block returns 4-direction "wall flag" all off when no adjacent connection targets,
+     * signaling caller to reinterpret as "all-direction wall assumption". Used in `headedToFrontWall`.
      */
     private static boolean getAllWallsOnNoWall(BlockState state) {
-        // 🔴 사용자 요구: fence ≡ iron_bars 동일 동작.
-        //   원본은 `block instanceof BlockPane` 만 (iron_bars/glass_pane). fence 단독 시
-        //   `allOnNone=false` → headedToFrontWall 의 4방향 강제 true 미적용 → fence 자체 등반
-        //   시 hasHalfHold 통합 분기 L2421 (isEmpty+headedToFrontWall) 미충족 → 다른 분기로
-        //   fall through → 다른 grabRemote/위치 → 다른 motion → iron_bars 와 다른 속도.
-        //   해결: fence 추가하여 fence 단독 시도 강제 true 적용 → iron_bars 와 같은 분기로 잡힘.
+        // 🔴 User request: fence ≡ iron_bars identical behavior.
+        //   Original checks `block instanceof BlockPane` only (iron_bars/glass_pane). fence alone
+        //   `allOnNone=false` → headedToFrontWall 4-direction force true not applied → fence climbing
+        //   itself hasHalfHold unified branch L2421 (isEmpty+headedToFrontWall) not met → different branch
+        //   fall through → different grabRemote/location → different motion → different speed from iron_bars.
+        //   Solution: add fence so fence alone also force true applied → same branch as iron_bars.
         return state != null && (state.getBlock() instanceof IronBarsBlock || isFence(state));
     }
 
     /**
-     * 원본 L2006-L2009 `isTopHalf(double d)` — 좌표 소수부의 2분의 1 격자 top/bottom 판정.
+     * Original L2006-L2009 `isTopHalf(double d)` — coordinate decimal part's half-block grid top/bottom judgment.
      *
-     *   d = 좌표 (i 또는 k). 2배한 절대값 floor 의 odd/even 으로 top 여부 결정.
+     *   d = coordinate (i or k). Determines top status by odd/even of doubled absolute value floor.
      *   ex: d = 0.3 → 0.6 → 0 (bottom), d = 0.7 → 1.4 → 1 (top).
      *
-     * Pure math — 1:1 이식.
+     * Pure math — 1:1 port.
      */
     private static boolean isTopHalf(double d) {
         return (int)Math.abs(Math.floor(d * 2D)) % 2 == 1;

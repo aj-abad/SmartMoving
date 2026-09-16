@@ -894,47 +894,47 @@ public final class SmartMovingSwimmer {
      */
     public static boolean handleLava(LocalPlayer player, SmartMovingClientState sm,
                                       Vec3 movementInput) {
-        // 진입 조건 (원본 L580): handledSwimming 은 호출 위치에서 보장
+        // Entry condition (original L580): handledSwimming guaranteed by call location
         boolean handleLavaFlag = !sm.isFlying && !sm.isLiquidClimbing && player.isInLava();
         if (!handleLavaFlag) return false;
 
-        // 원본 L582 standupIfPossible — heightOffset >= 0 확인 후 -1F 인 경우 복원
+        // Original L582 standupIfPossible — check heightOffset >= 0, restore if -1F
         sm.standupIfPossible(player);
-        // 원본 L583 resetClimbing — 클라이밍 상태 리셋
+        // Original L583 resetClimbing — reset climbing state
         sm.resetClimbing();
-        // 원본 L584 resetSwimming — 수영 8 필드 리셋 (private static, 같은 클래스)
+        // Original L584 resetSwimming — reset swimming 8 fields (private static, same class)
         resetSwimming(sm);
 
-        // 원본 L586: d1 = posY 저장 (벽 점프 isOffsetPositionInLiquid 체크용 prev posY)
+        // Original L586: save d1 = posY (for wall jump isOffsetPositionInLiquid check using prev posY)
         double d1 = player.getY();
 
-        // 🔴 (2026-05-22) 사용자 보고 BUG fix: 용암 진입 시 플레이어 멈춤 (motion 누적 X).
-        //   원인: 원본 vanilla 1.7.10 moveFlying = motion 에 += 누적. 우리 매핑은 SM 자체 moveFlying
-        //     (Vec3d return) + setVelocity(moved) = 이전 motion 덮어쓰기 → 매 frame 0 reset → 작은
-        //     speed (0.02F) 만 적용 + damping 0.5 = 거의 정지.
-        //   원본 식: sp.moveFlying(moveStrafing, moveForward, 0.02F);  // motion += fly
-        //           sp.moveEntity(motionX, motionY, motionZ);
-        //   해결: getVelocity().add(moved) = += 누적. 다른 swim 분기 (L526/L566) 와 일관.
+        // 🔴 (2026-05-22) User-reported BUG fix: player stops on lava entry (no motion accumulation).
+        //   Cause: original vanilla 1.7.10 moveFlying = accumulates with += on motion. Our mapping SM's own moveFlying
+        //     (Vec3 return) + setVelocity(moved) = overwrites previous motion → each frame reset to 0 → only small
+        //     speed (0.02F) applied + damping 0.5 = nearly stopped.
+        //   Original formula: sp.moveFlying(moveStrafing, moveForward, 0.02F);  // motion += fly
+        //                     sp.moveEntity(motionX, motionY, motionZ);
+        //   Solution: getVelocity().add(moved) = += accumulation. Consistent with other swim branches (L526/L566).
         Vec3 moved = moveFlying(player, (float) movementInput.x, (float) movementInput.z, 0.02F);
         player.setDeltaMovement(player.getDeltaMovement().add(moved));
 
-        // 원본 L588: moveEntity(motionX, motionY, motionZ) — 실제 이동
+        // Original L588: moveEntity(motionX, motionY, motionZ) — actual movement
         player.move(MoverType.SELF, player.getDeltaMovement());
 
-        // 원본 L589-L591: damping 0.5 (X/Y/Z 모두)
+        // Original L589-L591: damping 0.5 (X/Y/Z all)
         Vec3 vel = player.getDeltaMovement();
         double mx = vel.x * 0.5D;
         double my = vel.y * 0.5D;
         double mz = vel.z * 0.5D;
 
-        // 원본 L592: 중력 -0.02D (vanilla 의 -gravity/4 와 미세 차이 — 원본 충실)
+        // Original L592: gravity -0.02D (subtle difference from vanilla -gravity/4 — faithful to original)
         my -= 0.02D;
 
-        // 원본 L594-L597: lava 벽 점프
+        // Original L594-L597: lava wall jump
         //   isCollidedHorizontally && isOffsetPositionInLiquid(motionX,
         //       ((motionY + 0.60000002384185791D) - posY) + d1, motionZ)
         //   → motionY = 0.30000001192092896D
-        // 1.21.1 매핑: isOffsetPositionInLiquid → BoundingBox.offset() + world.containsFluid()
+        // 1.21.1 mapping: isOffsetPositionInLiquid → BoundingBox.offset() + world.containsFluid()
         if (player.horizontalCollision) {
             AABB bb = player.getBoundingBox().move(
                     mx,
@@ -945,15 +945,15 @@ public final class SmartMovingSwimmer {
             }
         }
 
-        // 최종 setVelocity (원본은 motionX/Y/Z 직접 변경, 1.21.1 은 setVelocity 일괄)
+        // Final setVelocity (original directly changes motionX/Y/Z, 1.21.1 batch setVelocity)
         player.setDeltaMovement(mx, my, mz);
 
-        // 원본 L599 return handleLava
+        // Original L599 return handleLava
         return true;
     }
 
     /**
-     * 원본 Orientation.isTunnelAhead(world, i, j, k) 1:1 이식.
+     * Original Orientation.isTunnelAhead(world, i, j, k) 1:1 port.
      *   remoteId = world.getBlock(i+_i, j+1, k+_k)
      *   if (isFullEmpty(remoteId)) {
      *     aboveMat = world.getBlock(i+_i, j+2, k+_k).getMaterial()
@@ -961,12 +961,12 @@ public final class SmartMovingSwimmer {
      *   }
      *   return false
      *
-     * **B-5 (2) 해소 (세션 135)**: ox/oz 오프셋 파라미터 버전 — 대각 포함 8방향 지원.
-     * 기존 `Direction` 파라미터 (4방향만) → offset 직접 받아 원본 `Orientation._i/_k` 대응.
+     * **B-5 (2) Resolution (Session 135)**: ox/oz offset parameter version — supports 8-way including diagonals.
+     * Existing `Direction` parameter (4-way only) → receive offset directly corresponding to original `Orientation._i/_k`.
      *
-     * 1.21.1 매핑:
-     *   isFullEmpty(block) → collisionShape.isEmpty() (간소; 간판/압력판 예외는 생략)
-     *   isSolid(material) → state.isOpaqueFullCube() 근사 (정확 대응 API 부재 시)
+     * 1.21.1 mapping:
+     *   isFullEmpty(block) → collisionShape.isEmpty() (simplified; sign/pressure plate exceptions omitted)
+     *   isSolid(material) → state.isOpaqueFullCube() approximation (no exact API available)
      */
     private static boolean isTunnelAhead(Level world, int i, int j, int k, int ox, int oz) {
         BlockPos one = new BlockPos(i + ox, j + 1, k + oz);

@@ -1653,17 +1653,17 @@ public final class SmartMovingClientState {
                         (grabJustPressed && (sneakToggled || sneakPressedRaw) && player.onGround()
                                 && !facedClimbable_)
                     );
-            boolean wouldWantCrawl_ = wouldWantCrawl;  // 하위 호환용 지역 별칭
-            // 원본 진입 경로 추가 가드(!flying/!swim/!dive/!dipping/!climbing/!crawlClimbing/!ceilingClimbing/
-            //   !sliding/!headJumping): 1.21.1 에서는 canCrawl(원본 L1805)과 중복. 여기선 상태 전환을
-            //   IMPL-01 에 맡기고 pre-compute 는 원본 wouldWantCrawl 그대로 유지.
+            boolean wouldWantCrawl_ = wouldWantCrawl;  // Local alias for backward compatibility
+            // Original entry path additional guard(!flying/!swim/!dive/!dipping/!climbing/!crawlClimbing/!ceilingClimbing/
+            //   !sliding/!headJumping): In 1.21.1 duplicated with canCrawl (original L1805). Here delegate state transition
+            //   to IMPL-01 and maintain pre-compute as original wouldWantCrawl.
             wantCrawl = crawlingEnabled_ && wouldWantCrawl_;
 
-            // 원본 L2446-L2447: !isCrawling 시 contextContinueCrawl=false.
+            // Original L2446-L2447: contextContinueCrawl=false when !isCrawling.
             if (!isCrawling) contextContinueCrawl = false;
 
-            // C-15: isSlow / isFast / isFlying 매 틱 계산
-            // 원본 L2576-L2590 sneakContinueInput + wouldWantSneak + wantSneak + L2711-L2719
+            // C-15: isSlow / isFast / isFlying calculated every tick
+            // Original L2576-L2590 sneakContinueInput + wouldWantSneak + wantSneak + L2711-L2719
             // wouldIsSneaking / wasSneaking / isSlow 1:1.
             //   sneakContinueInput = isSneakToggleEnabled ? (sneakToggled || sneakStartPressed) : sneakPressed
             //   wouldWantSneak = !flying && !sliding && !headJumping
@@ -1672,11 +1672,11 @@ public final class SmartMovingClientState {
             //                    && sneakContinueInput
             //                    && !wantCrawl && !mustCrawl
             //                    && (!isCrawlingEnabled || !grabPressed)
-            //   wantSneak = isSneakingEnabled() && wouldWantSneak                 (원본 L2588-L2590)
-            //   wouldIsSneaking = wouldWantSneak && !wantSprint && !isClimbing    (원본 L2712)
-            //   wasSneaking = isSlow                                              (원본 L2716 공식 직전)
-            //   isSlow = wantSneak && wouldIsSneaking                              (원본 L2718)
-            // B-45b (세션 45): Config.isSneakToggleEnabled() 헬퍼로 치환 — cfg.enabled AND 가드 포함.
+            //   wantSneak = isSneakingEnabled() && wouldWantSneak                 (original L2588-L2590)
+            //   wouldIsSneaking = wouldWantSneak && !wantSprint && !isClimbing    (original L2712)
+            //   wasSneaking = isSlow                                              (original L2716 before formula)
+            //   isSlow = wantSneak && wouldIsSneaking                              (original L2718)
+            // B-45b (Session 45): Substitute with Config.isSneakToggleEnabled() helper — includes cfg.enabled AND guard.
             boolean sneakContinueInput = cfg0.isSneakToggleEnabled()
                     ? (sneakToggled || sneakKeyStartPressed)
                     : sneakPressedRaw;

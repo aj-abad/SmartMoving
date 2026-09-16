@@ -1970,7 +1970,7 @@ public class SmartMovingConfig {
             boolean isClimbing, boolean isClimbCrawling, boolean isCeilingClimbing,
             boolean isDipping, boolean isSwimming, boolean isDiving,
             boolean isCrawling, boolean isCrawlClimbing) {
-        // 원본 L556-L561 전처리
+        // Original L556-L561 preprocessing
         isClimbing |= isClimbCrawling;
         isCrawling |= isCrawlClimbing;
         boolean actionOverGound = isClimbing || isCeilingClimbing || isDiving || isSwimming;
@@ -1978,12 +1978,12 @@ public class SmartMovingConfig {
         isStanding = actionOverGound ? isStill : isStanding;
         isSneaking = isSneaking & !isStanding;
 
-        // 원본 L563 base factor
+        // Original L563 base factor
         float factor = hunger ? baseHungerGainFactor : baseExhautionLossFactor;
 
-        // 원본 L564-L575 1단계 — 이동속도 배율
+        // Original L564-L575 Stage 1 — movement speed multiplier
         if (airBorne)
-            factor *= hunger ? 0F : fallExhautionLossFactor;           // ⚠️ hunger=0F 하드코딩 (원본 L565)
+            factor *= hunger ? 0F : fallExhautionLossFactor;           // WARNING: hunger=0F hardcoded (original L565)
         else if (isSprinting)
             factor *= hunger ? sprintingHungerGainFactor : sprintingExhautionLossFactor;
         else if (isRunning)
@@ -1995,7 +1995,7 @@ public class SmartMovingConfig {
         else
             factor *= hunger ? walkingHungerGainFactor : walkingExhautionLossFactor;
 
-        // 원본 L577-L592 2단계 — 행동 배율
+        // Original L577-L592 Stage 2 — action multiplier
         if (isClimbing)
             factor *= hunger ? climbingHungerGainFactor : climbingExhaustionLossFactor;
         else if (isCrawling)
@@ -2011,35 +2011,35 @@ public class SmartMovingConfig {
         else if (onGround)
             factor *= hunger ? normalHungerGainFactor : normalExhaustionLossFactor;
         else
-            factor *= hunger ? normalHungerGainFactor : normalExhaustionLossFactor;  // L591 의도된 중복
+            factor *= hunger ? normalHungerGainFactor : normalExhaustionLossFactor;  // L591 intentional duplicate
 
         return factor;
     }
 
     /**
-     * 원본 SmartMovingProperties.update() (L163-L172) 1:1 근사 이식.
+     * Original SmartMovingProperties.update() (L163-L172) 1:1 approximation port.
      *
-     * 원본:
+     * Original:
      *   protected void update() {
      *       List<Property<?>> properties = getProperties();
      *       Iterator<Property<?>> iterator = properties.iterator();
      *       String currentKey = getCurrentKey();
      *       while (iterator.hasNext())
-     *           iterator.next().update(currentKey);   // ① Property key-scoped 값 재계산
-     *       enabled = toggler != -1;                   // ② enabled 파생
+     *           iterator.next().update(currentKey);   // ① Property key-scoped value recalculation
+     *       enabled = toggler != -1;                   // ② enabled derivation
      *   }
      *
-     * 1.21.1: Property 계층 부재 → ① 는 N/A (단일 필드 값 구조). ② 만 이식.
-     * 호출: toggle() / setKeys() / setCurrentKey() / load() 등 toggler 변경 이후.
+     * 1.21.1: No Property hierarchy → ① is N/A (single field value structure). Only ② ported.
+     * Called: after toggler change in toggle() / setKeys() / setCurrentKey() / load() etc.
      */
     private void updateToggler() {
         enabled = toggler != -1;
     }
 
     /**
-     * 원본 SmartMovingProperties.toggle() (L81-L88) 1:1 이식.
+     * Original SmartMovingProperties.toggle() (L81-L88) 1:1 port.
      *
-     * 원본:
+     * Original:
      *   public void toggle() {
      *       int length = keys == null ? 0 : keys.length;
      *       toggler++;
@@ -2047,16 +2047,16 @@ public class SmartMovingConfig {
      *       update();
      *   }
      *
-     * 순환 패턴:
+     * Cycle pattern:
      *   configKeys.length == 3 (survival/adventure, "e"/"m"/"h"):
      *     0 → 1 → 2 → -1 → 0 → ...       (Easy → Medium → Hard → disabled → Easy ...)
-     *   configKeys.length == 1 (creative "c" 또는 DEFAULT_KEYS {null}):
-     *     0 → -1 → 0 → ...                 (on/off 토글)
+     *   configKeys.length == 1 (creative "c" or DEFAULT_KEYS {null}):
+     *     0 → -1 → 0 → ...                 (on/off toggle)
      *
-     * save(): 원본 Properties.toggle() 에는 없음. 원본 SmartMovingOptions.toggle() (override,
-     *   SmartMovingOptions.md L500-L531) 에서 saveToOptionsFile(optionsPath) 호출. 1.21.1 은
-     *   Properties/Options/Config 계층이 SmartMovingConfig 하나로 통합 — 여기서 save() 호출.
-     *   SmartMovingOptions.toggle() 의 다른 추가 동작(채팅, defaultKey 갱신)은 별도 원자 작업.
+     * save(): not in original Properties.toggle(). Original SmartMovingOptions.toggle() (override,
+     *   SmartMovingOptions.md L500-L531) calls saveToOptionsFile(optionsPath). 1.21.1
+     *   Properties/Options/Config hierarchy integrated into single SmartMovingConfig — calls save() here.
+     *   Other additional behaviors in SmartMovingOptions.toggle() (chat, defaultKey update) are separate atomic operations.
      */
     public void toggle() {
         int length = configKeys == null ? 0 : configKeys.length;
