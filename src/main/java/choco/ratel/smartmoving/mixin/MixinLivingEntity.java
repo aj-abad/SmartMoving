@@ -13,25 +13,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 5-5 (서버): isClimbing() 오버라이드 — SM 커스텀 클라이밍 중 false 반환.
- * 6-2 (서버): isInSwimmingPose() 오버라이드 — SM 크롤링 중 false 반환.
- * 3-3-C: tickStatusEffects HEAD/TAIL — 소진 배치 역전 처리.
- * 3-7: tickMovement TAIL — isSmall 시 아이템 습득 범위 확장.
+ * 5-5 (server): isClimbing() override — return false during SM custom climbing.
+ * 6-2 (server): isInSwimmingPose() override — return false during SM crawling.
+ * 3-3-C: tickStatusEffects HEAD/TAIL — potion update cycle reversal handling.
+ * 3-7: tickMovement TAIL — extend item pickup range when isSmall.
  *
- * 참고: 서버 이동 파이프라인(floatKick/낙하거리/위치검사)은 MixinServerPlayNetworkHandler에서 처리.
- * 클라이언트 전용 항목(jump, applyClimbingSpeed, isClimbing) → MixinLivingEntityClient
+ * Note: Server movement pipeline (floatKick/fall distance/position checks) handled in MixinServerPlayNetworkHandler.
+ * Client-only items (jump, applyClimbingSpeed, isClimbing) → MixinLivingEntityClient
  */
 @Mixin(LivingEntity.class)
 public abstract class MixinLivingEntity {
 
     /**
-     * 5-5 (서버): SM 커스텀 클라이밍 중 isClimbing() = false 강제.
+     * 5-5 (server): Force isClimbing() = false during SM custom climbing.
      *
-     * 목적 1: applyClimbingSpeed() x/z ±0.15F 클램프 차단
-     * 목적 2: applyMovementInput()에서 isClimbing() 시 y=0.2 강제 적용 차단
+     * Purpose 1: block applyClimbingSpeed() x/z ±0.15F clamp
+     * Purpose 2: block vanilla y=0.2 forced application when isClimbing() in applyMovementInput()
      *
-     * ServerPlayerEntity 인스턴스 확인 → SmartMovingServer 상태 기반 판정.
-     * 클라이언트 측 동등 로직 → MixinLivingEntityClient.sm_isClimbing_client()
+     * Check ServerPlayerEntity instance → determine based on SmartMovingServer state.
+     * Client-side equivalent logic → MixinLivingEntityClient.sm_isClimbing_client()
      */
     @Inject(method = "onClimbable", at = @At("HEAD"), cancellable = true)
     private void sm_isClimbing_server(CallbackInfoReturnable<Boolean> cir) {
@@ -43,15 +43,15 @@ public abstract class MixinLivingEntity {
     }
 
     /**
-     * 6-2 (서버): SM 크롤링 중 isInSwimmingPose() = false 강제.
+     * 6-2 (server): Force isInSwimmingPose() = false during SM crawling.
      *
-     * SM 크롤링은 SWIMMING 포즈를 사용하지만, vanilla isInSwimmingPose()=true가 되면:
-     *   - setupTransforms Branch 2: X-90° 회전 + translate(0,-1,0.3) → 렌더 깨짐
-     *   - updateLeaningPitch(): leaningPitch가 1.0까지 상승 → 자동 회전 발생
+     * SM crawling uses SWIMMING pose, but vanilla isInSwimmingPose()=true causes:
+     *   - setupTransforms Branch 2: X-90° rotation + translate(0,-1,0.3) → render broken
+     *   - updateLeaningPitch(): leaningPitch rises to 1.0 → auto-rotation occurs
      *
-     * 서버 측: ServerPlayerEntity 인스턴스 확인.
-     * 클라이언트 측 → MixinLivingEntityClient.sm_isInSwimmingPose_client()
-     * Yarn: isInSwimmingPose (intermediary: method_20232 확인 완료)
+     * Server side: check ServerPlayerEntity instance.
+     * Client side → MixinLivingEntityClient.sm_isInSwimmingPose_client()
+     * Yarn: isInSwimmingPose (intermediary: method_20232 confirmed)
      */
     @Inject(method = "isVisuallySwimming", at = @At("HEAD"), cancellable = true)
     private void sm_isInSwimmingPose_server(CallbackInfoReturnable<Boolean> cir) {

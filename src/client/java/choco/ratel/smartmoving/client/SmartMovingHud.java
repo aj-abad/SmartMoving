@@ -11,14 +11,14 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
 
 /**
- * SM 전용 HUD 렌더링.
- * 원본: SmartMovingRender.renderGuiIngame() — jumpCharge 바 + exhaustion 바
+ * SM exclusive HUD rendering.
+ * Original: SmartMovingRender.renderGuiIngame() — jumpCharge bar + exhaustion bar
  *
- * 포함 항목:
- *   10-6: jumpCharge 바 — 왼쪽, 화면 중앙-91 기준, icons.png drawIcon(2,0)/drawIcon(3,0)
- *   C-33: exhaustion 바 — 오른쪽, 화면 중앙+90 기준, icons.png drawIcon(0,0)/drawIcon(1,0)
+ * Included items:
+ *   10-6: jumpCharge bar — left, screen center-91 basis, icons.png drawIcon(2,0)/drawIcon(3,0)
+ *   C-33: exhaustion bar — right, screen center+90 basis, icons.png drawIcon(0,0)/drawIcon(1,0)
  *
- * 아이콘 레이아웃 (icons.png 256×256, 9×9 격자):
+ * Icon layout (icons.png 256×256, 9×9 grid):
  *   (0,0) full fitness  (1,0) half fitness
  *   (2,0) full charge   (3,0) half charge
  */
@@ -45,22 +45,22 @@ public final class SmartMovingHud {
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
-        // 원본 SmartMovingRender.md L405 진입 조건 1:1:
+        // Original SmartMovingRender.md L405 entry condition 1:1:
         //   Config.enabled && (_displayExhaustionBar.value || _displayJumpChargeBar.value)
         if (!cfg.enabled) return;
         if (!cfg.displayExhaustionBar && !cfg.displayJumpChargeBar) return;
 
-        // ── 점프 차지 바 ──────────────────────────────────────────────────
-        // 원본: stillJumpCharge = sm.jumpCharge, runJumpCharge = sm.headJumpCharge
-        // 큰 쪽을 표시하고 해당 maximum을 기준으로 삼음
+        // ── Jump charge bar ──────────────────────────────────────────────────
+        // Original: stillJumpCharge = sm.jumpCharge, runJumpCharge = sm.headJumpCharge
+        // Display the larger and use its maximum as reference
         float maxStillCharge = cfg.jumpChargeMaximum;
         float maxRunCharge   = cfg.headJumpChargeMaximum;
         float stillCharge    = Math.min(sm.jumpCharge,     maxStillCharge);
         float runCharge      = Math.min(sm.headJumpCharge, maxRunCharge);
         boolean drawJump     = stillCharge > 0 || runCharge > 0;
 
-        // ── 소진 바 ───────────────────────────────────────────────────────
-        // 원본: maxExhaustion = climbExhaustionStop, 표시 조건 exhaustion > 0
+        // ── Exhaustion bar ───────────────────────────────────────────────────────
+        // Original: maxExhaustion = climbExhaustionStop, display condition exhaustion > 0
         float maxExhaustion   = cfg.climbExhaustionStop;
         float exhaustion      = Math.min(sm.exhaustion, maxExhaustion);
         boolean drawExhaustion = exhaustion > 0 && exhaustion <= maxExhaustion;
@@ -74,12 +74,12 @@ public final class SmartMovingHud {
             float maxCharge = stillCharge > runCharge ? maxStillCharge : maxRunCharge;
             float charge    = Math.max(stillCharge, runCharge);
 
-            // 원본: max 시 fulls=10 half=0, 그 외 ceil 공식
+            // Original: when maxed fulls=10 half=0, otherwise ceil formula
             boolean maxed = charge >= maxCharge;
             int fulls = maxed ? 10 : Math.max(0, (int) Math.ceil(((double)(charge - 2) * 10D) / maxCharge));
             int half  = maxed ? 0  : Math.max(0, (int) Math.ceil((double)charge * 10D / maxCharge) - fulls);
 
-            // Y: height - 49. 갑옷 있으면 10 위로
+            // Y: height - 49. If armor present, 10 upward
             int jy = height - 49 - (player.getArmorValue() > 0 ? 10 : 0);
 
             for (int i = 0; i < fulls + half; i++) {
@@ -89,13 +89,13 @@ public final class SmartMovingHud {
         }
 
         if (drawExhaustion) {
-            // fitness = 남은 여유분 (낮을수록 피로가 쌓인 것)
+            // fitness = remaining margin (lower = more fatigue accumulated)
             float fitness = maxExhaustion - exhaustion;
             int halfs = (int) Math.floor(fitness / maxExhaustion * 21F);
             int fulls = halfs / 2;
             int half  = halfs % 2;
 
-            // Y: height - 49. 물속이면 10 위로
+            // Y: height - 49. If in water, 10 upward
             int jy = height - 49 - (player.isInWater() ? 10 : 0);
 
             for (int i = 0; i < Math.min(fulls + half, 10); i++) {
@@ -104,8 +104,8 @@ public final class SmartMovingHud {
         }
     }
 
-    // icons.png에서 (iconX*9, iconY*9) 위치의 9×9 스프라이트를 (x, y)에 렌더.
-    // 26.2 blit 오버로드는 (x0, y0, x1, y1, u0, u1, v0, v1) 순서다.
+    // Render 9×9 sprite at (iconX*9, iconY*9) position in icons.png to (x, y).
+    // 26.2 blit overload order is (x0, y0, x1, y1, u0, u1, v0, v1).
     private static void drawIcon(GuiGraphicsExtractor context, int x, int y, int iconX, int iconY) {
         float u0 = (float) (iconX * ICON_SIZE) / 256.0F;
         float v0 = (float) (iconY * ICON_SIZE) / 256.0F;
