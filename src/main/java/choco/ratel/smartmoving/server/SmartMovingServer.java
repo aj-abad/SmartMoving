@@ -449,10 +449,10 @@ public final class SmartMovingServer {
     }
 
     /**
-     * 관리자 자발적 config 토글.
-     * 원본: SmartMovingServerOptions.toggle(player) (L66-L71):
+     * Admin voluntary config toggle.
+     * Original: SmartMovingServerOptions.toggle(player) (L66-L71):
      *   config.toggle(); saveToOptionsFile; logConfigState(config, username, true);
-     * 1.21.1: SmartMovingConfig.INSTANCE.toggle() + save() + log + 전체 재전송.
+     * 1.21.1: SmartMovingConfig.INSTANCE.toggle() + save() + log + full retransmit.
      */
     public static void adminToggleConfig(ServerPlayer player) {
         SmartMovingConfig.INSTANCE.toggle();
@@ -463,11 +463,11 @@ public final class SmartMovingServer {
     }
 
     /**
-     * 관리자 자발적 전역 속도 변경.
-     * 원본: SmartMovingServerOptions.changeSpeed(diff, player) (L73-L78):
+     * Admin voluntary global speed change.
+     * Original: SmartMovingServerOptions.changeSpeed(diff, player) (L73-L78):
      *   config.changeSpeed(diff); saveToOptionsFile; logSpeedState(config, username);
-     * 1.21.1: INSTANCE.changeSpeed(diff) + save + log + 전체 재전송.
-     * 클라이언트 요청 수락 경로(processSpeedChangePacket=changeSingleSpeed)와 별개 — 전역 변경.
+     * 1.21.1: INSTANCE.changeSpeed(diff) + save + log + full retransmit.
+     * Separate from client request acceptance path (processSpeedChangePacket=changeSingleSpeed) — global change.
      */
     public static void adminChangeSpeed(ServerPlayer player, int difference) {
         SmartMovingConfig.INSTANCE.changeSpeed(difference);
@@ -477,20 +477,19 @@ public final class SmartMovingServer {
         if (server != null) broadcastConfig(server);
     }
 
-    // ── 3-11: Server console logging (original: SmartMovingServerOptions logging methods) ─────────
+    // ── 3-11: Server Console Logging (Original: SmartMovingServerOptions Log Methods) ─────────
 
     /**
-     * 원본: SmartMovingServerOptions.logConfigState(config, username, reconfig)
-     *       (SmartMovingServerOptions.md L80-L113).
+     * Original: SmartMovingServerOptions.logConfigState(config, username, reconfig)
+     *           (SmartMovingServerOptions.md L80-L113).
      *
-     * H-18 (세션 23) 2갈래 단순화: 포커스 #5 "disabled↔enabled 2상태" 결정 후 `currentKey`
-     * 는 항상 null (configKeys={null}). 원본 3갈래 분기 중 `currentKey==null` 경로만 살아
-     * 있으므로 `default server configuration` 한 줄로 단순화. 나머지 2갈래 (with key /
-     * named) 는 Medium/Hard/Creative 프리셋 복원 시(`focus_09_difficulty_presets.md` 후속)
-     * 재도입.
+     * H-18 (Session 23) 2-branch simplification: after focus #5 "disabled↔enabled 2-state" decision,
+     * `currentKey` always null (configKeys={null}). Original 3-branch only `currentKey==null` path survives,
+     * simplified to single "default server configuration" line. Other 2 branches (with key / named)
+     * reintroduced when restoring Medium/Hard/Creative presets (follow-up to `focus_09_difficulty_presets.md`).
      *
-     * globalConfig=true 경로:
-     *   reconfig=false → "Smart Moving overrides client configurations" 먼저 출력.
+     * globalConfig=true path:
+     *   reconfig=false → prints "Smart Moving overrides client configurations" first.
      *   enabled=true  → "... default server configuration [by X]"
      *   enabled=false → "... disabled [by X]"
      * globalConfig=false:
@@ -512,7 +511,7 @@ public final class SmartMovingServer {
         }
     }
 
-    /** 원본: SmartMovingServerOptions.logSpeedState(config, username). */
+    /** Original: SmartMovingServerOptions.logSpeedState(config, username). */
     static void logSpeedState(SmartMovingConfig config, String username) {
         LOGGER.info("Smart Moving speed set to {}%{}", config.getSpeedPercent(), getPostfix(username));
     }
@@ -523,37 +522,37 @@ public final class SmartMovingServer {
         return " by user '" + username + "'";
     }
 
-    // ── C-16: ConfigInfo 수신 — 클라이언트 SM 버전 저장 ─────────────
+    // ── C-16: Receive ConfigInfo — Save Client SM Version ─────────────
 
-    /** 원본: SmartMovingComm.processConfigInfoPacket (server-side) — 클라이언트 버전 기록. */
+    /** Original: SmartMovingComm.processConfigInfoPacket (server-side) — records client version. */
     public void processConfigInfoPacket(String info) {
         clientVersion = info;
     }
 
-    // ── C-17: ConfigChange 수신 — 서버 설정 변경 권한 거부 응답 ────────
+    // ── C-17: Receive ConfigChange — Deny Permission Response for Server Config Change ────────
 
     /**
-     * 클라이언트가 서버 설정 토글을 요청했으나 서버 설정이 활성화된 경우 항상 거부.
-     * 원본: 서버가 ConfigChange S2C를 전송 → 클라이언트 "no rights" 메시지 표시.
+     * Client requested server config toggle but server config enabled, always deny.
+     * Original: Server sends ConfigChange S2C → client displays "no rights" message.
      */
     public static void processConfigChangePacket(ServerPlayer player) {
         ServerPlayNetworking.send(player, new SmartMovingNetwork.ConfigChangePayload());
     }
 
-    // ── C-18: SpeedChange 수신 — 권한 검증 후 속도 변경 동기화 ─────────
+    // ── C-18: Receive SpeedChange — Validate Permission Then Sync Speed Change ─────────
 
     /**
-     * 클라이언트 속도 변경 요청 처리 — 원본 SmartMovingServerOptions.changeSingleSpeed(player, diff) 대응.
-     * speedUser=true → 허용: INSTANCE.changeSingleSpeed(username, diff) + save → difference 응답.
-     * speedUser=false → 거부: difference=0 반환 → 클라이언트 "no rights" 메시지 표시.
+     * Process client speed change request — corresponds to original SmartMovingServerOptions.changeSingleSpeed(player, diff).
+     * speedUser=true → allow: INSTANCE.changeSingleSpeed(username, diff) + save → respond with difference.
+     * speedUser=false → deny: return difference=0 → client displays "no rights" message.
      *
-     * 원본 setPlayerSpeedExponent 흐름(개인 맵 put + saveToOptionsFile)만 수행, logSpeedState 호출 없음.
-     * 관리자 자발적 전역 변경(원본 changeSpeed + logSpeedState)은 별도 서버 커맨드 이식 시 추가.
+     * Only performs original setPlayerSpeedExponent flow (per-player map put + saveToOptionsFile), no logSpeedState call.
+     * Admin voluntary global change (original changeSpeed + logSpeedState) added when porting separate server command.
      */
     public static void processSpeedChangePacket(ServerPlayer player, int difference) {
-        // B-6 (세션 26): Creative 전용 게이트. 원본 `isUserSpeedEnabled() = enabled &&
-        // _speedUser.value` 에서 `_speedUser` 가 Creative 팩토리라 Creative 에서만 true.
-        // Creative 아니면 서버가 0 응답 → 클라 "no rights" 메시지 → 기능 거부. 원본 1:1.
+        // B-6 (Session 26): Creative-only gate. In original `isUserSpeedEnabled() = enabled &&
+        // _speedUser.value`, `_speedUser` is Creative factory so only true in Creative.
+        // If not Creative, server responds 0 → client "no rights" message → deny feature. Original 1:1 mapping.
         boolean isCreative = player.gameMode.getGameModeForPlayer()
                 == net.minecraft.world.level.GameType.CREATIVE;
         if (!SmartMovingConfig.Config.speedUser || !isCreative) {
@@ -566,11 +565,11 @@ public final class SmartMovingServer {
         ServerPlayNetworking.send(player, new SmartMovingNetwork.SpeedChangePayload(difference, null));
     }
 
-    // ── 3-8: 권한 확인 ───────────────────────────────────────────
+    // ── 3-8: Permission Check ───────────────────────────────────────────
 
     /**
-     * config/speed 변경 권한 확인.
-     * 원본은 == 참조 비교였으나 1.21.1에서 String 인터닝 보장 없으므로 equals()로 교체.
+     * Check permission for config/speed change.
+     * Original used == reference comparison, but 1.21.1 provides no String interning guarantee, so replaced with equals().
      */
     public static boolean hasPermission(String expected, String actual) {
         if (expected == null || actual == null) return false;
