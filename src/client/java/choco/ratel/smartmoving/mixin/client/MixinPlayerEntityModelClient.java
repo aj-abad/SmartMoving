@@ -114,59 +114,59 @@ public abstract class MixinPlayerEntityModelClient {
     }
 
     /**
-     * BipedEntityModel.sneaking — PlayerEntityRenderer.setModelPose 가 매 프레임
-     * `model.sneaking = entity.isInSneakingPose()` 로 set. setAngles 의 sneak 분기
-     * (body.pitch=0.5, leg.pivotZ=4, head.pivotY=4.2, body.pivotY=3.2, arm.pivotY=5.2 등)
-     * 가 이 필드를 본다.
+     * BipedEntityModel.sneaking — PlayerEntityRenderer.setModelPose sets per frame
+     * `model.sneaking = entity.isInSneakingPose()`. The sneak branch of setAngles
+     * (body.pitch=0.5, leg.pivotZ=4, head.pivotY=4.2, body.pivotY=3.2, arm.pivotY=5.2, etc.)
+     * observes this field.
      */
     /**
-     * 낙하 중 vanilla sneak pose 차단을 위해 setAngles HEAD 진입 시 원본 sneaking 값을
-     * 보관. TAIL 시작부에서 원복하여 layer renderer 등 외부 참조와의 일관성 유지.
+     * To block vanilla sneak pose during falling, save original sneaking value on setAngles HEAD entry.
+     * Restore it at TAIL start to maintain consistency with external references like layer renderers.
      *
-     * 원본 1.7.10 1:1 근거 — SmartMovingModel.animateSneaking (L681-685):
+     * Original 1.7.10 equivalence — SmartMovingModel.animateSneaking (L681-685):
      *   `if(isStandard && !isAngleJumping) imp.superAnimateSneaking(...);`
-     *   isFalling 분기 진입 시 isStandard=false → vanilla sneak super 호출 SKIP.
+     *   When isFalling branch is entered, isStandard=false → skip vanilla sneak super call.
      *
-     * 1.21.1 vanilla 는 setAngles 가 통합 메서드라 SKIP 불가 → sneaking 필드를 false 로
-     * 임시 set 해 vanilla `if(this.sneaking)` 분기를 else 분기 (정상 standing 값) 로
-     * 우회. 결과적으로 body.pitch=0, leg.pivotZ=0, leg.pivotY=12.0, head.pivotY=0,
-     * body.pivotY=0, arm.pivotY=2.0F 가 적용되어 sneak 자세 잔존 cancel.
+     * 1.21.1 vanilla's setAngles is a unified method so cannot SKIP directly → temporarily set sneaking field to false
+     * to bypass vanilla `if(this.sneaking)` branch to else branch (normal standing values).
+     * Result: body.pitch=0, leg.pivotZ=0, leg.pivotY=12.0, head.pivotY=0,
+     * body.pivotY=0, arm.pivotY=2.0F are applied, canceling residual sneak pose.
      */
     @Unique
     private boolean smOriginalSneakingForFalling;
 
-    // ── [12-1] setAngles Mixin (HEAD — 낙하 중 vanilla sneak 분기 차단) ─────────
+    // ── [12-1] setAngles Mixin (HEAD — block vanilla sneak branch during falling) ─────────
     //
-    // 원본 1.7.10 SmartMovingModel.animateSneaking 가 isStandard=false 시 vanilla
-    // superAnimateSneaking 호출을 skip 한 것과 1:1 등가. 1.21.1 에서는 setAngles 가
-    // 단일 메서드라 직접 SKIP 불가하므로 sneaking 필드를 false 로 임시 set.
+    // Equivalent to original 1.7.10 SmartMovingModel.animateSneaking skipping vanilla
+    // superAnimateSneaking call when isStandard=false. In 1.21.1, setAngles is a unified
+    // method so cannot skip directly → temporarily set sneaking field to false.
     //
-    // 조건: cfgEnabled && !onGround && fallDistance > fallAnimationDistanceMinimum
-    //       && !climbing 계열 && !touchingWater (= isFallingForReset 와 동일).
+    // Condition: cfgEnabled && !onGround && fallDistance > fallAnimationDistanceMinimum
+    //            && !climbing family && !touchingWater (= same as isFallingForReset).
     @Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/HumanoidRenderState;)V",
             at = @At("HEAD"))
     private void sm_setAnglesHead(
             HumanoidRenderState renderState,
             CallbackInfo ci) {
-        // 🔴 (BUG A fix, 2026-05-13) ModelPart override clear — firstPersonArmRender 가드 *전* 위치.
-        //   PlayerEntityModel 은 single instance — 모든 player 공유. sm_animateSliding 이 직전 frame
-        //   remote 의 rightArm/leftArm 에 override quat (= slide 자세 90° 회전) 적용했으면 그 인스턴스에
-        //   잔존. 같은 frame self 1인칭 hand 렌더 시 model.setAngles 호출되지만 firstPersonArmRender
-        //   가드로 return → clear 미실행 → 1인칭 손이 slide 자세로 그려져 *사라진 것처럼 보임*.
-        //   해결: 가드 *전*으로 이동. 1인칭 hand 렌더 시도 매 frame clear → vanilla default 자세 유지.
+        // 🔴 (BUG A fix, 2026-05-13) ModelPart override clear — position *before* firstPersonArmRender guard.
+        //   PlayerEntityModel is single instance — shared by all players. If sm_animateSliding applied
+        //   override quat to remote's rightArm/leftArm in previous frame (= 90° slide rotation), it persists in that instance.
+        //   Same frame self first-person hand render calls model.setAngles but returns due to firstPersonArmRender
+        //   guard → clear doesn't execute → first-person hand drawn with slide pose *appears to disappear*.
+        //   Solution: move *before* guard. First-person hand render attempts clear every frame → maintains vanilla default pose.
         ((SmModelPartOverride)(Object) rightArm).sm_clearOverrideQuat();
         ((SmModelPartOverride)(Object) leftArm).sm_clearOverrideQuat();
 
-        // 🔴 (2026-05-05 Phase 1-A) 다른 player render 시 SM 자세 적용 위해 가드 변경:
-        //   AbstractClientPlayerEntity = local + remote player 모두 포함.
+        // 🔴 (2026-05-05 Phase 1-A) Guard changed to apply SM pose when rendering other players:
+        //   AbstractClientPlayerEntity = includes both local + remote players.
         if (!(renderState instanceof AvatarRenderState avatarState)
                 || !((Object) avatarState instanceof SmartMovingAvatarRenderState smartState)) return;
         AbstractClientPlayer player = smartState.sm_getPlayer();
         if (player == null) return;
 
-        // 1인칭 손 렌더 컨텍스트 (PlayerEntityRenderer.renderArm 진입 중) — SM 후킹 일체 skip.
-        //   사용자 의도: 1인칭 시점의 손은 항상 vanilla 기본 자세 유지.
-        //   다른 player 는 firstPersonArmRender 컨텍스트 미진입 → 영향 X (가드 그대로).
+        // First-person hand render context (during PlayerEntityRenderer.renderArm) — skip all SM hooks.
+        //   User intent: first-person hand always maintains vanilla default pose.
+        //   Other players never enter firstPersonArmRender context → unaffected (guard as-is).
         if (SmartMovingRenderContext.firstPersonArmRender) return;
 
         // 🔴 (Phase 2 multi BUG-9 회귀 차단) sm_cachePivotDefaultsIfNeeded + sm_restorePivotDefaults 비활성.

@@ -439,7 +439,7 @@ public class SmartMovingClient implements ClientModInitializer {
                     //     server via c2s). broadcast srvY = ground.
                     //   - remote side: entry time remote.y = ground - 1 (= lerp result of previous swim broadcast srvY).
                     //     CR dim → mixin offset blocked → box feet = remote.y = ground - 1 → stuck visual.
-                    //     vanilla lerp chases srvY=ground → reaches in ~3 tick.
+                    //     vanilla lerp chases srvY=ground → reaches in ~3 ticks.
                     //
                     //   Memory: [project_remote_landing_sink_pattern] fix #92/#93 pattern (= directly measure groundY).
                     //   [feedback_remote_setpos_newY_srvY_plus_1]: no mirror push on server side = groundY-1 formula.
@@ -447,9 +447,9 @@ public class SmartMovingClient implements ClientModInitializer {
                     //   fix: setPos(groundY-1) + lerp cancel in remote packet lambda. 1:1 with fix #92 pattern.
                     //   newY = groundY - 1 (= sync with self.y, after mixin offset blocked box feet = entity.y = ground).
                     // 🔵 fix #154 v4 (2026-05-22): multi-step transition history flag.
-                    //   Log measurement: server side broadcast separate 2 packets for dv change vs cr change. REMOTE side
-                    //   lambda each call was[dv=true]→cur[dv=false cr=false] (= dv exit) +
-                    //   was[dv=false]→cur[dv=false cr=true] (= cr entry) 2 steps. single-transition guard no match.
+                    //   Log measurement: server side broadcasts separate 2 packets for dive change vs crawl change. REMOTE side
+                    //   lambda each call was[dv=true]→cur[dv=false cr=false] (= dive exit) +
+                    //   was[dv=false]→cur[dv=false cr=true] (= crawl entry) 2 steps. single-transition guard no match.
                     //   Solution: set flag on swim/dive exit detection + check flag within 5 ticks on crawl entry detection.
                     boolean _swimEndedFix154 = (wasSwim_fix154 || wasDive_fix154)
                             && !target.isSwimming_sm && !target.isDiving;

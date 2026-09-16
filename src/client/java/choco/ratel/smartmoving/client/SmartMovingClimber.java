@@ -130,11 +130,11 @@ public final class SmartMovingClimber {
 
             if (result >= maxResult) return result;
 
-            // 4방향 인접 LadderBlock (원본 L260-269) — 사다리가 우리 쪽으로 면이 향함.
+            // 4 orthogonal adjacent LadderBlocks (original L260-269) — ladder faces toward us.
             for (Direction dir : Direction.Plane.HORIZONTAL) {
                 if (result >= maxResult) return result;
                 if (faceOnly && dir != facedDir) continue;
-                if (dir == localLadderFacing) continue;  // 중심 사다리와 같은 방향 제외
+                if (dir == localLadderFacing) continue;  // Exclude same direction as center ladder
 
                 BlockState s = world.getBlockState(new BlockPos(
                         px + dir.getStepX(), j, pz + dir.getStepZ()));
@@ -143,9 +143,9 @@ public final class SmartMovingClimber {
                         result++;
                     }
                 } else if (s.getBlock() instanceof VineBlock) {
-                    // vine 인접: face property 가 우리 쪽 (dir 반대) 으로 향함.
+                    // Adjacent vine: face property faces toward us (opposite of dir).
                     boolean hasFace = switch (dir) {
-                        case NORTH -> s.getValue(VineBlock.SOUTH);  // 북쪽 인접 vine 의 남쪽 면 = 우리 향함
+                        case NORTH -> s.getValue(VineBlock.SOUTH);  // North adjacent vine's south face = toward us
                         case SOUTH -> s.getValue(VineBlock.NORTH);
                         case EAST  -> s.getValue(VineBlock.WEST);
                         case WEST  -> s.getValue(VineBlock.EAST);
@@ -159,16 +159,16 @@ public final class SmartMovingClimber {
     }
 
     /**
-     * 원본 SmartMovingBase L189-L192 `isFacedToSolidVine(boolean isSmall)`:
+     * Original SmartMovingBase L189-L192 `isFacedToSolidVine(boolean isSmall)`:
      *   return getOnVine(1, true, isSmall) > 0;
      *   where getOnVine(maxResult, faceOnly=true, isSmall) =
      *     getOnLadderOrVine(maxResult, faceOnly=true, onlyLadder=false, onlyVine=true, isSmall)
      *
-     * 1.21.1 `getOnLadderOrVine` L143-L144 에서 이미 "solid 블록 뒤 vine" 만 검출 → solidVine
-     * 조건 내장. `out_handsVine/out_feetVine=true` = solid vine 감지됨.
+     * 1.21.1 `getOnLadderOrVine` L143-L144 already detects only "vine behind solid block" → solid vine
+     * condition built-in. `out_handsVine/out_feetVine=true` = solid vine detected.
      *
-     * 사용처: `wouldWantClimb` 4-OR 의 4번째 분기 (원본 L2472) — 자동 솔리드 덩굴 진입.
-     * B-16a (세션 69).
+     * Usage: 4th branch of `wouldWantClimb` 4-OR (original L2472) — automatic solid vine entry.
+     * B-16a (session 69).
      */
     public static boolean isFacedToSolidVine(LocalPlayer player, boolean isSmall) {
         Level world = player.level();
@@ -182,27 +182,27 @@ public final class SmartMovingClimber {
         return (h[0].isRelevant() && hv[0]) || (f[0].isRelevant() && fv[0]);
     }
 
-    // ── 1-7: getOnLadderOrVine ───────────────────────────────────────────
+    // ── 1-7: getOnLadderOrVine ────────────────────────────────────────────
 
     /**
-     * 원본: SmartMovingBase.getOnLadderOrVine(isSmall, faceOnly)
+     * Original: SmartMovingBase.getOnLadderOrVine(isSmall, faceOnly)
      *
-     * 플레이어 주변 4방향(North/South/East/West)을 탐색하여
-     * 사다리/넝쿨 클라이밍 가능 여부와 HandsClimbing/FeetClimbing 상태를 반환한다.
+     * Searches 4 directions around player (North/South/East/West) and
+     * returns ladder/vine climbing availability and HandsClimbing/FeetClimbing states.
      *
-     * 탐색 범위:
-     *   - 손 위치: player.getY() + 1 블록
-     *   - 발 위치: player.getY()
-     *   - isSmall=true: player.getY() - 1 블록까지 추가 탐색
+     * Search range:
+     *   - Hands position: player.getY() + 1 block
+     *   - Feet position: player.getY()
+     *   - isSmall=true: extends search down to player.getY() - 1 block
      *
-     * 사다리 판정:
-     *   LadderBlock.FACING.getOpposite() == dir → 탐색 방향(dir)에서 붙은 사다리인지 확인
+     * Ladder detection:
+     *   LadderBlock.FACING.getOpposite() == dir → confirms ladder attached from search direction
      *
-     * 넝쿨 판정:
-     *   해당 방향의 VineBlock.DIR property = true
-     *   AND 그 방향 뒤 블록이 솔리드 → 클라이밍 가능
+     * Vine detection:
+     *   VineBlock.DIR property in that direction = true
+     *   AND block behind that direction is solid → climbable
      *
-     * faceOnly=true이면 player 정면 방향만 탐색.
+     * If faceOnly=true, searches only direction player is facing.
      */
     public static void getOnLadderOrVine(
             LocalPlayer player, Level world,
@@ -222,33 +222,33 @@ public final class SmartMovingClimber {
         int py = (int) Math.floor(player.getY());
         int pz = (int) Math.floor(player.getZ());
 
-        // 탐색 Y 범위: 발(py) ~ 손(py+1), isSmall이면 py-1까지 확장
+        // Search Y range: feet(py) ~ hands(py+1), extends to py-1 if isSmall
         int minY = isSmall ? py - 1 : py;
-        int maxY = py + 1; // 손 위치
+        int maxY = py + 1; // hands position
 
         Direction playerFacing = player.getDirection();
 
-        // 🔴 사다리/덩굴 자동 진입 BUG: 사용자 위치 자체 (px, by, pz) 검사 누락.
-        //   원본 SmartMovingBase L260-286 흐름:
+        // 🔴 Ladder/vine automatic entry BUG: missing check of player's own position (px, by, pz).
+        //   Original SmartMovingBase L260-286 flow:
         //     for(j = minj; j <= maxj; j++) {
-        //         Block block = world.getBlock(i, j, k);  // 사용자 위치 자체
-        //         if (ladder && isKnownLadder(block) && faceMatch) result++;  // 사다리 칸 안
+        //         Block block = world.getBlock(i, j, k);  // Player's own position
+        //         if (ladder && isKnownLadder(block) && faceMatch) result++;  // Inside ladder block
         //         if (vine && isVine(block)) result++;
-        //         for (Orientation dir : Orthogonals) { ... 인접 검사 }
+        //         for (Orientation dir : Orthogonals) { ... adjacent check }
         //     }
-        //   우리 코드는 인접 검사만 → 사용자가 사다리 칸 안에 있을 때 (사다리 충돌 박스 thin
-        //   이라 들어갈 수 있음) 사다리 발견 못 함 → 클라이밍 풀림.
-        //   해결: 사용자 위치 자체 검사 추가 (faceOnly 시 ladder facing 매칭).
+        //   Our code only does adjacent check → when player is inside ladder block (ladder collision
+        //   box is thin so player can enter), ladder not detected → climbing stops.
+        //   Solution: Add check of player's own position (with ladder facing match if faceOnly).
         for (int by = minY; by <= maxY; by++) {
             BlockState centerState = world.getBlockState(new BlockPos(px, by, pz));
             boolean isHandsLevel = (by == maxY);
 
-            // 사용자 위치 자체 사다리
+            // Ladder at player's own position
             if (centerState.getBlock() instanceof LadderBlock) {
                 Direction ladderFacing = centerState.getValue(LadderBlock.FACING);
-                // 🔴 BUG 정정: vanilla LadderBlock.FACING = 사다리 정면 (사용자 측 향) 방향.
-                //   사용자 facing=NORTH (사다리 보면서) → 사다리 정면=SOUTH → 사용자 측 향.
-                //   매칭: ladderFacing.getOpposite() == playerFacing (= 사다리 정면 반대 = 사용자 정면).
+                // 🔴 BUG fix: vanilla LadderBlock.FACING = ladder front (facing player) direction.
+                //   Player facing=NORTH (facing ladder) → ladder front=SOUTH → facing player.
+                //   Match: ladderFacing.getOpposite() == playerFacing (= ladder front opposite = player front).
                 if (!faceOnly || ladderFacing.getOpposite() == playerFacing) {
                     ClimbGap gap = new ClimbGap();
                     gap.state = centerState;
@@ -261,8 +261,8 @@ public final class SmartMovingClimber {
                 }
             }
 
-            // 사용자 위치 자체 vine — 4방향 face property 중 하나라도 true 면 활성.
-            //   faceOnly=true 시 사용자 정면 face (= dir 매칭) 만, 그 외 모두.
+            // Vine at player's own position — active if any of 4 faces is true.
+            //   If faceOnly=true, only player's facing face (= dir match), otherwise all.
             if (centerState.getBlock() instanceof VineBlock) {
                 boolean hasAnyFace;
                 if (faceOnly) {

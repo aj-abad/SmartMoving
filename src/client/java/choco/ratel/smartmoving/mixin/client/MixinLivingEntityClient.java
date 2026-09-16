@@ -26,13 +26,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 5-1 (클라이언트): travel() 인터셉트 — SM 클라이밍 시 vanilla 취소 + SM 물리 적용
- * 5-2: jump() 인터셉트 — jumpAvoided/jumpPending 세팅 + vanilla 취소
- * 5-3: jumpingCooldown 우회 — jump() 취소로 10틱 쿨다운 발동 자체 차단
- * 5-4: jumping 필드 @Shadow — SM 조건 필터 적용 시 참조 (tickEssential 내부)
- * 5-5 (클라이언트): isClimbing() 오버라이드 — SM 클라이밍 중 false 반환
- * 5-6: applyClimbingSpeed() 취소 — SM 클라이밍 중 x/z ±0.15F 클램프 이중 차단
- * 6-2 (클라이언트): isInSwimmingPose() 오버라이드 — SM 크롤링 중 false 반환
+ * 5-1 (Client): travel() intercept — cancel vanilla + apply SM physics during SM climbing
+ * 5-2: jump() intercept — set jumpAvoided/jumpPending + cancel vanilla
+ * 5-3: jumpingCooldown bypass — block cooldown trigger itself by canceling jump()
+ * 5-4: jumping field @Shadow — reference when SM condition filter is applied (inside tickEssential)
+ * 5-5 (Client): isClimbing() override — return false during SM climbing
+ * 5-6: applyClimbingSpeed() cancel — double block x/z ±0.15F clamp during SM climbing
+ * 6-2 (Client): isInSwimmingPose() override — return false during SM crawling
  */
 @Mixin(LivingEntity.class)
 @Environment(EnvType.CLIENT)

@@ -661,55 +661,55 @@ public final class SmartMovingClientState {
     /** dodge key state from previous frame. */
     private boolean prevDodgeKeyPressed;
 
-    // ── IMPL-03: 더블클릭 방향 점프 카운터 ──────────────────────────────
-    /** A키 더블클릭 카운터. 0=비활성, >0=첫 클릭 대기, -1=발동 예약, -2=대각선 대기. */
+    // ── IMPL-03: Double-click directional jump counter ──────────────────────────────
+    /** A key double-click counter. 0=inactive, >0=waiting for first click, -1=trigger pending, -2=diagonal waiting. */
     public int leftJumpCount;
-    /** D키 더블클릭 카운터. */
+    /** D key double-click counter. */
     public int rightJumpCount;
-    /** S키 더블클릭 카운터. */
+    /** S key double-click counter. */
     public int backJumpCount;
-    /** 점프 직전 저장 velocity.x (getJumpMoving 계산용). */
+    /** velocity.x saved before jump (for getJumpMoving calculation). */
     public double jumpMotionX;
-    /** 점프 직전 저장 velocity.z. */
+    /** velocity.z saved before jump. */
     public double jumpMotionZ;
-    /** 이전 틱 A키 상태 (rising-edge 감지용). */
+    /** A key state from previous tick (for rising-edge detection). */
     private boolean prevPressLeft;
-    /** 이전 틱 D키 상태. */
+    /** D key state from previous tick. */
     private boolean prevPressRight;
-    /** 이전 틱 S키 상태. */
+    /** S key state from previous tick. */
     private boolean prevPressBack;
 
-    // ── C-33: SM 독자 exhaustion (클라이밍 피로도) ──────────────────────────
-    /** 이전 틱 클라이밍 여부 — exhaustion 허용 조건 판정용. */
+    // ── C-33: SM-specific exhaustion (climbing fatigue) ──────────────────────────
+    /** Previous tick climbing status — used to determine exhaustion allowance condition. */
     public boolean wasClimbing;
 
     /**
-     * 🔴 사다리/덩굴 등반 중 sneak 키가 눌렸으면 set. sneak 키 뗄 때 reset.
-     *   원본 1.7.10 의 isSneaking() override 는 isClimbing=true 시 false 리턴 →
-     *   1.21.1 vanilla CROUCHING 자세도 차단. 그러나 등반 끝난 직후 (isClimbing=false)
-     *   에는 원본도 isSneaking()=true → sneak 자세. 1.7.10 vanilla sneak 자세는
-     *   시각적으로 미미 → 사용자 인식 X. 1.21.1 vanilla CROUCHING 은 매우 두드러짐
-     *   → 사용자 보고 "엎드리기".
-     *   사용자 의도 (원본보다 엄격) 반영: 등반 중 sneak 누르고 있으면 등반 끝나도
-     *   sneak 키를 한 번 떼야 sneak 효과 활성화. 떼면 자연 reset.
+     * 🔴 Set if sneak key is pressed during ladder/vine climbing. Reset when sneak key is released.
+     *   Original 1.7.10's isSneaking() override returns false when isClimbing=true →
+     *   1.21.1 vanilla CROUCHING posture also blocked. However, right after climbing ends (isClimbing=false)
+     *   original also has isSneaking()=true → sneak posture. 1.7.10 vanilla sneak posture is
+     *   visually minimal → user unaware. 1.21.1 vanilla CROUCHING is very prominent
+     *   → user reports "prone".
+     *   Reflects user intent (stricter than original): if sneak held during climbing, even after climbing ends,
+     *   user must release sneak key once for sneak effect to activate. Release naturally resets.
      */
     public boolean sneakHeldDuringClimb;
-    /** SM 독자 피로도 (0 ~ climbExhaustionStop 사이). 매 틱 감소, 클라이밍 중 증가. */
+    /** SM-specific fatigue (between 0 ~ climbExhaustionStop). Decreases each tick, increases during climbing. */
     public float exhaustion;
 
-    // ── H-8: SM 허기 축적 (원본 SmartMovingSelf L863/L893/L911) ────────────
+    // ── H-8: SM hunger accumulation (original SmartMovingSelf L863/L893/L911) ────────────
     /**
-     * 원본 SmartMovingSelf 의 `hungerIncrease` 필드. 매 틱 `handleExhaustion` 에서 누적:
+     * Original SmartMovingSelf's `hungerIncrease` field. Accumulated each tick in `handleExhaustion`:
      *   L863: `hungerIncrease += _alwaysHungerGain + movement * 0.0001F * hungerGainFactor`
      *   L893: `hungerIncrease += _exhaustionLossHungerFactor * exhaustionLoss`
-     * 틱 끝에서 `lastHungerIncrease` 와 비교하여 변화 시 서버 전송 (원본 L911-L915).
-     * 누적값 — reset 없음 (서버가 수신해서 vanilla addExhaustion 연동).
+     * At end of tick, compared with `lastHungerIncrease` to send to server if changed (original L911-L915).
+     * Accumulated value — no reset (server receives and syncs with vanilla addExhaustion).
      */
     public float hungerIncrease;
 
     /**
-     * 원본 SmartMovingSelf.lastHungerIncrease — 이전 전송값 캐시. 변화 감지로 중복 전송 방지.
-     * 원본 L911 `if (hungerIncrease != lastHungerIncrease) { sendHungerChange; lastHungerIncrease = hungerIncrease; }`.
+     * Original SmartMovingSelf.lastHungerIncrease — cache of previous sent value. Change detection prevents duplicate sends.
+     * Original L911 `if (hungerIncrease != lastHungerIncrease) { sendHungerChange; lastHungerIncrease = hungerIncrease; }`.
      */
     public float lastHungerIncrease;
 

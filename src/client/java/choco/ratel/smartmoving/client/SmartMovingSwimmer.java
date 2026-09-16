@@ -11,60 +11,60 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 클라이언트 측 수영/잠수 물리 로직.
- * 원본: SmartMovingSelf.handleSwimming(), SmartMovingBase.moveFlying() 이식.
+ * Client-side swimming/diving physics logic.
+ * Original: SmartMovingSelf.handleSwimming(), SmartMovingBase.moveFlying() porting.
  *
- * 포함 항목:
- *   8-1: updateSwimState() — isDipping / isSwimming_sm / isDiving 3분류
- *   8-2: handleSwimming() — 수중 이동 physics (damping, moveFlying, motionYDiff)
- *   8-5: isJumpingOutOfWater — 수평 충돌 + waterMovementTicks > 10 → motionY 상승
- *   8-6: 수영 소리 누적 → MixinEntityClient.sm_afterMove_client 에서 처리
+ * Included items:
+ *   8-1: updateSwimState() — isDipping / isSwimming_sm / isDiving 3-classification
+ *   8-2: handleSwimming() — underwater movement physics (damping, moveFlying, motionYDiff)
+ *   8-5: isJumpingOutOfWater — horizontal collision + waterMovementTicks > 10 → motionY rise
+ *   8-6: swimming sound accumulation → handled in MixinEntityClient.sm_afterMove_client
  */
 @Environment(EnvType.CLIENT)
 public final class SmartMovingSwimmer {
 
-    // ── 8-1: offset 임계값 ───────────────────────────────────────────────────
-    // 원본: SmartMovingContext의 SwimCrawlWaterBorder 상수
+    // ── 8-1: offset threshold ──────────────────────────────────────────────────
+    // Original: SmartMovingContext SwimCrawlWaterBorder constants
     // offset = getFluidHeight(WATER) + 0.1625D
-    private static final double OFFSET_SWIMMING = 1.4D;  // isDipping/isSwimming 경계
-    private static final double OFFSET_DIVING   = 1.9D;  // isSwimming/isDiving 경계
+    private static final double OFFSET_SWIMMING = 1.4D;  // isDipping/isSwimming boundary
+    private static final double OFFSET_DIVING   = 1.9D;  // isSwimming/isDiving boundary
 
-    // SwimCrawlWater 경계 상수 (SmartMovingContext L41-L44, R-06)
+    // SwimCrawlWater boundary constants (SmartMovingContext L41-L44, R-06)
     private static final float SWIM_CRAWL_MAX    = 1.0F;    // SwimCrawlWaterMaxBorder
     private static final float SWIM_CRAWL_TOP    = 0.65F;   // SwimCrawlWaterTopBorder
-    private static final float SWIM_CRAWL_MEDIUM = 0.6F;    // SwimCrawlWaterMediumBorder (B-36 분기 b/c)
-    private static final float SWIM_CRAWL_BOTTOM = 0.55F;   // SwimCrawlWaterBottomBorder (B-11 조건)
+    private static final float SWIM_CRAWL_MEDIUM = 0.6F;    // SwimCrawlWaterMediumBorder (B-36 branch b/c)
+    private static final float SWIM_CRAWL_BOTTOM = 0.55F;   // SwimCrawlWaterBottomBorder (B-11 condition)
 
-    // ── 8-2: 수중 이동 상수 ──────────────────────────────────────────────────
-    // 원본: SmartMovingSelf.handleSwimming() 내 motionX/Y/Z 감쇠값
+    // ── 8-2: underwater movement constants ──────────────────────────────────
+    // Original: motionX/Y/Z damping values in SmartMovingSelf.handleSwimming()
     private static final double DAMPING_DIPPING_XZ = 0.80D;
     private static final double DAMPING_DIPPING_Y  = 0.83D;
     private static final double DAMPING_SWIMMING    = 0.85D;
     private static final double DAMPING_DIVING      = 0.83D;
 
-    // 원본: SM swim 속도 팩터 기본 이동 속도
+    // Original: SM swim speed factor base movement speed
     private static final float  BASE_SWIM_SPEED    = 0.02F;
 
-    // 원본: isJumpingOutOfWater motionY 값 (SM 정확 상수 유지)
+    // Original: isJumpingOutOfWater motionY value (maintain exact SM constant)
     private static final double JUMP_OUT_OF_WATER_VELOCITY = 0.30000001192092896D;
 
     private SmartMovingSwimmer() {}
 
-    // ── [8-1] updateSwimState ────────────────────────────────────────────────
+    // ── [8-1] updateSwimState ──────────────────────────────────────────────
 
     /**
-     * 매 travel() 틱마다 호출하여 수영 상태 3분류를 갱신한다.
-     * 원본: SmartMoving.java의 isDipping/isSwimming/isDiving 갱신 로직.
+     * Called every travel() tick to update the 3-classification swim state.
+     * Original: isDipping/isSwimming/isDiving update logic in SmartMoving.java.
      *
      * offset = getFluidHeight(WATER) + 0.1625D
-     *   offset <  1.4 → isDipping   (수면 경계 미만, 발만 잠김)
-     *   1.4 ≤ offset < 1.9 → isSwimming_sm (수면 수영)
-     *   offset ≥  1.9 → isDiving    (완전 잠수)
+     *   offset <  1.4 → isDipping   (below water surface boundary, feet submerged only)
+     *   1.4 ≤ offset < 1.9 → isSwimming_sm (surface swimming)
+     *   offset ≥  1.9 → isDiving    (fully submerged)
      */
     /**
-     * 원본 SmartMovingSelf L1488-L1498 `resetSwimming()` 완전 이식 (B-10-reset-post 세션 114).
+     * Complete port of original SmartMovingSelf L1488-L1498 `resetSwimming()` (B-10-reset-post session 114).
      *
-     * 원본 8 필드 리셋:
+     * Original 8 fields to reset:
      *   dippingDepth = -1
      *   isDipping = false
      *   isSwimming = false
@@ -74,8 +74,8 @@ public final class SmartMovingSwimmer {
      *   isFakeShallowWaterSneaking = false
      *   isJumpingOutOfWater = false
      *
-     * 원본 호출 지점 6 개 중 updateSwimState 진입 `!isInWater` 분기 (원본 L242/L253) 대응.
-     * handleSwimming 내부 호출 (L555/L585/L607/L645) 은 B-9 Phase 5 재작성 시 활용 예정.
+     * Corresponds to one of 6 original call points: updateSwimState entry `!isInWater` branch (original L242/L253).
+     * Internal handleSwimming calls (L555/L585/L607/L645) planned for B-9 Phase 5 rewrite.
      */
     private static void resetSwimming(SmartMovingClientState sm) {
         sm.dippingDepth                = -1F;

@@ -4,18 +4,18 @@
 
 - [x] src/client/java/choco/ratel/smartmoving/client/input/SmartMovingKeys.java
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingAvatarRenderState.java
-- [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingClient.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingClientState.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingClimber.java
+- [🔄] src/client/java/choco/ratel/smartmoving/client/SmartMovingClient.java (agent a3447d247284b7396)
+- [🔄] src/client/java/choco/ratel/smartmoving/client/SmartMovingClientState.java (agent ab0fe1e9a44173947)
+- [🔄] src/client/java/choco/ratel/smartmoving/client/SmartMovingClimber.java (agent a2a41a126c7779789)
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingFlyer.java
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingHud.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingJumper.java
+- [🔄] src/client/java/choco/ratel/smartmoving/client/SmartMovingJumper.java (agent ac26db3cb5cdbe89f)
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingLivingEntityAccess.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingMover.java
+- [🔄] src/client/java/choco/ratel/smartmoving/client/SmartMovingMover.java (agent a82222e35b61e66c2)
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingRenderContext.java
 - [x] src/client/java/choco/ratel/smartmoving/client/SmartMovingSlider.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmartMovingSwimmer.java
-- [ ] src/client/java/choco/ratel/smartmoving/client/SmModelPartOverride.java
+- [🔄] src/client/java/choco/ratel/smartmoving/client/SmartMovingSwimmer.java (agent ac26db3cb5cdbe89f)
+- [🔄] src/client/java/choco/ratel/smartmoving/client/SmModelPartOverride.java (agent a82222e35b61e66c2)
 
 ## Client Mixin Files
 

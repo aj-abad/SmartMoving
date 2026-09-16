@@ -13,19 +13,19 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 클라이언트 측 이동 속도 팩터 계산.
- * 원본: SmartMovingSelf.getConfigSpeedFactor / getPotionSpeedFactor /
- *       getNonSlowInputSpeedFactor / getSlowInputSpeedFactor 이식.
+ * Client-side movement speed factor calculation.
+ * Original: SmartMovingSelf.getConfigSpeedFactor / getPotionSpeedFactor /
+ *           getNonSlowInputSpeedFactor / getSlowInputSpeedFactor ported.
  *
- * 포함 항목:
- *   11-1: 속도 팩터 4단계 구조
+ * Included items:
+ *   11-1: Speed factor 4-stage structure
  */
 @Environment(EnvType.CLIENT)
 public final class SmartMovingMover {
 
     private SmartMovingMover() {}
 
-    // ── [11-1] 속도 팩터 4단계 ──────────────────────────────────────────────
+    // ── [11-1] Speed Factor 4-Stage ─────────────────────────────────────────
 
     /**
      * 원본 `_speedUser = Creative("move.speed.user")` 팩토리 의미 재현.

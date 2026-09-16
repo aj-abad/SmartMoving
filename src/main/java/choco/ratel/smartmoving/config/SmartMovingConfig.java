@@ -192,7 +192,7 @@ public class SmartMovingConfig {
     /**
      * Phase B-7 — getJumpChargeFactor(jumpCharge).
      *
-     * 원본 `SmartMovingClientConfig.java` L401-L408 (1:1 번역):
+     * Original `SmartMovingClientConfig.java` L401-L408 (1:1 translation):
      * <pre>
      * public float getJumpChargeFactor(float jumpCharge) {
      *     if (!enabled || !_jumpCharge.value) return 1F;
@@ -201,9 +201,9 @@ public class SmartMovingConfig {
      * }
      * </pre>
      *
-     * 공식: charge=0 → 1F, charge=max → jumpChargeFactor (1.3F 기본). 선형 보간.
+     * Formula: charge=0 → 1F, charge=max → jumpChargeFactor (1.3F default). Linear interpolation.
      *
-     * 호출처: tryJump (Phase D-6) — `float jumpChargeFactor = charged ? cfg.getJumpChargeFactor(sm.jumpCharge) : 1F;`
+     * Call site: tryJump (Phase D-6) — `float jumpChargeFactor = charged ? cfg.getJumpChargeFactor(sm.jumpCharge) : 1F;`
      */
     public float getJumpChargeFactor(float jumpCharge) {
         if (!enabled || !this.jumpCharge)
@@ -216,7 +216,7 @@ public class SmartMovingConfig {
     /**
      * Phase B-8 — getHeadJumpFactor(headJumpCharge).
      *
-     * 원본 `SmartMovingClientConfig.java` L410-L416 (1:1 번역):
+     * Original `SmartMovingClientConfig.java` L410-L416 (1:1 translation):
      * <pre>
      * public float getHeadJumpFactor(float headJumpCharge) {
      *     if (!enabled || !_headJump.value) return 1F;
@@ -225,12 +225,12 @@ public class SmartMovingConfig {
      * }
      * </pre>
      *
-     * 공식: charge=1 → 0, charge=max → 1. 헤드점프의 normalAngle 회전 비율 (Phase D-10).
+     * Formula: charge=1 → 0, charge=max → 1. Head jump normalAngle rotation ratio (Phase D-10).
      *
-     * 주의: charge=0 일 때 결과 -1 / (max-1) (음수). 호출 측 (Phase D-10) 에서 head 분기 진입
-     * 전 이미 charge >= 1 보장된다고 가정 (원본 그대로).
+     * Caution: When charge=0 result is -1 / (max-1) (negative). Call site (Phase D-10) assumes
+     * charge >= 1 is already guaranteed before entering head branch (as original).
      *
-     * 호출처: tryJump head 재계산 (Phase D-10) — `double newAngle = cfg.getHeadJumpFactor(sm.headJumpCharge) * normalAngle;`
+     * Call site: tryJump head recalculation (Phase D-10) — `double newAngle = cfg.getHeadJumpFactor(sm.headJumpCharge) * normalAngle;`
      */
     public float getHeadJumpFactor(float headJumpCharge) {
         if (!enabled || !this.headJump)
@@ -243,21 +243,21 @@ public class SmartMovingConfig {
     /**
      * Phase B-5 — getJumpVerticalFactor(speed, type).
      *
-     * 원본 `SmartMovingClientConfig.java` L418-L463 (1:1 번역):
+     * Original `SmartMovingClientConfig.java` L418-L463 (1:1 translation):
      * <pre>
      * public float getJumpVerticalFactor(int speed, int type) {
      *     if (!enabled) return 1F;
      *     float result = _jumpVerticalFactor.value;
-     *     if (type == Angle)                                              return result * _angleJumpVerticalFactor.value;   // 즉시 early return
+     *     if (type == Angle)                                              return result * _angleJumpVerticalFactor.value;   // immediate early return
      *     if (type == ClimbUp || type == ClimbUpHandsOnly)                result *= _climbUpJumpVerticalFactor.value;
      *     if (type == ClimbUpHandsOnly)                                   result *= _climbUpJumpHandsOnlyVerticalFactor.value;
      *     if (type == ClimbBackUp || type == ClimbBackUpHandsOnly)        result *= _climbBackUpJumpVerticalFactor.value;
      *     if (type == ClimbBackUpHandsOnly)                               result *= _climbBackUpJumpHandsOnlyVerticalFactor.value;
      *     if (type == ClimbBackHead || type == ClimbBackHeadHandsOnly)    result *= _climbBackHeadJumpVerticalFactor.value;
      *     if (type == ClimbBackHeadHandsOnly)                             result *= _climbBackHeadJumpHandsOnlyVerticalFactor.value;
-     *     if (type == WallUp || type == WallHead)                         result *= _wallUpJumpVerticalFactor.value;        // ※ 둘 다 wallUp 사용
-     *     if (type == WallHead)                                           result *= _wallHeadJumpVerticalFactor.value;       // ※ WallHead = base × wallUp × wallHead 누적
-     *     if (type == Angle || type == ClimbUp || ... || type == WallHead) return result;   // type 매칭 시 speed 분기 skip
+     *     if (type == WallUp || type == WallHead)                         result *= _wallUpJumpVerticalFactor.value;        // ※ both use wallUp
+     *     if (type == WallHead)                                           result *= _wallHeadJumpVerticalFactor.value;       // ※ WallHead = base × wallUp × wallHead accumulated
+     *     if (type == Angle || type == ClimbUp || ... || type == WallHead) return result;   // type match skip speed branch
      *     if (speed == Sprinting)  result *= _sprintJumpVerticalFactor.value;
      *     else if (speed == Running)  result *= _runJumpVerticalFactor.value;
      *     else if (speed == Walking)  result *= _walkJumpVerticalFactor.value;
@@ -267,7 +267,7 @@ public class SmartMovingConfig {
      * }
      * </pre>
      *
-     * 호출처: tryJump (Phase D-6) — `float verticalJumpFactor = cfg.getJumpVerticalFactor(speed, type) * jumpFactor;`
+     * Call site: tryJump (Phase D-6) — `float verticalJumpFactor = cfg.getJumpVerticalFactor(speed, type) * jumpFactor;`
      */
     public float getJumpVerticalFactor(int speed, int type) {
         if (!enabled)
@@ -322,7 +322,7 @@ public class SmartMovingConfig {
     /**
      * Phase B-4 — getJumpHorizontalFactor(speed, type).
      *
-     * 원본 `SmartMovingClientConfig.java` L465-L505 (1:1 번역):
+     * Original `SmartMovingClientConfig.java` L465-L505 (1:1 translation):
      * <pre>
      * public float getJumpHorizontalFactor(int speed, int type) {
      *     if (!enabled) return speed == Running ? 2F : 1F;
@@ -344,7 +344,7 @@ public class SmartMovingConfig {
      *         || type == ClimbBackUp || type == ClimbBackUpHandsOnly
      *         || type == ClimbBackHead || type == ClimbBackHeadHandsOnly
      *         || type == WallUp || type == WallHead)
-     *         return result;   // type 매칭 시 speed 분기 skip (early return)
+     *         return result;   // type match skip speed branch (early return)
      *
      *     if (speed == Sprinting)                                            result *= _sprintJumpHorizontalFactor.value;
      *     else if (speed == Running)                                         result *= _runJumpHorizontalFactor.value;
@@ -352,12 +352,12 @@ public class SmartMovingConfig {
      *     else if (speed == Sneaking)                                        result *= _sneakJumpHorizontalFactor.value;
      *     else if (speed == Standing && type != ClimbBackUp && type != ClimbBackUpHandsOnly
      *                                && type != ClimbBackHead && type != ClimbBackHeadHandsOnly)
-     *         result *= 0F;   // L501 — Standing 점프는 수평 0 (Climb 4종은 위에서 early return)
+     *         result *= 0F;   // L501 — Standing jump horizontal 0 (Climb 4 types early return above)
      *     return result;
      * }
      * </pre>
      *
-     * 호출처: tryJump (Phase D-6) — `float horizontalJumpFactor = cfg.getJumpHorizontalFactor(speed, type) * jumpFactor;`
+     * Call site: tryJump (Phase D-6) — `float horizontalJumpFactor = cfg.getJumpHorizontalFactor(speed, type) * jumpFactor;`
      */
     public float getJumpHorizontalFactor(int speed, int type) {
         if (!enabled)
