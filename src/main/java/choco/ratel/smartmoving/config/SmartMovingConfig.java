@@ -704,7 +704,9 @@ public class SmartMovingConfig {
     public boolean headJump = true;
     public float headJumpControlFactor = 0.2F;
     public float headJumpChargeMaximum = 10F;
-    // === Angle (Side/Back) 점프 (원본 SmartMovingConfig L268-L271) ===
+    // === Angle (Forward/Side/Back) 점프 (원본 SmartMovingConfig L268-L271 + 전방 확장) ===
+    // 전용 dodge 키의 전방 입력. 기존 원본 설정에는 없으므로 기본 true인 확장 옵션.
+    public boolean angleJumpForward = true;
     // 원본 L268: _angleJumpSide = Unmodified("move.jump.angle.side") → 기본 true
     public boolean angleJumpSide = true;
     // 원본 L269: _angleJumpBack = Unmodified("move.jump.angle.back") → 기본 true
@@ -1679,6 +1681,7 @@ public class SmartMovingConfig {
         headJumpChargeMaximum    = getFloat(p,  "move.forward.jump.charge.maximum", headJumpChargeMaximum);
         headFallDamageStartDistance = getFloat(p, "move.fall.head.damage.start.distance", headFallDamageStartDistance);
         headFallDamageFactor     = getFloat(p,  "move.fall.head.damage.factor",   headFallDamageFactor);
+        angleJumpForward         = getBool(p,   "move.jump.angle.forward",        angleJumpForward);
         angleJumpSide            = getBool(p,   "move.jump.angle.side",           angleJumpSide);
         angleJumpBack            = getBool(p,   "move.jump.angle.back",           angleJumpBack);
         angleJumpHorizontalFactor = getFloat(p, "move.jump.angle.horizontal.factor", angleJumpHorizontalFactor);
@@ -1847,6 +1850,7 @@ public class SmartMovingConfig {
         p.setProperty("move.forward.jump.charge.maximum", String.valueOf(headJumpChargeMaximum));
         p.setProperty("move.fall.head.damage.start.distance", String.valueOf(headFallDamageStartDistance));
         p.setProperty("move.fall.head.damage.factor",    String.valueOf(headFallDamageFactor));
+        p.setProperty("move.jump.angle.forward",         String.valueOf(angleJumpForward));
         p.setProperty("move.jump.angle.side",            String.valueOf(angleJumpSide));
         p.setProperty("move.jump.angle.back",            String.valueOf(angleJumpBack));
         p.setProperty("move.jump.angle.horizontal.factor", String.valueOf(angleJumpHorizontalFactor));

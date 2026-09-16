@@ -652,6 +652,14 @@ public final class SmartMovingClientState {
     public boolean grabJustPressed;
     /** grab 키 직전 프레임 isPressed() 값 — rising edge 검출용 (timesPressed 카운터 누적 회피). */
     public boolean prevGrabKeyPressed;
+    /** 전용 prone 키의 이번 틱 rising edge. */
+    public boolean proneJustPressed;
+    /** prone 키 직전 프레임 상태. */
+    private boolean prevProneKeyPressed;
+    /** 전용 dodge 키의 이번 틱 rising edge. */
+    public boolean dodgeJustPressed;
+    /** dodge 키 직전 프레임 상태. */
+    private boolean prevDodgeKeyPressed;
 
     // ── IMPL-03: 더블클릭 방향 점프 카운터 ──────────────────────────────
     /** A키 더블클릭 카운터. 0=비활성, >0=첫 클릭 대기, -1=발동 예약, -2=대각선 대기. */
@@ -1229,16 +1237,16 @@ public final class SmartMovingClientState {
     // ── 12-2: isAngleJumping() ───────────────────────────────────────────
     /**
      * 방향 점프 중인지 여부.
-     * 원본: SmartMoving.isAngleJumping() → angleJumpType > 1 && angleJumpType < 7
+     * 원본은 side/back 코드 2~6만 사용했다. 전용 dodge 키는 전방을 포함한 1~8 방향을 사용한다.
      */
     public boolean isAngleJumping() {
-        return angleJumpType > 1 && angleJumpType < 7;
+        return angleJumpType >= 1 && angleJumpType <= 8;
     }
 
     // ── C-24: processStatePacket() ────────────────────────────────────
 
     /**
-     * 타 플레이어 State 패킷의 34비트 long에서 클라이언트가 필요한 비트를 추출한다.
+     * 타 플레이어 State 패킷의 long 비트필드에서 클라이언트가 필요한 비트를 추출한다.
      * 원본: SmartMovingOther.processStatePacket(long state)
      * 렌더링/애니메이션에 사용되는 필드만 갱신한다.
      */
@@ -1259,7 +1267,8 @@ public final class SmartMovingClientState {
         isLevitating      = ((bits >> 19) & 1) != 0;   // 원본 bit 19 isLevitating
         isHeadJumping     = ((bits >> 20) & 1) != 0;
         isSliding         = ((bits >> 21) & 1) != 0;
-        angleJumpType     = (int) ((bits >> 22) & 0x7);
+        angleJumpType     = (int) ((bits >> 22) & 0x7)
+                          | (int) (((bits >> 36) & 1) << 3);
         isFeetVineClimbing   = ((bits >> 25) & 1) != 0;  // bit 25
         isHandsVineClimbing  = ((bits >> 26) & 1) != 0;  // bit 26
         isClimbJumping    = ((bits >> 27) & 1) != 0;
@@ -1344,6 +1353,14 @@ public final class SmartMovingClientState {
         grabJustPressed = curGrabPressed && !prevGrabKeyPressed;
         prevGrabKeyPressed = curGrabPressed;
 
+        boolean curPronePressed = SmartMovingKeys.prone.isDown();
+        proneJustPressed = curPronePressed && !prevProneKeyPressed;
+        prevProneKeyPressed = curPronePressed;
+
+        boolean curDodgePressed = SmartMovingKeys.dodge.isDown();
+        dodgeJustPressed = curDodgePressed && !prevDodgeKeyPressed;
+        prevDodgeKeyPressed = curDodgePressed;
+
         // 원본 SmartMovingSelf triggerWallJumping — 매 틱 시작에 리셋.
         // 리서치 파일에 원본 리셋 위치 기록 없음 → 보수적으로 "매 틱 1회용 이벤트" 로 처리.
         triggerWallJumping = false;
@@ -1425,6 +1442,11 @@ public final class SmartMovingClientState {
             // B-46 (세션 66): `SmartMovingKeys.grab.wasPressed()` 지역 호출 제거 —
             // tickEssential 초반 1회 저장된 `grabJustPressed` 필드 참조.
             boolean grabHeld0 = SmartMovingKeys.grab.isDown();
+            boolean proneHeld0 = SmartMovingKeys.prone.isDown();
+            if (cfg0.isCrawlToggleEnabled() && proneJustPressed && player.onGround()) {
+                crawlToggled = !crawlToggled;
+            }
+            boolean proneRequested0 = cfg0.isCrawlToggleEnabled() ? crawlToggled : proneHeld0;
 
             // B-31c-post (세션 113): 원본 L2343-L2356 initializeCrawling true 설정 블록 이식.
             //   boolean initializeCrawling = false;
@@ -1572,7 +1594,7 @@ public final class SmartMovingClientState {
             boolean freeClimbingEnabled0  = cfg0.freeClimb  && cfg0.enabled;
             boolean inputContinueCrawl = cfg0.isCrawlToggleEnabled()
                     ? crawlToggled
-                    : (sneakPressedRaw || (!freeClimbingEnabled0 && grabHeld0));
+                    : (proneHeld0 || sneakPressedRaw || (!freeClimbingEnabled0 && grabHeld0));
 
             // contextContinueCrawl 해제 (원본 L2408-L2418).
             //   if (inputContinueCrawl || isInWater() || mustCrawl) → false
@@ -1626,6 +1648,8 @@ public final class SmartMovingClientState {
                     //   엎드리기 자세. 명시 가드로 cycle 자체 차단.
                     (
                         (isCrawling && (inputContinueCrawl || contextContinueCrawl))
+                        ||
+                        (proneRequested0 && player.onGround())
                         ||
                         (grabJustPressed && (sneakToggled || sneakPressedRaw) && player.onGround()
                                 && !facedClimbable_)
@@ -3270,6 +3294,10 @@ public final class SmartMovingClientState {
         sneakKeyStopPressed = false;
         grabJustPressed     = false;
         prevGrabKeyPressed  = false;
+        proneJustPressed    = false;
+        prevProneKeyPressed = false;
+        dodgeJustPressed    = false;
+        prevDodgeKeyPressed = false;
         prevSneakKeyPressed = false;
         jumpKeyStopPressed = false;
         isSliding = false;
@@ -4533,7 +4561,7 @@ public final class SmartMovingClientState {
     // ── R-01: sendStatePacket() ───────────────────────────────────────
 
     /**
-     * 현재 SmartMovingClientState를 34비트 long으로 인코딩해 서버로 전송한다.
+     * 현재 SmartMovingClientState를 long 비트필드로 인코딩해 서버로 전송한다.
      * 상태가 이전 틱과 달라진 경우에만 전송 (lastSentBits 비교).
      * 원본: SmartMovingPlayerBase.updateEntityActionState() 끝부분 writeEntityState().
      */

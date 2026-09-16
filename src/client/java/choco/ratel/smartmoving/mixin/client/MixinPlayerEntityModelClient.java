@@ -1918,10 +1918,12 @@ public abstract class MixinPlayerEntityModelClient {
      *   시각 거의 동일). gimbal lock 회피용 ModelPart 직접 set 패턴 유지.
      */
     private void sm_animateAngleJumping(SmartMovingClientState sm, float animationProgress) {
-        float angle    = sm.angleJumpType * EIGHTH;
-        float backness  = 1f - Math.abs(angle - HALF) / QUARTER;
-        float leftness  = -Math.min(angle - HALF, 0f) / QUARTER;
-        float rightness =  Math.max(angle - HALF, 0f) / QUARTER;
+        // 방향 코드 8은 전방(0°). 1/7은 전방 대각선이며 원형 거리 blend로 0..1 범위를 보장한다.
+        int directionIndex = sm.angleJumpType == 8 ? 0 : sm.angleJumpType;
+        float angle = directionIndex * EIGHTH;
+        float backness  = sm_directionBlend(angle, HALF);
+        float leftness  = sm_directionBlend(angle, QUARTER);
+        float rightness = sm_directionBlend(angle, HALF + QUARTER);
 
         // 🔴 head.yaw = 0 강제 (2026-04-27): vanilla setAngles 가 head.yaw = netHeadYaw =
         //   headYaw_lerped - bodyYaw_natural_lerped 로 매 프레임 set. angle jumping 시
@@ -1959,6 +1961,13 @@ public abstract class MixinPlayerEntityModelClient {
         rightArm.zRot  =  SIXTEENTH * leftness  + idleZ;     // 원본 rightArm.Z += cos*0.05+0.05
         leftArm.xRot  = -EIGHTH * backness - idleX;          // 원본 leftArm.X -= sin*0.067
         rightArm.xRot = -EIGHTH * backness + idleX;          // 원본 rightArm.X += sin*0.067
+    }
+
+    private static float sm_directionBlend(float angle, float target) {
+        float full = (float) (Math.PI * 2D);
+        float distance = Math.abs(angle - target);
+        distance = Math.min(distance, full - distance);
+        return Mth.clamp(1F - distance / QUARTER, 0F, 1F);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

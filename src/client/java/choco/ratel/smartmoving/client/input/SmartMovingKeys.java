@@ -20,6 +20,8 @@ public class SmartMovingKeys {
             Identifier.fromNamespaceAndPath("smartmoving", "controls"));
 
     public static KeyMapping grab;
+    public static KeyMapping prone;
+    public static KeyMapping dodge;
     public static KeyMapping configToggle;
     public static KeyMapping speedIncrease;
     public static KeyMapping speedDecrease;
@@ -29,6 +31,18 @@ public class SmartMovingKeys {
             "key.smartmoving.grab",
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_R,
+            CATEGORY_SMARTMOVING
+        ));
+        prone = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            "key.smartmoving.prone",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_C,
+            CATEGORY_SMARTMOVING
+        ));
+        dodge = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            "key.smartmoving.dodge",
+            InputConstants.Type.KEYSYM,
+            InputConstants.UNKNOWN.getValue(),
             CATEGORY_SMARTMOVING
         ));
         configToggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(

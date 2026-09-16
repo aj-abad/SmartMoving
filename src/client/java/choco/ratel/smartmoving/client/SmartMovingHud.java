@@ -28,6 +28,8 @@ public final class SmartMovingHud {
     private static final Identifier ICONS = Identifier.fromNamespaceAndPath("smartmoving", "textures/gui/icons.png");
     private static final Identifier HUD_ELEMENT_ID = Identifier.fromNamespaceAndPath("smartmoving", "movement_bars");
     private static final int ICON_SIZE = 9;
+    private static final int JUMP_FULL_ICON_X = 2;
+    private static final int JUMP_PARTIAL_ICON_X = 3;
 
     private SmartMovingHud() {}
 
@@ -81,7 +83,8 @@ public final class SmartMovingHud {
             int jy = height - 49 - (player.getArmorValue() > 0 ? 10 : 0);
 
             for (int i = 0; i < fulls + half; i++) {
-                drawIcon(context, (width / 2 - 91) + i * 8, jy, i < fulls ? 2 : 3, 0);
+                drawIcon(context, (width / 2 - 91) + i * 8, jy,
+                        i < fulls ? JUMP_FULL_ICON_X : JUMP_PARTIAL_ICON_X, 0);
             }
         }
 
@@ -102,12 +105,12 @@ public final class SmartMovingHud {
     }
 
     // icons.png에서 (iconX*9, iconY*9) 위치의 9×9 스프라이트를 (x, y)에 렌더.
-    // 26.2 blit 오버로드의 정수 좌표는 (x0, y0, x1, y1) 순서다.
+    // 26.2 blit 오버로드는 (x0, y0, x1, y1, u0, u1, v0, v1) 순서다.
     private static void drawIcon(GuiGraphicsExtractor context, int x, int y, int iconX, int iconY) {
         float u0 = (float) (iconX * ICON_SIZE) / 256.0F;
         float v0 = (float) (iconY * ICON_SIZE) / 256.0F;
         float u1 = (float) ((iconX + 1) * ICON_SIZE) / 256.0F;
         float v1 = (float) ((iconY + 1) * ICON_SIZE) / 256.0F;
-        context.blit(ICONS, x, y, x + ICON_SIZE, y + ICON_SIZE, u0, v0, u1, v1);
+        context.blit(ICONS, x, y, x + ICON_SIZE, y + ICON_SIZE, u0, u1, v0, v1);
     }
 }

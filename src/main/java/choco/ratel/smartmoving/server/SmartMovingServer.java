@@ -131,7 +131,7 @@ public final class SmartMovingServer {
     // ── 3-1 + 3-9: State 패킷 처리 ──────────────────────────────
 
     /**
-     * State 패킷의 34비트 long에서 서버가 필요한 비트만 추출한다.
+     * State 패킷의 long 비트필드에서 서버가 필요한 비트만 추출한다.
      * 원본 SmartMovingServer.processStatePacket() 이식.
      *
      * 서버가 읽는 비트:

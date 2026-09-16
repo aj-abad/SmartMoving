@@ -368,7 +368,7 @@ public final class SmartMovingJumper {
      *   6. 헤드 점프 (원본 L1880-L1899) — jumpKey hold 트리거 + grab+sprint 게이트
      *   7. 수면 점프 (원본 L1901-L1913) — jumpKey hold + isDipping
      *   8. 일반 점프 (원본 L1915-L1916) — jumpAvoided + !isVineAnyClimbing
-     *   9. 더블클릭 방향 점프 (원본 L1918-L1943) — leftJumpCount/rightJumpCount/backJumpCount
+     *   9. 방향 회피 — 전용 dodge 키 또는 기존 A/D/S 더블탭
      */
     public static void handleJumping(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
@@ -421,7 +421,10 @@ public final class SmartMovingJumper {
         //   else  if (jumpCharge > 0) blockJumpTillButtonRelease = true; jumpCharge = 0;
         boolean isJumpCharging = false;
         if (cfg.jumpCharge) {
-            boolean isJumpChargingPossible = player.onGround() && sm.isStanding;
+            boolean hasMovementInput = player.input.getMoveVector().lengthSquared() > 1.0E-5F;
+            boolean movingSneakCharge = sm.wouldIsSneaking && hasMovementInput;
+            boolean isJumpChargingPossible = player.onGround()
+                    && (sm.isStanding || movingSneakCharge);
             isJumpCharging = isJumpChargingPossible && sm.wouldIsSneaking;
 
             boolean actualJumpCharging = isJumpChargingPossible
@@ -429,7 +432,8 @@ public final class SmartMovingJumper {
             if (actualJumpCharging) {
                 if (jumpKeyPressed
                         && (cfg.jumpChargeCancelOnSneakRelease || sm.wouldIsSneaking)) {
-                    sm.jumpCharge = Math.min(sm.jumpCharge + 1F, cfg.jumpChargeMaximum);
+                    float chargeStep = movingSneakCharge ? 0.5F : 1F;
+                    sm.jumpCharge = Math.min(sm.jumpCharge + chargeStep, cfg.jumpChargeMaximum);
                 } else {
                     if (sm.jumpCharge > 0) {
                         tryJump(player, sm, CHARGE_UP, null, null, null);
@@ -527,9 +531,25 @@ public final class SmartMovingJumper {
             tryJump(player, sm, UP, Boolean.FALSE, null, null);
         }
 
-        // 9. 더블클릭 방향 점프 (원본 L1918-L1943)
+        // 9. 전용 dodge 키 + 기존 더블클릭 방향 점프 (원본 L1918-L1943 확장)
+        boolean dodgeTriggered = false;
+        if (sm.dodgeJustPressed) {
+            Minecraft mc = Minecraft.getInstance();
+            int forward = (mc.options.keyUp.isDown() ? 1 : 0)
+                    - (mc.options.keyDown.isDown() ? 1 : 0);
+            int right = (mc.options.keyRight.isDown() ? 1 : 0)
+                    - (mc.options.keyLeft.isDown() ? 1 : 0);
+            dodgeTriggered = tryKeyboundDodge(player, sm, cfg, forward, right);
+            if (dodgeTriggered) {
+                sm.leftJumpCount = 0;
+                sm.rightJumpCount = 0;
+                sm.backJumpCount = 0;
+            }
+        }
+
+        // 기존 A/D/S 더블탭 회피는 호환성을 위해 유지한다.
         // [IMPL-03] 더블클릭 leftJumpCount/rightJumpCount/backJumpCount == -1 시 발동.
-        {
+        if (!dodgeTriggered) {
             int left = 0, back = 0;
             if (sm.leftJumpCount  == -1) left++;
             if (sm.rightJumpCount == -1) left--;
@@ -545,12 +565,7 @@ public final class SmartMovingJumper {
                     else if (left < 0) relAngle = back == 0 ? 90  : 135;
                     else               relAngle = 180;
 
-                    sm.angleJumpType = ((360 - relAngle) / 45) % 8;
-
-                    float worldAngleDeg = (float) ((player.getYRot() + relAngle) % 360.0);
-                    if (worldAngleDeg < 0F) worldAngleDeg += 360F;
-
-                    tryJump(player, sm, ANGLE, null, null, worldAngleDeg);
+                    tryAngleJump(player, sm, relAngle);
                 }
 
                 sm.leftJumpCount  = 0;
@@ -558,6 +573,47 @@ public final class SmartMovingJumper {
                 sm.backJumpCount  = 0;
             }
         }
+    }
+
+    /**
+     * 바인딩된 dodge 키를 현재 WASD 방향으로 발동한다. 방향 입력이 없으면 동작하지 않는다.
+     */
+    private static boolean tryKeyboundDodge(LocalPlayer player, SmartMovingClientState sm,
+                                             SmartMovingConfig cfg, int forward, int right) {
+        if (forward == 0 && right == 0) return false;
+        if (player.isSleeping() || !player.onGround()
+                || sm.isCrawling || sm.isClimbing || sm.isClimbCrawling
+                || sm.isCrawlClimbing || sm.isCeilingClimbing
+                || sm.isSwimming_sm || sm.isDiving || sm.isSliding
+                || sm.isHeadJumping || sm.isFlying) {
+            return false;
+        }
+
+        if (forward > 0 && !cfg.angleJumpForward) return false;
+        if (forward < 0 && !cfg.angleJumpBack) return false;
+        if (right != 0 && !cfg.angleJumpSide) return false;
+
+        int relAngle = Math.round((float) Math.toDegrees(Math.atan2(right, forward)) / 45F) * 45;
+        if (relAngle < 0) relAngle += 360;
+        return tryAngleJump(player, sm, relAngle);
+    }
+
+    /**
+     * 상대 방향(0°=전방)을 angle jump 물리와 1~8 방향 상태로 변환한다.
+     * 코드 8은 전방이며 상태 패킷 bit 36으로 상위 비트를 동기화한다.
+     */
+    private static boolean tryAngleJump(LocalPlayer player, SmartMovingClientState sm, int relAngle) {
+        int normalizedAngle = Math.floorMod(relAngle, 360);
+        sm.angleJumpType = 8 - normalizedAngle / 45;
+
+        float worldAngleDeg = (float) ((player.getYRot() + normalizedAngle) % 360.0);
+        if (worldAngleDeg < 0F) worldAngleDeg += 360F;
+
+        if (!tryJump(player, sm, ANGLE, null, null, worldAngleDeg)) {
+            sm.angleJumpType = 0;
+            return false;
+        }
+        return true;
     }
 
     // ── [10-5] 벽 점프 상태 갱신 ─────────────────────────────────────────────

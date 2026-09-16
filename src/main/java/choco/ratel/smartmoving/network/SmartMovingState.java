@@ -1,7 +1,7 @@
 package choco.ratel.smartmoving.network;
 
 /**
- * State 패킷 34비트 long 비트맵.
+ * State 패킷 long 비트맵.
  * 원본 SmartMovingOther/SmartMovingServer의 비트 레이아웃을 그대로 이식.
  *
  * bits 0-3:   actualFeetClimbType  (FeetClimbing ordinal, 4비트)
@@ -20,7 +20,7 @@ package choco.ratel.smartmoving.network;
  * bit  19:    isLevitating
  * bit  20:    isHeadJumping
  * bit  21:    isSliding
- * bits 22-24: angleJumpType        (0~7, 3비트)
+ * bits 22-24: angleJumpType 하위 3비트
  * bit  25:    isFeetVineClimbing
  * bit  26:    isHandsVineClimbing
  * bit  27:    isClimbJumping
@@ -31,6 +31,8 @@ package choco.ratel.smartmoving.network;
  * bit  32:    isRopeSliding
  * bit  33:    isSneakButtonPressed (서버만 읽음)
  * bit  34:    isClimbCrawling      (서버만 읽음 — 박스 +1 mixin offset 동기화)
+ * bit  35:    wasSelfSlideFire
+ * bit  36:    angleJumpType 상위 비트 (전방 포함 1~8 방향 코드 확장)
  */
 public final class SmartMovingState {
 
@@ -101,6 +103,7 @@ public final class SmartMovingState {
         if (s.isSneakButtonPressed) bits |= 1L << 33;
         if (s.isClimbCrawling)      bits |= 1L << 34;
         if (s.wasSelfSlideFire)     bits |= 1L << 35;  // fix #96
+        if ((s.angleJumpType & 0x8) != 0) bits |= 1L << 36;
         return bits;
     }
 
@@ -122,7 +125,8 @@ public final class SmartMovingState {
         s.isLevitating        = ((bits >> 19) & 1) != 0;
         s.isHeadJumping       = ((bits >> 20) & 1) != 0;
         s.isSliding           = ((bits >> 21) & 1) != 0;
-        s.angleJumpType       = (int) ((bits >> 22) & 0x7);
+        s.angleJumpType       = (int) ((bits >> 22) & 0x7)
+                              | (int) (((bits >> 36) & 1) << 3);
         s.isFeetVineClimbing  = ((bits >> 25) & 1) != 0;
         s.isHandsVineClimbing = ((bits >> 26) & 1) != 0;
         s.isClimbJumping      = ((bits >> 27) & 1) != 0;
