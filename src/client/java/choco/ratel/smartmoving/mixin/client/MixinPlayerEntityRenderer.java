@@ -956,8 +956,11 @@ public class MixinPlayerEntityRenderer {
         //   XP.rotation(-θ) pitches the model forward, ZP.rotation(+φ) rolls it toward the player's left.
         //   SmartMovingClientState.sampleDodgePose supplies the same eased values the model's limbs use.
         if (sm.canShowDodgePose() && sm.sampleDodgePose(animationProgress, smartState.sm_getBodyYaw())) {
-            // Vanilla sneaking drops the model by 2/16 (AvatarRenderer.getRenderOffset); match the partial crouch.
-            if (sm.dodgeCrouch > 0f) matrices.translate(0f, -2f / 16f * sm.dodgeCrouch, 0f);
+            // Vanilla sneaking drops the model by 2/16 (AvatarRenderer.getRenderOffset); match the partial
+            // crouch, unless the player is really sneaking and vanilla already did.
+            if (sm.dodgeCrouch > 0f && !renderState.isCrouching) {
+                matrices.translate(0f, -2f / 16f * sm.dodgeCrouch, 0f);
+            }
             float pivotY = 1.5f - 12f / 16f;   // hips (model leg pivot y=12)
             matrices.translate(0f, pivotY, 0f);
             if (sm.dodgeRoll  != 0f) matrices.rotate(Axis.ZP.rotation(sm.dodgeRoll));

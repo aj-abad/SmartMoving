@@ -572,7 +572,7 @@ public abstract class MixinPlayerEntityModelClient {
         // ── [12-2] Dodge (angle jump) pose — in the air and through the landing recovery ──
         //   Only over the standard pose, so another SM pose that starts mid-dodge is left alone.
         if (standardPose && sm.sampleDodgePose(animationProgress, smartState.sm_getBodyYaw())) {
-            sm_animateDodge(sm, player, animationProgress);
+            sm_animateDodge(sm, player, animationProgress, renderState.isCrouching);
         }
 
         // 🔴 (2026-04-27) head stays vanilla — fade in sm_setupTransforms TAIL affects
@@ -1915,7 +1915,8 @@ public abstract class MixinPlayerEntityModelClient {
      * Model space: limb xRot < 0 swings forward, > 0 backward. Outward leg abduction is
      * leftLeg.zRot < 0 / rightLeg.zRot > 0; outward arm raise is leftArm.zRot < 0 / rightArm.zRot > 0.
      */
-    private void sm_animateDodge(SmartMovingClientState sm, AbstractClientPlayer player, float animationProgress) {
+    private void sm_animateDodge(SmartMovingClientState sm, AbstractClientPlayer player, float animationProgress,
+                                 boolean crouching) {
         float w = sm.dodgeWeight;
         float tuck = sm.dodgeTuck;
         float fw = sm.dodgeFw;
@@ -1957,8 +1958,8 @@ public abstract class MixinPlayerEntityModelClient {
         head.zRot -= sm.dodgeRoll * 0.5f;
 
         // Landing: part of the vanilla sneak pose (HumanoidModel.setupAnim isCrouching); the renderer
-        // drops the model to match.
-        float crouch = sm.dodgeCrouch;
+        // drops the model to match. Skipped while really sneaking, which already has the full pose.
+        float crouch = crouching ? 0f : sm.dodgeCrouch;
         if (crouch > 0f) {
             body.xRot += 0.5f * crouch;
             head.y += 4.2f * crouch;
