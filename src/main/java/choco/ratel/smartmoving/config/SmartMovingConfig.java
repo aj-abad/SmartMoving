@@ -1518,7 +1518,7 @@ public class SmartMovingConfig {
 
     private void readFrom(Properties p) {
         enabled                  = getBool(p,   "move.enabled",                   enabled);
-        speedFactor             = getFloat(p,  "move.speed.factor",              speedFactor);
+        speedFactor              = getFloat(p,  "move.speed.factor",              speedFactor);
         vanillaStyle             = getBool(p,   "move.general.vanilla",           vanillaStyle);
         sneakFactor              = getFloat(p,  "move.sneak.factor",              sneakFactor);
         crawlFactor              = getFloat(p,  "move.crawl.factor",              crawlFactor);
@@ -1683,7 +1683,7 @@ public class SmartMovingConfig {
 
     private void writeTo(Properties p) {
         p.setProperty("move.enabled",                    String.valueOf(enabled));
-        p.setProperty("move.speed.factor",              String.valueOf(speedFactor));
+        p.setProperty("move.speed.factor",               String.valueOf(speedFactor));
         p.setProperty("move.general.vanilla",            String.valueOf(vanillaStyle));
         p.setProperty("move.sneak.factor",               String.valueOf(sneakFactor));
         p.setProperty("move.crawl.factor",               String.valueOf(crawlFactor));
