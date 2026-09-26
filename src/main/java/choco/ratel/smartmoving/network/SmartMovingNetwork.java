@@ -11,8 +11,8 @@ import net.minecraft.resources.Identifier;
  * Original ObjectOutputStream/FML → Fabric PacketByteBuf/CustomPayload conversion.
  *
  * Channel directions:
- *  C2S: state, config_info, config_change, speed_change, hunger_change, sound
- *  S2C: state, config_content, config_change, speed_change
+ *  C2S: state, config_info, config_change, hunger_change, sound, stats
+ *  S2C: state, config_content, config_change, stats
  */
 public final class SmartMovingNetwork {
 
@@ -102,30 +102,6 @@ public final class SmartMovingNetwork {
         @Override public Type<? extends CustomPacketPayload> type() { return ID; }
     }
 
-    /**
-     * SpeedChange packet (C2S + S2C): Speed change request.
-     * username = null: player has no permission to change speed.
-     */
-    public record SpeedChangePayload(int difference, String username) implements CustomPacketPayload {
-        public static final Type<SpeedChangePayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "speed_change"));
-        public static final StreamCodec<FriendlyByteBuf, SpeedChangePayload> CODEC = new StreamCodec<>() {
-            @Override
-            public SpeedChangePayload decode(FriendlyByteBuf buf) {
-                int diff = buf.readInt();
-                boolean hasUsername = buf.readBoolean();
-                String username = hasUsername ? buf.readUtf() : null;
-                return new SpeedChangePayload(diff, username);
-            }
-            @Override
-            public void encode(FriendlyByteBuf buf, SpeedChangePayload value) {
-                buf.writeInt(value.difference());
-                buf.writeBoolean(value.username() != null);
-                if (value.username() != null) buf.writeUtf(value.username());
-            }
-        };
-        @Override public Type<? extends CustomPacketPayload> type() { return ID; }
-    }
-
     /** HungerChange packet (C2S): Send client exhaustion value to server. -1 = suppress release, 0 = no exhaustion. */
     public record HungerChangePayload(float hunger) implements CustomPacketPayload {
         public static final Type<HungerChangePayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "hunger_change"));
@@ -202,7 +178,6 @@ public final class SmartMovingNetwork {
         PayloadTypeRegistry.serverboundPlay().register(StatePayload.ID,        StatePayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ConfigInfoPayload.ID,   ConfigInfoPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ConfigChangePayload.ID, ConfigChangePayload.CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(SpeedChangePayload.ID,  SpeedChangePayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(HungerChangePayload.ID, HungerChangePayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SoundPayload.ID,        SoundPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(StatsPayload.ID,        StatsPayload.CODEC);
@@ -211,7 +186,6 @@ public final class SmartMovingNetwork {
         PayloadTypeRegistry.clientboundPlay().register(StatePayload.ID,         StatePayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ConfigContentPayload.ID, ConfigContentPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ConfigChangePayload.ID,  ConfigChangePayload.CODEC);
-        PayloadTypeRegistry.clientboundPlay().register(SpeedChangePayload.ID,   SpeedChangePayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(StatsPayload.ID,         StatsPayload.CODEC);
     }
 

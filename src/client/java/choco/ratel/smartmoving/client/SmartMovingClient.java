@@ -701,36 +701,6 @@ public class SmartMovingClient implements ClientModInitializer {
                     if (client.player != null) client.player.sendSystemMessage(Component.translatable(key));
                 });
             });
-
-        // SpeedChange: Sync speed change from server (C-12)
-        // Original: difference==0 → no permission, !=0 → Config.changeSpeed(difference) + writeClientSpeedMessageToChat
-        // A-26: Verify no-permission message (en_us.json smartmoving.message.speed.illegal.*)
-        ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.SpeedChangePayload.ID,
-            (payload, context) -> {
-                Minecraft client = context.client();
-                int difference = payload.difference();
-                if (difference != 0) {
-                    client.execute(() -> {
-                        SmartMovingConfig.Config.changeSpeed(difference);
-                        // IMPL-05: Speed change chat feedback (original: writeClientSpeedMessageToChat)
-                        // 100% = default ("reset"), otherwise = changed value ("change")
-                        String percent = SmartMovingConfig.Config.getSpeedPercent();
-                        String msgKey = "100".equals(percent)
-                            ? "smartmoving.message.speed.client.reset"
-                            : "smartmoving.message.speed.client.change";
-                        if (client.player != null)
-                            client.player.sendSystemMessage(Component.translatable(msgKey, percent));
-                    });
-                } else {
-                    boolean isRemote = isRemoteServer(client);
-                    String key = isRemote
-                        ? "smartmoving.message.speed.illegal.remote"
-                        : "smartmoving.message.speed.illegal.local";
-                    client.execute(() -> {
-                        if (client.player != null) client.player.sendSystemMessage(Component.translatable(key));
-                    });
-                }
-            });
     }
 
     // Original: SmartMovingComm.isConnectedToRemoteServer() — 3 conditions like MinecraftServer.getServer()==null

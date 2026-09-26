@@ -344,7 +344,7 @@ public abstract class MixinLivingEntityClient {
         //
         //   Same expression as handleLand.
         SmartMovingConfig cfg2 = SmartMovingConfig.Config;
-        float climbSpeedFactor = SmartMovingMover.getConfigSpeedFactor(player, cfg2)
+        float climbSpeedFactor = SmartMovingMover.getConfigSpeedFactor(cfg2)
                 * SmartMovingMover.getPotionSpeedFactor(player)
                 * SmartMovingMover.getNonSlowInputSpeedFactor(player, sm, cfg2);
         float climbSlowFactor = SmartMovingMover.getSlowInputSpeedFactor(player, sm, cfg2);
@@ -670,15 +670,12 @@ public abstract class MixinLivingEntityClient {
      * Inject `getConfigSpeedFactor()` part into Land path processed by vanilla travel().
      *
      * **Option A (Mixin inject on getMovementSpeed)** chosen: vanilla `LivingEntity.
-     * getMovementSpeed()` HEAD inject multiply return value by `getConfigSpeedFactor(player, cfg)`.
+     * getMovementSpeed()` HEAD inject multiply return value by `getConfigSpeedFactor(cfg)`.
      *
      * Application scope:
      *   - Land (walk/run/sprint/jump) — vanilla travel() references getMovementSpeed() → impact
      *   - Flying/swimming/diving/climbing — SM cancels vanilla travel() in `sm_travel_client`
      *     → getMovementSpeed not called → 0 impact (each path applies getCombinedSpeedFactor separately)
-     *
-     * Creative gate handled by `Mover.getConfigSpeedFactor` internally with `isCreative()` —
-     *   If not Creative then userSpeedFactor=1F → only speedFactor(default 1F) reflected. No felt change.
      *
      * ⚠️ Double application caution: SM paths (Swimmer/Climber/Flyer) read
      *   GENERIC_MOVEMENT_SPEED attribute separately in getPotionSpeedFactor. This mixin only

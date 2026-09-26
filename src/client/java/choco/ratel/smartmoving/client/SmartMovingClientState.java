@@ -1452,35 +1452,6 @@ public final class SmartMovingClientState {
             }
         }
 
-        // IMPL-05: Speed key handling (original: speedIncreaseButton/speedDecreaseButton StartPressed → changeSpeed)
-        // Send SpeedChangePayload to server → server verifies permission and returns result via S2C
-        // B-6 (Session 26): Creative-only gate. In original `isUserSpeedEnabled() = enabled &&
-        // _speedUser.value`, `_speedUser` is true only in Creative mode, so non-Creative blocks
-        // key input itself. Equivalent to original SmartMovingSelf L2326 `if(Config.isUserSpeedEnabled()
-        // && !Config.isUserSpeedAlwaysDefault() && ...)`.
-        //
-        // ⚠️ DEFER (Session 35 integration test BUG-6): I/O key disabled — user temporary disablement request.
-        //   Re-enable = delete line below `boolean userSpeedEnabled = false;` + restore original condition comment.
-        //   Details = see docs/fix/integration_test_bugs.md §BUG-6.
-        boolean userSpeedEnabled = false;   // Temporary disabled (Session 35)
-        // boolean userSpeedEnabled = SmartMovingConfig.Config.enabled
-        //         && SmartMovingConfig.Config.speedUser
-        //         && MinecraftClient.getInstance().interactionManager != null
-        //         && MinecraftClient.getInstance().interactionManager.getCurrentGameMode()
-        //                 == net.minecraft.world.GameMode.CREATIVE;
-        if (userSpeedEnabled) {
-            if (SmartMovingKeys.speedIncrease.consumeClick()) {
-                if (ClientPlayNetworking.canSend(SmartMovingNetwork.SpeedChangePayload.ID)) {
-                    ClientPlayNetworking.send(new SmartMovingNetwork.SpeedChangePayload(1, null));
-                }
-            }
-            if (SmartMovingKeys.speedDecrease.consumeClick()) {
-                if (ClientPlayNetworking.canSend(SmartMovingNetwork.SpeedChangePayload.ID)) {
-                    ClientPlayNetworking.send(new SmartMovingNetwork.SpeedChangePayload(-1, null));
-                }
-            }
-        }
-
         // Reset entire movement state when SM disabled (original: !isActive() → resetState())
         // isActive = !Compat.isBlockedByIncompatibility(sp) && Config.enabled
         // 1.7.10 Compat: StarMiner/Ships → N/A, EtFuturum elytra → isFallFlying(), spectator → isSpectator()

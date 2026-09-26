@@ -5,8 +5,6 @@
   "key.smartmoving.prone": "Prone",
   "key.smartmoving.dodge": "Dodge",
   "key.smartmoving.config_toggle": "Toggle Config",
-  "key.smartmoving.speed_increase": "Speed Increase",
-  "key.smartmoving.speed_decrease": "Speed Decrease",
   "subtitles.smartmoving.climb": "Climbing",
   "subtitles.smartmoving.slide": "Sliding",
   "subtitles.smartmoving.ceiling_climb": "Ceiling Climbing",
@@ -19,12 +17,6 @@
   "smartmoving.message.config.server.update": "Smart Moving server configuration was updated",
   "smartmoving.message.config.server.enable": "Smart Moving was enabled by the server configuration",
 
-  "smartmoving.message.speed.illegal.remote": "You have no rights to change the Smart Moving speed on the remote server.",
-  "smartmoving.message.speed.illegal.local": "You have no rights to change the Smart Moving speed on your local server.",
-
   "smartmoving.message.config.client.enabled": "Smart Moving enabled",
-  "smartmoving.message.config.client.disabled": "Smart Moving disabled",
-
-  "smartmoving.message.speed.client.change": "Smart Moving speed changed to %s%%.",
-  "smartmoving.message.speed.client.reset": "Smart Moving speed reset to 100%%."
+  "smartmoving.message.config.client.disabled": "Smart Moving disabled"
 }

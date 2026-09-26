@@ -4,8 +4,6 @@ import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.*;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -415,26 +413,6 @@ public class SmartMovingConfig {
 
     // ── Global Speed ────────────────────────────────────────────
     public float speedFactor = 1F;
-    /**
-     * Original `_speedUser` L96 = `Creative("move.speed.user").defaults(true, _pre_sm_3_2)`.
-     * `Creative(key)` factory = `Modified(key).defaults(Value(false).c(true))`.
-     *   → by difficulty: default=false, Easy=false, Medium=false, Hard=false, Creative=true.
-     *   → After SM 3.2: true only in Creative, all others (including Easy) false.
-     * Version fallback `_pre_sm_3_2`: In SM 3.1 and earlier, all difficulties fixed to true.
-     * Easy 1:1 → **false** (session 17 correction, existing `true` was mistranslation).
-     * Consumer: `getUserSpeedFactor()` L580 — `!speedUser || speedUserFactor==1F || exponent==0`
-     *   early return 1F. If Easy=false then entire user speed adjustment function OFF.
-     */
-    public boolean speedUser = false;
-    public float speedUserFactor = 0.2F;
-    public int speedUserExponent = 0;
-    /**
-     * Original: Property<Map<String,Integer>> _speedUsersExponents = IntegerMap("move.speed.users.exponents").singular();
-     * Per-player speed exponent map. username → exponent.
-     * File save format: corresponding to original Value.tryParseIntegerMap() — CSV `"user1,5,user2,-2,..."`.
-     * When toArray(username) is called, move.speed.user.exponent value is replaced with that player's personal value.
-     */
-    public Map<String, Integer> playerSpeedExponents = new HashMap<>();
 
     // ── Movement Modes ──────────────────────────────────────────
     public boolean vanillaStyle = false;
@@ -1568,25 +1546,8 @@ public class SmartMovingConfig {
      * Used when server sends ConfigContent packet to client.
      */
     public String[] toArray() {
-        return toArray(null);
-    }
-
-    /**
-     * Serialization with per-player speed substitution.
-     * Original: SmartMovingServerOptions.writeToProperties(mp, key) inner iteration logic
-     *       `entry.setValue(config._speedUserExponent.getValueString(userExponent))`.
-     * When username != null and value exists in playerSpeedExponents, `move.speed.user.exponent` key value is
-     * replaced with that player's personal exponent. Global transmission (username=null) is common value for all players.
-     */
-    public String[] toArray(String username) {
         Properties props = new Properties();
         writeTo(props);
-        if (username != null) {
-            Integer userExponent = playerSpeedExponents.get(username);
-            if (userExponent != null) {
-                props.setProperty("move.speed.user.exponent", String.valueOf(userExponent));
-            }
-        }
         String[] result = new String[props.size() * 2];
         int i = 0;
         for (String key : props.stringPropertyNames()) {
@@ -1601,10 +1562,6 @@ public class SmartMovingConfig {
         // H-20 (session 23): Per-game-type 6 keys (move.config.{survival,creative,adventure}.keys{,.default})
         // Read deleted. Removed with fields/methods. Existing save file keys ignored.
         speedFactor              = getFloat(p,  "move.speed.factor",              speedFactor);
-        speedUser                = getBool(p,   "move.speed.user",                speedUser);
-        speedUserFactor          = getFloat(p,  "move.speed.user.factor",         speedUserFactor);
-        speedUserExponent        = getInt(p,    "move.speed.user.exponent",       speedUserExponent);
-        playerSpeedExponents     = parseIntegerMap(p.getProperty("move.speed.users.exponents"));
         vanillaStyle             = getBool(p,   "move.general.vanilla",           vanillaStyle);
         sneakFactor              = getFloat(p,  "move.sneak.factor",              sneakFactor);
         crawlFactor              = getFloat(p,  "move.crawl.factor",              crawlFactor);
@@ -1771,10 +1728,6 @@ public class SmartMovingConfig {
         p.setProperty("move.enabled",                    String.valueOf(enabled));
         // H-20 (session 23): Deleted per-game-type 6-key writeTo (symmetrical with readFrom).
         p.setProperty("move.speed.factor",               String.valueOf(speedFactor));
-        p.setProperty("move.speed.user",                 String.valueOf(speedUser));
-        p.setProperty("move.speed.user.factor",          String.valueOf(speedUserFactor));
-        p.setProperty("move.speed.user.exponent",        String.valueOf(speedUserExponent));
-        p.setProperty("move.speed.users.exponents",      serializeIntegerMap(playerSpeedExponents));
         p.setProperty("move.general.vanilla",            String.valueOf(vanillaStyle));
         p.setProperty("move.sneak.factor",               String.valueOf(sneakFactor));
         p.setProperty("move.crawl.factor",               String.valueOf(crawlFactor));
@@ -1934,13 +1887,6 @@ public class SmartMovingConfig {
         // handleExhaustion other (original SmartMovingSelf L863/L893).
         p.setProperty("move.hunger.always.gain",                 String.valueOf(alwaysHungerGain));
         p.setProperty("move.exhaustion.hunger.factor",           String.valueOf(exhaustionLossHungerFactor));
-    }
-
-    /** getUserSpeedFactor() formula: (1 + speedUserFactor)^speedUserExponent */
-    public float getUserSpeedFactor() {
-        // Original: isUserSpeedAlwaysDefault() = !speedUser || speedUserFactor==1F
-        if (!speedUser || speedUserFactor == 1F || speedUserExponent == 0) return 1F;
-        return (float) Math.pow(1F + speedUserFactor, speedUserExponent);
     }
 
     /**
@@ -2105,32 +2051,6 @@ public class SmartMovingConfig {
     // Original function bodies preserved in focus_05 §5 research file. Will reintroduce from subsequent
     // `focus_09_difficulty_presets.md` focus when restoring Medium/Hard presets.
 
-    public void changeSpeed(int difference) {
-        speedUserExponent += difference;
-    }
-
-    /**
-     * Adjust per-player speed exponent.
-     * Original: SmartMovingServerOptions.changeSingleSpeed(player, difference):
-     *   Integer exp = _speedUsersExponents.get(username);
-     *   if (exp == null) exp = _speedUserExponent.value;
-     *   exp += diff;
-     *   _speedUsersExponents.put(username, exp);
-     *   saveToOptionsFile();
-     * If no personal value, start with global exponent as reference.
-     */
-    public synchronized void changeSingleSpeed(String username, int difference) {
-        Integer exponent = playerSpeedExponents.get(username);
-        if (exponent == null) exponent = speedUserExponent;
-        exponent += difference;
-        playerSpeedExponents.put(username, exponent);
-    }
-
-    /** Return current speed as integer percent string (original: SmartMovingOptions.getSpeedPercent()) */
-    public String getSpeedPercent() {
-        return String.valueOf((int)(getUserSpeedFactor() * 100));
-    }
-
     private static float getFloat(Properties p, String key, float def) {
         String v = p.getProperty(key);
         if (v == null) return def;
@@ -2142,44 +2062,4 @@ public class SmartMovingConfig {
         if (v == null) return def;
         return Boolean.parseBoolean(v.trim());
     }
-
-    private static int getInt(Properties p, String key, int def) {
-        String v = p.getProperty(key);
-        if (v == null) return def;
-        try { return Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return def; }
-    }
-
-    /**
-     * Original: Value.tryParseIntegerMap(String value) (Value.md L555-568).
-     * Split by `,` → even indices=keys, odd=values. Failed parseInt items skipped (original could NPE).
-     */
-    private static Map<String, Integer> parseIntegerMap(String raw) {
-        Map<String, Integer> result = new HashMap<>();
-        if (raw == null || raw.isEmpty()) return result;
-        String[] parts = raw.split(",");
-        for (int i = 0; i < parts.length; i++) {
-            String key = parts[i++];
-            if (i < parts.length) {
-                try { result.put(key, Integer.parseInt(parts[i].trim())); }
-                catch (NumberFormatException ignored) {}
-            }
-        }
-        return result;
-    }
-
-    /** parseIntegerMap reverse — generate `"user1,5,user2,-2,..."` format. */
-    private static String serializeIntegerMap(Map<String, Integer> map) {
-        StringBuilder sb = new StringBuilder();
-        boolean first = true;
-        for (Map.Entry<String, Integer> e : map.entrySet()) {
-            if (!first) sb.append(',');
-            sb.append(e.getKey()).append(',').append(e.getValue());
-            first = false;
-        }
-        return sb.toString();
-    }
-
-    // H-20 (session 23): Deleted getCsvArray / csvJoin helpers. All call sites disappeared with
-    // removal of per-game-type String[] fields. (playerSpeedExponents uses separate helpers parseIntegerMap/
-    // serializeIntegerMap)
 }

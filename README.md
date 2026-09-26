@@ -48,8 +48,6 @@ All bindings appear under **Options → Controls → Key Binds → Smart Moving*
 | Prone | `C` | Hold to crawl, or press when crawl toggle is enabled |
 | Dodge | Unbound | Press with a movement key to dodge in that direction |
 | Toggle Smart Moving | `F9` | Enable or disable Smart Moving |
-| Increase speed | `O` | Increase the configured movement speed |
-| Decrease speed | `I` | Decrease the configured movement speed |
 
 ## Build
 

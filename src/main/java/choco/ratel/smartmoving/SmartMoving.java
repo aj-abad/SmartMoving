@@ -98,11 +98,6 @@ public class SmartMoving implements ModInitializer {
             (payload, context) ->
                 SmartMovingServer.processConfigChangePacket(context.player()));
 
-        // SpeedChange: Receive client speed change request → verify permission and respond (C-18)
-        ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.SpeedChangePayload.ID,
-            (payload, context) ->
-                SmartMovingServer.processSpeedChangePacket(context.player(), payload.difference()));
-
         // HungerChange: Receive client exhaustion value — update server hunger field
         ServerPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.HungerChangePayload.ID,
             (payload, context) -> {

@@ -434,7 +434,7 @@ public final class SmartMovingServer {
         logConfigState(SmartMovingConfig.INSTANCE, null, false);
     }
 
-    // ── 3-12: Admin Voluntary Config/Speed Change + Full Retransmit ───────────────────
+    // ── 3-12: Admin Voluntary Config Change + Full Retransmit ───────────────────
 
     /**
      * Retransmits ConfigContent to all initialized players currently connected.
@@ -458,21 +458,6 @@ public final class SmartMovingServer {
         SmartMovingConfig.INSTANCE.toggle();
         SmartMovingConfig.save();
         logConfigState(SmartMovingConfig.INSTANCE, player.getName().getString(), true);
-        MinecraftServer server = player.level().getServer();
-        if (server != null) broadcastConfig(server);
-    }
-
-    /**
-     * Admin voluntary global speed change.
-     * Original: SmartMovingServerOptions.changeSpeed(diff, player) (L73-L78):
-     *   config.changeSpeed(diff); saveToOptionsFile; logSpeedState(config, username);
-     * 1.21.1: INSTANCE.changeSpeed(diff) + save + log + full retransmit.
-     * Separate from client request acceptance path (processSpeedChangePacket=changeSingleSpeed) — global change.
-     */
-    public static void adminChangeSpeed(ServerPlayer player, int difference) {
-        SmartMovingConfig.INSTANCE.changeSpeed(difference);
-        SmartMovingConfig.save();
-        logSpeedState(SmartMovingConfig.INSTANCE, player.getName().getString());
         MinecraftServer server = player.level().getServer();
         if (server != null) broadcastConfig(server);
     }
@@ -511,11 +496,6 @@ public final class SmartMovingServer {
         }
     }
 
-    /** Original: SmartMovingServerOptions.logSpeedState(config, username). */
-    static void logSpeedState(SmartMovingConfig config, String username) {
-        LOGGER.info("Smart Moving speed set to {}%{}", config.getSpeedPercent(), getPostfix(username));
-    }
-
     /** Original: SmartMovingServerOptions.getPostfix(username). username=null → empty string. */
     private static String getPostfix(String username) {
         if (username == null) return "";
@@ -539,36 +519,10 @@ public final class SmartMovingServer {
         ServerPlayNetworking.send(player, new SmartMovingNetwork.ConfigChangePayload());
     }
 
-    // ── C-18: Receive SpeedChange — Validate Permission Then Sync Speed Change ─────────
-
-    /**
-     * Process client speed change request — corresponds to original SmartMovingServerOptions.changeSingleSpeed(player, diff).
-     * speedUser=true → allow: INSTANCE.changeSingleSpeed(username, diff) + save → respond with difference.
-     * speedUser=false → deny: return difference=0 → client displays "no rights" message.
-     *
-     * Only performs original setPlayerSpeedExponent flow (per-player map put + saveToOptionsFile), no logSpeedState call.
-     * Admin voluntary global change (original changeSpeed + logSpeedState) added when porting separate server command.
-     */
-    public static void processSpeedChangePacket(ServerPlayer player, int difference) {
-        // B-6 (Session 26): Creative-only gate. In original `isUserSpeedEnabled() = enabled &&
-        // _speedUser.value`, `_speedUser` is Creative factory so only true in Creative.
-        // If not Creative, server responds 0 → client "no rights" message → deny feature. Original 1:1 mapping.
-        boolean isCreative = player.gameMode.getGameModeForPlayer()
-                == net.minecraft.world.level.GameType.CREATIVE;
-        if (!SmartMovingConfig.Config.speedUser || !isCreative) {
-            ServerPlayNetworking.send(player, new SmartMovingNetwork.SpeedChangePayload(0, null));
-            return;
-        }
-        String username = player.getName().getString();
-        SmartMovingConfig.INSTANCE.changeSingleSpeed(username, difference);
-        SmartMovingConfig.save();
-        ServerPlayNetworking.send(player, new SmartMovingNetwork.SpeedChangePayload(difference, null));
-    }
-
     // ── 3-8: Permission Check ───────────────────────────────────────────
 
     /**
-     * Check permission for config/speed change.
+     * Check permission for config change.
      * Original used == reference comparison, but 1.21.1 provides no String interning guarantee, so replaced with equals().
      */
     public static boolean hasPermission(String expected, String actual) {

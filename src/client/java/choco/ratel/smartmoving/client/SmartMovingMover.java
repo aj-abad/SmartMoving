@@ -4,11 +4,9 @@ import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.MoverType;
-import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -28,54 +26,17 @@ public final class SmartMovingMover {
     // ── [11-1] Speed Factor 4-Stage ─────────────────────────────────────────
 
     /**
-     * Reproduces the original `_speedUser = Creative("move.speed.user")` factory meaning.
-     * The `Creative` factory returns true only in Creative game mode → In 1.21.1, this is handled
-     * via runtime gameMode detection. B-6 (session 26) new addition.
-     *
-     * In the original `isUserSpeedEnabled() = enabled && _speedUser.value`, `_speedUser.value` is
-     * true only in Creative mode, so this combination becomes a Creative check gate.
-     *
-     * 1.21.1 adaptation:
-     *   isUserSpeedEnabled = cfg.enabled && cfg.speedUser && (gameMode == CREATIVE)
-     *   cfg.speedUser is user-configured in config file (default false, Easy 1:1).
-     *   gameMode check is determined at runtime on each call.
-     */
-    private static boolean isCreative(LocalPlayer player) {
-        if (player == null) return false;
-        MultiPlayerGameMode im = Minecraft.getInstance().gameMode;
-        return im != null && im.getPlayerMode() == GameType.CREATIVE;
-    }
-
-    /**
      * Config-based speed multiplier.
      * Original `SmartMovingSelf.getConfigSpeedFactor()` (L154-157):
      *   `Config.enabled ? Config._speedFactor.value * Config.getUserSpeedFactor() : 1F`
+     * This port has no user speed keys (the original's `getUserSpeedFactor()` term), so only the
+     * global `speedFactor` applies.
      *
      * B-1 (session 25): Added `cfg.enabled` guard.
-     * B-6 (session 26): Added Creative-exclusive gate. `cfg.speedUser` corresponds to original
-     *   `_speedUser.value` — runtime gameMode check also performed to restore Creative factory meaning.
-     *   getUserSpeedFactor() itself returns 1F when `!speedUser`, so in non-Creative mode,
-     *   no matter how much the user presses keys, factor=1F. However, explicit gating is closer to original structure.
-     *
-     * Formula (after B-6):
-     *   cfg.enabled && (gameMode == CREATIVE) ? speedFactor × (1+speedUserFactor)^exp : 1F
-     *
-     * In non-Creative game modes, cfg.speedFactor (default 1F) is not applied — same as original.
-     *   (`_speedFactor` itself is not Creative-dependent, but `getConfigSpeedFactor` has only
-     *    `Config.enabled` gate, and speedFactor × userSpeedFactor where userSpeedFactor is
-     *    non-1F only in Creative mode). speedFactor is a global multiplier that should apply outside Creative too — needs review.
-     *
-     * Warning: Strict 1:1: Original `getConfigSpeedFactor` checks only `Config.enabled` and
-     *    returns `_speedFactor.value * getUserSpeedFactor()`. `getUserSpeedFactor()` returns
-     *    1F when `!_speedUser.value`. i.e., outside Creative only `_speedFactor.value` applies.
-     *    (`_speedFactor` is a global multiplier independent of Creative.)
-     *    → In this method, the Creative gate should only block the userSpeedFactor part.
-     *    Below implementation: speedFactor applies globally + userSpeedFactor gates on Creative.
      */
-    public static float getConfigSpeedFactor(LocalPlayer player, SmartMovingConfig cfg) {
+    public static float getConfigSpeedFactor(SmartMovingConfig cfg) {
         if (!cfg.enabled) return 1F;
-        float userFactor = isCreative(player) ? cfg.getUserSpeedFactor() : 1F;
-        return cfg.speedFactor * userFactor;
+        return cfg.speedFactor;
     }
 
     /**
@@ -112,10 +73,9 @@ public final class SmartMovingMover {
      * Original `SmartMovingSelf.getCombinedSpeedFactor()` (L149-152) 1:1:
      *   `return getConfigSpeedFactor() * getPotionSpeedFactor();`
      * B-1 (session 25) new addition — replaces inline multiplication in 6 places like Climber/Jumper.
-     * B-6 (session 26): player parameter passed due to getConfigSpeedFactor signature change.
      */
     public static float getCombinedSpeedFactor(LocalPlayer player, SmartMovingConfig cfg) {
-        return getConfigSpeedFactor(player, cfg) * getPotionSpeedFactor(player);
+        return getConfigSpeedFactor(cfg) * getPotionSpeedFactor(player);
     }
 
     /**
@@ -182,11 +142,10 @@ public final class SmartMovingMover {
     /**
      * Final speed factor = 4-stage multiplication.
      * Call location: in each handle*() method within travel() SM pipeline when calculating speedFactor.
-     * B-6 (session 26): player parameter passed due to getConfigSpeedFactor signature change.
      */
     public static float getSpeedFactor(LocalPlayer player, SmartMovingClientState sm,
                                         SmartMovingConfig cfg) {
-        return getConfigSpeedFactor(player, cfg)
+        return getConfigSpeedFactor(cfg)
              * getPotionSpeedFactor(player)
              * getNonSlowInputSpeedFactor(player, sm, cfg)
              * getSlowInputSpeedFactor(player, sm, cfg);
@@ -233,7 +192,7 @@ public final class SmartMovingMover {
         float moveForward  = (float) movementInput.z;
 
         // Original superMoveEntityWithHeading L119-130: speedFactor calculation.
-        float speedFactor = getConfigSpeedFactor(player, cfg)
+        float speedFactor = getConfigSpeedFactor(cfg)
                 * getPotionSpeedFactor(player)
                 * getNonSlowInputSpeedFactor(player, sm, cfg);
         float slowFactor = getSlowInputSpeedFactor(player, sm, cfg);

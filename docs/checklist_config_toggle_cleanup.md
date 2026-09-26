@@ -3,22 +3,23 @@
 Reference: `docs/research_config_toggle_cleanup.md`
 
 ## 1. Remove speed increase/decrease
-- [ ] `SmartMovingKeys`: remove `speedIncrease`/`speedDecrease` fields, registrations and the O/I
+- [x] `SmartMovingKeys`: remove `speedIncrease`/`speedDecrease` fields, registrations and the O/I
       javadoc lines
-- [ ] `SmartMovingClientState.tickEssential`: remove the IMPL-05 speed key block
-- [ ] `SmartMovingNetwork`: remove `SpeedChangePayload` and both registrations; update the header
-- [ ] `SmartMoving`: remove the SpeedChange server receiver
-- [ ] `SmartMovingServer`: remove `processSpeedChangePacket`, `adminChangeSpeed`, `logSpeedState`
-- [ ] `SmartMovingClient`: remove the SpeedChange client receiver
-- [ ] `SmartMovingConfig`: remove `speedUser*` fields, `playerSpeedExponents`, their read/write
+- [x] `SmartMovingClientState.tickEssential`: remove the IMPL-05 speed key block
+- [x] `SmartMovingNetwork`: remove `SpeedChangePayload` and both registrations; update the header
+- [x] `SmartMoving`: remove the SpeedChange server receiver
+- [x] `SmartMovingServer`: remove `processSpeedChangePacket`, `adminChangeSpeed`, `logSpeedState`
+- [x] `SmartMovingClient`: remove the SpeedChange client receiver
+- [x] `SmartMovingConfig`: remove `speedUser*` fields, `playerSpeedExponents`, their read/write
       keys, `getUserSpeedFactor`, `changeSpeed`, `changeSingleSpeed`, `getSpeedPercent`, the
-      per-player `toArray(String)` overload, `parseIntegerMap`/`serializeIntegerMap`, unused imports
-- [ ] `SmartMovingMover`: `getConfigSpeedFactor(cfg)` = `cfg.enabled ? cfg.speedFactor : 1F`;
+      per-player `toArray(String)` overload, `parseIntegerMap`/`serializeIntegerMap`, `getInt`
+      (only read the exponent), unused imports
+- [x] `SmartMovingMover`: `getConfigSpeedFactor(cfg)` = `cfg.enabled ? cfg.speedFactor : 1F`;
       remove `isCreative` and unused imports; update the call sites (Mover, `MixinLivingEntityClient`)
       and stale docs
-- [ ] `en_us.json`: remove `key.smartmoving.speed_*` and `smartmoving.message.speed.*`
-- [ ] `README.md`: remove the Increase/Decrease speed rows
-- [ ] Build + commit
+- [x] `en_us.json`: remove `key.smartmoving.speed_*` and `smartmoving.message.speed.*`
+- [x] `README.md`: remove the Increase/Decrease speed rows
+- [x] Build + commit
 
 ## 2. Remove difficulty presets
 - [ ] `SmartMovingConfig`: `toggle()` flips `enabled` and saves; remove `DEFAULT_KEYS`,
