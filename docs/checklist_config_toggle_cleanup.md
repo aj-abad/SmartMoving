@@ -37,8 +37,8 @@ Reference: `docs/research_config_toggle_cleanup.md`
 - [x] Build + commit
 
 ## 4. Verification
-- [ ] `pnpm build` compilation success
-- [ ] Leftover scan: no references to removed symbols, keys or payloads
-- [ ] In-game check: F9 shows "Smart Moving enabled/disabled" above the hotbar and not in chat;
+- [x] `pnpm build` compilation success
+- [x] Leftover scan: no references to removed symbols, keys or payloads (source and built jar)
+- [ ] In-game user verification: F9 shows "Smart Moving enabled/disabled" above the hotbar and not in chat;
       Controls lists Grab, Prone, Dodge, Toggle Smart Moving only; after quitting while disabled,
       the first F9 press enables Smart Moving
