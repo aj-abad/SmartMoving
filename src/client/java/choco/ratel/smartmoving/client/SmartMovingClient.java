@@ -157,6 +157,7 @@ public class SmartMovingClient implements ClientModInitializer {
                     boolean wasSwim_fix154 = target.isSwimming_sm;
                     boolean wasDive_fix154 = target.isDiving;
                     boolean wasCR_fix154 = target.isCrawling;
+                    int wasAngleJumpType = target.angleJumpType;
                     double slideBoxMinYBefore = 0.0;
                     double flyBoxMinYBefore = 0.0;
                     if (entity instanceof AbstractClientPlayer rsPre
@@ -168,6 +169,12 @@ public class SmartMovingClient implements ClientModInitializer {
                         if (wasFlying) flyBoxMinYBefore = bbMinY;
                     }
                     target.processStatePacket(payload.state());
+                    // Dodge takeoff/landing ticks for the remote player's dodge animation.
+                    if (entity instanceof AbstractClientPlayer remoteDodge
+                            && !(entity instanceof LocalPlayer)) {
+                        target.trackRemoteAngleJump(wasAngleJumpType, remoteDodge.tickCount,
+                                remoteDodge.getYRot());
+                    }
                     // 🔴 (Phase 2 multi BUG-12/14) Update dim immediately on packet arrival → determine dim based on sm.* bits
                     //   without waiting for vanilla pose sync. Remove boolean OR guard — avoid missing detection on
                     //   simultaneous bit changes. Minimal vanilla effect if dim is same.

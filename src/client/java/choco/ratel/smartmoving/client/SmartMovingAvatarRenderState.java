@@ -20,4 +20,12 @@ public interface SmartMovingAvatarRenderState {
     float sm_getTickDelta();
 
     void sm_setTickDelta(float tickDelta);
+
+    /**
+     * Body yaw (degrees) the renderer actually used, after Smart Moving's overrides. Set in
+     * setupRotations and read by the model's setupAnim, which 26.3 runs later (deferred submit).
+     */
+    float sm_getBodyYaw();
+
+    void sm_setBodyYaw(float bodyYaw);
 }

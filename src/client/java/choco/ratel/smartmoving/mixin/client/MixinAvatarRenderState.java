@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.Unique;
 public class MixinAvatarRenderState implements SmartMovingAvatarRenderState {
     @Unique private AbstractClientPlayer sm_player;
     @Unique private float sm_tickDelta;
+    @Unique private float sm_bodyYaw;
 
     @Override
     public AbstractClientPlayer sm_getPlayer() {
@@ -32,5 +33,15 @@ public class MixinAvatarRenderState implements SmartMovingAvatarRenderState {
     @Override
     public void sm_setTickDelta(float tickDelta) {
         sm_tickDelta = tickDelta;
+    }
+
+    @Override
+    public float sm_getBodyYaw() {
+        return sm_bodyYaw;
+    }
+
+    @Override
+    public void sm_setBodyYaw(float bodyYaw) {
+        sm_bodyYaw = bodyYaw;
     }
 }

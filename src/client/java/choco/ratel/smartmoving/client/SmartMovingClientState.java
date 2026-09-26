@@ -684,67 +684,128 @@ public final class SmartMovingClientState {
     /** velocity.z saved before jump. */
     public double jumpMotionZ;
 
-    // ── Angle jump (dodge) animation timer ──────────────────────────────────
-    /** ageInTicks at the first rendered frame of the current angle jump. NaN when not angle jumping. */
-    public float angleJumpAnimStartAge = Float.NaN;
+    // ── Angle jump (dodge) animation ────────────────────────────────────────
+    // Tick-driven (docs/research_dodge_spam_and_animation.md): the local player records takeoff and landing
+    // in tryAngleJump / tickEssential, remote players from their state packets. Rendering only reads these,
+    // so frames skipped in first person or while a remote player is off screen cannot leave a stale start.
+    private static final float DODGE_LAUNCH_TICKS   = 1.75f;
+    private static final float DODGE_RECOVERY_TICKS = 6f;
+    /** Landing crouch strength, as a fraction of the vanilla sneak pose. */
+    private static final float DODGE_LANDING_CROUCH = 0.4f;
 
-    /**
-     * Ticks elapsed since the current angle jump started, as seen by the renderer.
-     * Render-driven (not tick-driven) so it works identically for local and remote players.
-     */
-    public float angleJumpAnimTicks(float ageInTicks) {
-        if (!isAngleJumping()) {
-            angleJumpAnimStartAge = Float.NaN;
-            return 0f;
-        }
-        if (Float.isNaN(angleJumpAnimStartAge) || ageInTicks < angleJumpAnimStartAge) {
-            angleJumpAnimStartAge = ageInTicks;
-        }
-        return ageInTicks - angleJumpAnimStartAge;
+    /** tickCount when the current/last dodge left the ground. Integer.MIN_VALUE before any dodge. */
+    public int angleJumpStartTick = Integer.MIN_VALUE;
+    /** tickCount when the last dodge landed. Integer.MIN_VALUE while no landing recovery is pending. */
+    public int angleJumpEndTick = Integer.MIN_VALUE;
+    /** World yaw (degrees) the current/last dodge travels toward; keeps the pose direction after landing. */
+    public float angleJumpWorldYaw;
+
+    // Pose sample written by sampleDodgePose and read right after it by the renderer and the model.
+    /** How far the limbs move from the vanilla pose to the dodge pose (0..1). */
+    public float dodgeWeight;
+    /** Whole-body lean about the hips (radians): pitch > 0 leans forward, roll > 0 toward the player's left. */
+    public float dodgePitch;
+    public float dodgeRoll;
+    /** Mid-air leg gather (0..1): 0 at takeoff, peaks near the top of the hop, back to 0 for the landing. */
+    public float dodgeTuck;
+    /** Landing crouch, as a fraction of the vanilla sneak pose. */
+    public float dodgeCrouch;
+    /** Dodge direction relative to the rendered body as forward/back/left/right weights (adjacent pairs sum to 1). */
+    public float dodgeFw;
+    public float dodgeBk;
+    public float dodgeLf;
+    public float dodgeRt;
+
+    /** A dodge left the ground on tick {@code tick}, heading toward world yaw {@code worldYaw}. */
+    public void startAngleJump(int tick, float worldYaw) {
+        angleJumpStartTick = tick;
+        angleJumpEndTick = Integer.MIN_VALUE;
+        angleJumpWorldYaw = worldYaw;
+    }
+
+    /** The current dodge landed on tick {@code tick}; the landing recovery plays from there. */
+    public void endAngleJump(int tick) {
+        if (angleJumpStartTick != Integer.MIN_VALUE) angleJumpEndTick = tick;
     }
 
     /**
-     * 0..1 envelope for the dodge pose: eases in over ~2.5 ticks instead of snapping,
-     * then relaxes ~25% toward neutral on long falls so the pose never reads as frozen.
+     * Remote players: turns an angleJumpType change from a state packet into dodge start/end ticks.
+     * The direction code is relative to the player's yaw (8 = forward, 6 = right, 4 = back, 2 = left),
+     * so the world yaw is yRot + (8 - type) × 45°.
      */
-    public float angleJumpPoseWeight(float ageInTicks) {
-        float t = angleJumpAnimTicks(ageInTicks);
-        float in = smoothstep01(t / 2.5f);
-        float relax = smoothstep01((t - 4f) / 8f);
-        return in * (1f - 0.25f * relax);
+    public void trackRemoteAngleJump(int previousType, int tick, float yRot) {
+        boolean wasAngleJumping = previousType >= 1 && previousType <= 8;
+        if (isAngleJumping() && angleJumpType != previousType) {
+            startAngleJump(tick, yRot + (8 - angleJumpType) * 45f);
+        } else if (!isAngleJumping() && wasAngleJumping) {
+            endAngleJump(tick);
+        }
+    }
+
+    /** True when no other Smart Moving pose is active, so the dodge pose may show. */
+    public boolean canShowDodgePose() {
+        return !(isRopeSliding || isClimbing || isCrawlClimbing || isCeilingClimbing || isClimbJumping
+                || isSwimming_sm || isDiving || isCrawling || isSliding || isHeadJumping || isFlying);
+    }
+
+    /**
+     * Samples the dodge animation for one rendered frame into the dodge* fields. {@code bodyYawDeg} is the
+     * body yaw the renderer actually uses, so the pose leans along the real motion while vanilla turns the
+     * body. Returns false when neither a dodge nor its landing recovery is playing.
+     */
+    public boolean sampleDodgePose(float ageInTicks, float bodyYawDeg) {
+        if (angleJumpStartTick == Integer.MIN_VALUE) return false;
+        float lean;
+        if (isAngleJumping()) {
+            lean = sampleDodgeAir(Math.max(0f, ageInTicks - angleJumpStartTick));
+            dodgeCrouch = 0f;
+        } else {
+            if (angleJumpEndTick == Integer.MIN_VALUE) return false;
+            float r = ageInTicks - angleJumpEndTick;
+            if (r < 0f || r >= DODGE_RECOVERY_TICKS) return false;
+            // Settle out of the touchdown pose, with a short crouch that peaks 2 ticks in.
+            lean = sampleDodgeAir(angleJumpEndTick - angleJumpStartTick);
+            float s = r / DODGE_RECOVERY_TICKS;
+            float fade = (1f - s) * (1f - s);
+            dodgeWeight *= fade;
+            dodgeTuck *= fade;
+            lean *= fade;
+            dodgeCrouch = DODGE_LANDING_CROUCH * 6.75f * s * (1f - s) * (1f - s);
+        }
+
+        float rel = Mth.wrapDegrees(bodyYawDeg - angleJumpWorldYaw);   // counterclockwise from body forward
+        dodgeFw = dodgeDirectionWeight(rel, 0f);
+        dodgeLf = dodgeDirectionWeight(rel, 90f);
+        dodgeBk = dodgeDirectionWeight(rel, 180f);
+        dodgeRt = dodgeDirectionWeight(rel, -90f);
+        dodgePitch = (dodgeFw * 0.30f - dodgeBk * 0.26f) * lean;
+        dodgeRoll = (dodgeLf - dodgeRt) * 0.26f * lean;
+        return true;
+    }
+
+    /** Air phase {@code t} ticks after takeoff: sets dodgeWeight/dodgeTuck and returns the lean envelope. */
+    private float sampleDodgeAir(float t) {
+        float launch = easeOutCubic(t / DODGE_LAUNCH_TICKS);       // moves on the first frame
+        float settle = 1f - 0.3f * smoothstep01((t - 7f) / 6f);    // only long falls (dodging off a ledge)
+        dodgeWeight = launch * settle;
+        dodgeTuck = Mth.sin((float) Math.PI * Mth.clamp((t - 0.5f) / 5.5f, 0f, 1f));
+        return launch * (1f - 0.35f * smoothstep01((t - 1.5f) / 4.5f)) * settle;
+    }
+
+    /** Triangle weight of direction {@code relDeg} toward {@code targetDeg}: 1 on it, 0 a quarter turn away. */
+    private static float dodgeDirectionWeight(float relDeg, float targetDeg) {
+        return Mth.clamp(1f - Math.abs(Mth.wrapDegrees(relDeg - targetDeg)) / 90f, 0f, 1f);
+    }
+
+    private static float easeOutCubic(float x) {
+        x = Mth.clamp(x, 0f, 1f);
+        float inv = 1f - x;
+        return 1f - inv * inv * inv;
     }
 
     private static float smoothstep01(float x) {
         x = Mth.clamp(x, 0f, 1f);
         return x * x * (3f - 2f * x);
-    }
-
-    /** Angle jump direction as radians, 0 = forward, increasing clockwise (left = π/2, back = π, right = 3π/2). */
-    public float angleJumpDirectionRad() {
-        int index = angleJumpType == 8 ? 0 : angleJumpType;
-        return index * (float) (Math.PI / 4.0);
-    }
-
-    /**
-     * Triangle weight (0..1) of the current dodge direction toward {@code targetRad}.
-     * Cardinal targets are π/2 apart, so at most two adjacent weights are non-zero and they sum to 1.
-     */
-    public float angleJumpDirectionWeight(float targetRad) {
-        final float full = (float) (Math.PI * 2.0);
-        final float quarter = (float) (Math.PI / 2.0);
-        float distance = Math.abs(angleJumpDirectionRad() - targetRad);
-        distance = Math.min(distance, full - distance);
-        return Mth.clamp(1f - distance / quarter, 0f, 1f);
-    }
-
-    /** Whole-body pitch for the dodge pose (radians, > 0 = lean forward) from forward/back weights. */
-    public static float angleJumpBodyPitch(float forwardWeight, float backWeight) {
-        return forwardWeight * 0.32f - backWeight * 0.25f;
-    }
-
-    /** Whole-body roll for the dodge pose (radians, > 0 = lean toward the player's left) from left/right weights. */
-    public static float angleJumpBodyRoll(float leftWeight, float rightWeight) {
-        return (leftWeight - rightWeight) * 0.25f;
     }
 
     // ── C-33: SM-specific exhaustion (climbing fatigue) ──────────────────────────
@@ -2664,6 +2725,7 @@ public final class SmartMovingClientState {
             //   if (sp.onGround || sp.isCollidedVertically) angleJumpType = 0;
             // (A/D/S double-tap counters that used to live here were removed — dodge key only.)
             if (player.onGround() || player.verticalCollision) {
+                if (isAngleJumping()) endAngleJump(player.tickCount);   // starts the landing recovery pose
                 angleJumpType = 0;
             }
             if (dodgeCooldown > 0 && player.onGround() && !isAngleJumping()) {
@@ -3311,7 +3373,8 @@ public final class SmartMovingClientState {
         jumpMotionZ    = 0D;
         isSmall = false;
         angleJumpType = 0;
-        angleJumpAnimStartAge = Float.NaN;
+        angleJumpStartTick = Integer.MIN_VALUE;
+        angleJumpEndTick = Integer.MIN_VALUE;
         wasClimbing  = false;
         exhaustion   = 0F;
         hungerIncrease     = 0F;   // 원본 SmartMovingSelf.resetState — hungerIncrease 누적 리셋

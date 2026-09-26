@@ -12,21 +12,21 @@ Reference: `docs/research_dodge_spam_and_animation.md`
 - [x] Build + commit
 
 ## 2. Dodge animation
-- [ ] `SmartMovingClientState`: replace `angleJumpAnimStartAge` and the old pose helpers with
+- [x] `SmartMovingClientState`: replace `angleJumpAnimStartAge` and the old pose helpers with
       `angleJumpStartTick` / `angleJumpEndTick` / `angleJumpWorldYaw`, `startAngleJump`,
       `trackRemoteAngleJump`, and `sampleDodgePose` (air + landing recovery outputs)
-- [ ] Local timing: start in `SmartMovingJumper.tryAngleJump`, end where `tickEssential` clears
+- [x] Local timing: start in `SmartMovingJumper.tryAngleJump`, end where `tickEssential` clears
       `angleJumpType`; reset in `resetState()`
-- [ ] Remote timing: `SmartMovingClient` state receiver records the `angleJumpType` edges
-- [ ] Render state: carry the rendered body yaw (`SmartMovingAvatarRenderState` +
+- [x] Remote timing: `SmartMovingClient` state receiver records the `angleJumpType` edges
+- [x] Render state: carry the rendered body yaw (`SmartMovingAvatarRenderState` +
       `MixinAvatarRenderState`), set in `sm_modifyBodyYaw`
-- [ ] `MixinPlayerEntityRenderer`: drop angle jumps from the body-yaw force branch; lean + crouch
+- [x] `MixinPlayerEntityRenderer`: drop angle jumps from the body-yaw force branch; lean + crouch
       drop from the sample, only when no other SM pose is active
-- [ ] `MixinPlayerEntityModelClient`: blended dodge pose with tuck, landing crouch, head
+- [x] `MixinPlayerEntityModelClient`: blended dodge pose with tuck, landing crouch, head
       compensation and swinging-arm preservation, from the standard branch only; no forced
       `head.yRot`
-- [ ] `MixinLivingEntityRenderer`: stop zeroing the walk animation during dodges
-- [ ] Build + commit
+- [x] `MixinLivingEntityRenderer`: stop zeroing the walk animation during dodges
+- [x] Build + commit
 
 ## 3. Verification
 - [ ] `pnpm build` compilation success

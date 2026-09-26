@@ -516,6 +516,7 @@ public abstract class MixinPlayerEntityModelClient {
         //   also maps to true so both true → enter isClimbing branch → apply regular climbing formula → ceiling
         //   climbing but arms/legs still. Priority change ensures sm_animateCeilingClimbing
         //   called when isCeilingClimbing.
+        boolean standardPose = false;
         if (sm.isRopeSliding) {
             sm_animateRopeSliding(animationProgress, player);
         } else if (sm.isCeilingClimbing) {
@@ -556,6 +557,7 @@ public abstract class MixinPlayerEntityModelClient {
         } else if (sm.isHeadJumping) {
             sm_animateHeadJumping(sm, player);
         } else {
+            standardPose = true;
             // 🔴 (Phase 2 multi BUG-1) Direct fallDistance check → sm.doFallingAnimation (server-relay sync).
             //   vanilla 1.21.1 server doesn't sync remote fallDistance → user report "falling animation not visible".
             //   doFallingAnimation definition itself expands equivalent to isFalling formula (see sendStatePacket).
@@ -567,9 +569,10 @@ public abstract class MixinPlayerEntityModelClient {
             //   Only change limbSwing/limbSwingAmount arguments via ModifyArg to SM stat (MixinLivingEntityRenderer).
         }
 
-        // ── [12-2] animateAngleJumping — directional jump arm/leg pose ──────────────
-        if (sm.isAngleJumping()) {
-            sm_animateAngleJumping(sm, animationProgress);
+        // ── [12-2] Dodge (angle jump) pose — in the air and through the landing recovery ──
+        //   Only over the standard pose, so another SM pose that starts mid-dodge is left alone.
+        if (standardPose && sm.sampleDodgePose(animationProgress, smartState.sm_getBodyYaw())) {
+            sm_animateDodge(sm, player, animationProgress);
         }
 
         // 🔴 (2026-04-27) head stays vanilla — fade in sm_setupTransforms TAIL affects
@@ -1899,82 +1902,80 @@ public abstract class MixinPlayerEntityModelClient {
     }
 
     /**
-     * [12-2] animateAngleJumping: 방향 점프 시 팔/다리 각도.
-     * 원본: SmartMovingModel.animateAngleJumping() L559-584.
+     * [12-2] Dodge (angle jump) pose, in the air and through the landing recovery.
+     * Original: SmartMovingModel.animateAngleJumping() L559-584 (one static pose per direction).
      *
-     * 🔴 단순 LOCAL 매핑 (2026-04-27, 사용자 통찰 — "팔처럼 처리"):
-     *   원본 L569-574 (LOCAL 각도, ZXY rotationOrder):
-     *     leg.rotateAngleX = THIRTYTWOTH * (1 + ?ness);     // 다리 들어올림
-     *     leg.rotateAngleY = -angle;                         // 다리 방향
-     *     leg.rotateAngleZ = ±THIRTYTWOTH * backness;        // 다리 좌우 (back jump)
+     * Reworked (docs/research_dodge_spam_and_animation.md) so it no longer snaps in, freezes and snaps out:
+     *   - limbs blend from the vanilla pose (walk swing included) to the dodge pose by sm.dodgeWeight;
+     *   - legs gather toward the top of the hop and extend for the landing (sm.dodgeTuck);
+     *   - part of the vanilla sneak pose absorbs the landing (sm.dodgeCrouch);
+     *   - direction weights are relative to the rendered body, which keeps its vanilla yaw, so the head
+     *     keeps its vanilla (corrected) yaw too instead of being forced to 0.
      *
-     *   원본의 bipedPelvic.Y = -bipedOuter.Y + cameraAngle 보정은 1.7.10 SmartMoving 이
-     *   별도로 entity.renderYawOffset = forwardRotation 으로 bodyYaw=cameraAngle force
-     *   하기 때문에 동작. 1.21.1 vanilla 는 bodyYaw 자유 lerp → 그 보정을 leg.yaw 에
-     *   추가하면 오히려 다리가 entity 와 분리 (사용자 보고 "다리 몸통 방향과 다름").
-     *
-     *   해결: 팔과 동일하게 LOCAL 각도 직접 set. cameraDelta 보정 제거.
-     *   leg 는 entity.bodyYaw 따라 자연스럽게 회전 (vanilla setupTransforms).
-     *
-     *   ZXY rotationOrder 는 ModelPart 의 ZYX 와 미세 차이 (작은 pitch/roll ~π/16 시
-     *   시각 거의 동일). gimbal lock 회피용 ModelPart 직접 set 패턴 유지.
+     * Model space: limb xRot < 0 swings forward, > 0 backward. Outward leg abduction is
+     * leftLeg.zRot < 0 / rightLeg.zRot > 0; outward arm raise is leftArm.zRot < 0 / rightArm.zRot > 0.
      */
-    private void sm_animateAngleJumping(SmartMovingClientState sm, float animationProgress) {
-        // Direction weights: at most two adjacent cardinals are non-zero and sum to 1 (diagonals = 0.5/0.5).
-        float fw = sm.angleJumpDirectionWeight(0f);
-        float bk = sm.angleJumpDirectionWeight(HALF);
-        float lf = sm.angleJumpDirectionWeight(QUARTER);
-        float rt = sm.angleJumpDirectionWeight(HALF + QUARTER);
-        // Eased 0..1 pose weight — replaces the old instant snap into a static pose.
-        float k = sm.angleJumpPoseWeight(animationProgress);
+    private void sm_animateDodge(SmartMovingClientState sm, AbstractClientPlayer player, float animationProgress) {
+        float w = sm.dodgeWeight;
+        float tuck = sm.dodgeTuck;
+        float fw = sm.dodgeFw;
+        float bk = sm.dodgeBk;
+        float lf = sm.dodgeLf;
+        float rt = sm.dodgeRt;
 
-        // 🔴 head.yaw = 0 강제 (2026-04-27): vanilla setAngles 가 head.yaw = netHeadYaw =
-        //   headYaw_lerped - bodyYaw_natural_lerped 로 매 프레임 set. angle jumping 시
-        //   smBodyYawOverride=rotationYaw_lerped force 로 setupTransforms 는 cameraYaw 향하지만
-        //   bodyYaw_natural 은 옆으로 lerp 진행 → netHeadYaw 가 0 아님 → head 가 entity 의
-        //   반대 방향으로 회전 (사용자 보고 "좌 점프 시 고개 우로 돌아감"). 비행 매핑 패턴
-        //   (sm_animateFlying head.yaw=0) 차용 — head.yaw 강제로 0 → setupTransforms force
-        //   결과만 살아남아 head 가 cameraYaw 향함 (1.7.10 원본 효과 1:1).
-        head.yRot = 0f;
+        // Legs: takeoff/landing pose plus the mid-air gather.
+        //   forward: running lunge — lead (left) leg forward, trailing (right) leg back.
+        //   back:    both legs forward, staggered and slightly apart.
+        //   side:    lead leg reaches out, trailing leg tucks forward under the body.
+        float lLegX = fw * (-0.45f - 0.45f * tuck) + bk * (-0.30f - 0.35f * tuck)
+                    + lf * -0.10f + rt * (-0.20f - 0.35f * tuck);
+        float rLegX = fw * ( 0.40f + 0.25f * tuck) + bk * (-0.15f - 0.35f * tuck)
+                    + lf * (-0.20f - 0.35f * tuck) + rt * -0.10f;
+        float lLegZ = bk * -0.10f + lf * (-0.35f - 0.15f * tuck) + rt * (-0.05f + 0.10f * tuck);
+        float rLegZ = bk *  0.10f + lf * ( 0.05f - 0.10f * tuck) + rt * ( 0.35f + 0.15f * tuck);
+        blendLimb(leftLeg,  lLegX, lLegZ, w);
+        blendLimb(rightLeg, rLegX, rLegZ, w);
 
-        // Model space: limb xRot < 0 swings forward, > 0 backward. Outward leg abduction is
-        // leftLeg.zRot < 0 / rightLeg.zRot > 0; outward arm raise is leftArm.zRot < 0 / rightArm.zRot > 0.
-        //
-        // Per-direction target poses (radians), blended by direction weight:
-        //   forward: lunge — lead (left) leg tucked forward, trail (right) leg back, arms counter-swing.
-        //   back:    lean-back hop — both legs kick forward, arms reach forward for balance.
-        //   left:    side leap — left leg abducted, right leg tucked, trailing (right) arm flung out.
-        //   right:   mirror of left.
-        float lLegX = fw * -0.85f + bk * -0.55f + lf * -0.10f + rt * -0.35f;
-        float rLegX = fw *  0.55f + bk * -0.35f + lf * -0.35f + rt * -0.10f;
-        float lLegZ = fw * -0.05f + bk * -0.12f + lf * -0.50f + rt * -0.15f;
-        float rLegZ = fw *  0.05f + bk *  0.12f + lf *  0.15f + rt *  0.50f;
+        // Arms counter-balance and flare a little more at the top of the hop.
+        //   forward: counter-swing; back: both reach forward; side: trailing arm flung out.
+        // The targets include vanilla's idle arm bob (AnimationUtils.bobModelPart) so it keeps going.
+        float flare = 0.8f + 0.2f * tuck;
+        float bobZ = Mth.cos(animationProgress * 0.09F) * 0.05F + 0.05F;
+        float bobX = Mth.sin(animationProgress * 0.067F) * 0.05F;
+        float lArmX = (fw *  0.45f + bk * -0.70f + lf * -0.15f + rt * -0.25f) * flare - bobX;
+        float rArmX = (fw * -0.55f + bk * -0.70f + lf * -0.25f + rt * -0.15f) * flare + bobX;
+        float lArmZ = (fw * -0.10f + bk * -0.20f + lf * -0.30f + rt * -0.75f) * flare - bobZ;
+        float rArmZ = (fw *  0.10f + bk *  0.20f + lf *  0.75f + rt *  0.30f) * flare + bobZ;
+        // Leave the swinging arm to the attack animation (same rule as sm_animateFalling).
+        boolean swinging = player.getSwingAnimation(1.0F) > 0F;
+        HumanoidArm mainArm = player.getMainArm();
+        if (!swinging || mainArm != HumanoidArm.LEFT)  blendLimb(leftArm,  lArmX, lArmZ, w);
+        if (!swinging || mainArm != HumanoidArm.RIGHT) blendLimb(rightArm, rArmX, rArmZ, w);
 
-        float lArmX = fw *  0.60f + bk * -0.90f + lf * -0.20f + rt * -0.20f;
-        float rArmX = fw * -0.80f + bk * -0.90f + lf * -0.20f + rt * -0.20f;
-        float lArmZ = fw * -0.15f + bk * -0.20f + lf * -0.35f + rt * -0.90f;
-        float rArmZ = fw *  0.15f + bk *  0.20f + lf *  0.90f + rt *  0.35f;
+        // The renderer leans the whole body about the hips; keep the head looking where the player looks.
+        head.xRot -= sm.dodgePitch * 0.6f;
+        head.zRot -= sm.dodgeRoll * 0.5f;
 
-        leftLeg.xRot  = lLegX * k;
-        leftLeg.yRot  = 0f;
-        leftLeg.zRot  = lLegZ * k;
-        rightLeg.xRot = rLegX * k;
-        rightLeg.yRot = 0f;
-        rightLeg.zRot = rLegZ * k;
+        // Landing: part of the vanilla sneak pose (HumanoidModel.setupAnim isCrouching); the renderer
+        // drops the model to match.
+        float crouch = sm.dodgeCrouch;
+        if (crouch > 0f) {
+            body.xRot += 0.5f * crouch;
+            head.y += 4.2f * crouch;
+            body.y += 3.2f * crouch;
+            leftArm.y += 3.2f * crouch;
+            rightArm.y += 3.2f * crouch;
+            leftArm.xRot += 0.4f * crouch;
+            rightArm.xRot += 0.4f * crouch;
+            leftLeg.z += 4.0f * crouch;
+            rightLeg.z += 4.0f * crouch;
+        }
+    }
 
-        // Idle wobble kept from the original (SmartRenderModel.animateArms L334-339 `+=` effect).
-        float idleZ = Mth.cos(animationProgress * 0.09f)  * 0.05f + 0.05f;
-        float idleX = Mth.sin(animationProgress * 0.067f) * 0.05f;
-
-        leftArm.xRot  = lArmX * k - idleX;
-        rightArm.xRot = rArmX * k + idleX;
-        leftArm.zRot  = lArmZ * k - idleZ;
-        rightArm.zRot = rArmZ * k + idleZ;
-
-        // The renderer pitches the whole body (sm_setupTransforms angle-jump branch); pull the head
-        // partway back toward level so the player keeps looking where they are going.
-        float bodyPitch = SmartMovingClientState.angleJumpBodyPitch(fw, bk);
-        head.xRot -= bodyPitch * 0.6f * k;
+    /** Moves a limb's xRot/zRot from their current (vanilla) values toward the dodge pose by {@code weight}. */
+    private static void blendLimb(ModelPart part, float xRot, float zRot, float weight) {
+        part.xRot += (xRot - part.xRot) * weight;
+        part.zRot += (zRot - part.zRot) * weight;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

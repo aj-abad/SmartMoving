@@ -172,10 +172,12 @@ public class MixinPlayerEntityRenderer {
 
         // Original SmartMovingRender.rotatePlayer L271-L274 condition 1:1.
         // Original doesn't have isRopeSliding/isCrawling alone, instead includes isClimbCrawling.
+        // Dodges (isAngleJumping) are left out on purpose: the body keeps its normal lagged yaw instead of
+        // snapping to the camera on takeoff, and the dodge pose is computed relative to that yaw.
         boolean smActive = sm.isClimbing || sm.isClimbCrawling || sm.isCrawlClimbing
                 || sm.isFlying || sm.isSwimming_sm || sm.isDiving
                 || sm.isCeilingClimbing || sm.isHeadJumping
-                || sm.isSliding || sm.isAngleJumping();
+                || sm.isSliding;
 
         // 🔴 User report fix refinement (2026-05-03 — "after max body rotates sharply following mouse, need smooth lag"):
         //   Original SmartMovingRender L147 force branch doesn't include isCrawl alone → vanilla 1.21.1
@@ -483,7 +485,7 @@ public class MixinPlayerEntityRenderer {
             return;
         }
 
-        // 나머지(isClimb/isClimbCrawling/isCeilingClimb/isAngleJumping) — 원본 rotatePlayer L269:
+        // 나머지(isClimb/isClimbCrawling/isCeilingClimb) — 원본 rotatePlayer L269:
         //   forwardRotation = prevRotationYaw + (rotationYaw - prevRotationYaw) * f2 (player yaw 보간, 도)
         // isClimb/ClimbCrawling 은 원본 L308 forwardRotation/RadiantToAngle(라디안) 과 동등.
         // isCeilingClimb 의 `rotateY + horizontalAngle`(L476) 은 rotateY 공식 이식 필요 — 후속.
@@ -522,6 +524,7 @@ public class MixinPlayerEntityRenderer {
         //     일반 render 만 fade prev 누적 → oscillate 차단.
         net.minecraft.client.Minecraft _mc = net.minecraft.client.Minecraft.getInstance();
         if (_mc.gui.screen() instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) {
+            smartState.sm_setBodyYaw(bodyYaw);
             return bodyYaw;
         }
         // vanilla 1 frame lerped bodyYaw 캐시 (sm_modifyNetHeadYaw 의 head 보정에 사용).
@@ -557,6 +560,7 @@ public class MixinPlayerEntityRenderer {
         if (!sm.smCrawlMode && sm.smStandardFadeActive && !sm.smFallingFadeMode) {
             renderState.yRot += sm.smCachedBodyYawNaturalDeg - sm.smCachedBodyYawLaggedDeg;
         }
+        smartState.sm_setBodyYaw(result);   // the dodge pose leans relative to this
         return result;
     }
 
@@ -946,26 +950,20 @@ public class MixinPlayerEntityRenderer {
             sm.smOuterTiltX = thetaLerped;   // cape 클램프 (B-17) 도 보간된 값 사용
         }
 
-        // Angle jump (dodge): whole-body lean into the dodge direction, about the hips.
+        // Dodge (angle jump, in the air and through the landing recovery): whole-body lean along the dodge,
+        //   about the hips, plus the landing crouch's model drop.
         //   Axis conventions in this pre-scale space (see swim/slide/fly branches above):
         //   XP.rotation(-θ) pitches the model forward, ZP.rotation(+φ) rolls it toward the player's left.
-        //   Pitch/roll magnitudes are shared with the limb pose (SmartMovingClientState.angleJumpBody*),
-        //   and the same eased weight drives both so the body and limbs move together.
-        if (sm.isAngleJumping() && !sm.isHeadJumping && !sm.isFlying) {
-            float fw = sm.angleJumpDirectionWeight(0f);
-            float bk = sm.angleJumpDirectionWeight((float) Math.PI);
-            float lf = sm.angleJumpDirectionWeight((float) (Math.PI / 2.0));
-            float rt = sm.angleJumpDirectionWeight((float) (Math.PI * 1.5));
-            float k = sm.angleJumpPoseWeight(animationProgress);
-            float pitch = SmartMovingClientState.angleJumpBodyPitch(fw, bk) * k;
-            float roll  = SmartMovingClientState.angleJumpBodyRoll(lf, rt) * k;
-
+        //   SmartMovingClientState.sampleDodgePose supplies the same eased values the model's limbs use.
+        if (sm.canShowDodgePose() && sm.sampleDodgePose(animationProgress, smartState.sm_getBodyYaw())) {
+            // Vanilla sneaking drops the model by 2/16 (AvatarRenderer.getRenderOffset); match the partial crouch.
+            if (sm.dodgeCrouch > 0f) matrices.translate(0f, -2f / 16f * sm.dodgeCrouch, 0f);
             float pivotY = 1.5f - 12f / 16f;   // hips (model leg pivot y=12)
             matrices.translate(0f, pivotY, 0f);
-            if (roll  != 0f) matrices.rotate(Axis.ZP.rotation(roll));
-            if (pitch != 0f) matrices.rotate(Axis.XP.rotation(-pitch));
+            if (sm.dodgeRoll  != 0f) matrices.rotate(Axis.ZP.rotation(sm.dodgeRoll));
+            if (sm.dodgePitch != 0f) matrices.rotate(Axis.XP.rotation(-sm.dodgePitch));
             matrices.translate(0f, -pivotY, 0f);
-            sm.smOuterTiltX = pitch;
+            sm.smOuterTiltX = sm.dodgePitch;
         }
 
         // 🔴 D-4 매트릭스 변환 시도 → 회전 중심 차이로 자세 잘못 (사용자 보고 5회차).

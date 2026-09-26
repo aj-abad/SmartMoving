@@ -616,6 +616,7 @@ public final class SmartMovingJumper {
             sm.angleJumpType = 0;
             return false;
         }
+        sm.startAngleJump(player.tickCount, worldAngleDeg);
         return true;
     }
 
