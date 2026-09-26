@@ -29,8 +29,14 @@ Reference: `docs/research_dodge_spam_and_animation.md`
 - [x] Build + commit
 
 ## 3. Verification
-- [ ] `pnpm build` compilation success
-- [ ] Leftover scan for removed helpers/fields
+- [x] `pnpm build` compilation success
+- [x] Leftover scan for removed helpers/fields
+- [x] Envelope continuity + direction weights checked numerically (air end = landing start)
+- [x] Landing crouch skipped while sneaking (found in review)
+- [x] README: dodge cooldown noted in Controls
 - [ ] In-game user verification: spamming dodge no longer builds speed; cooldown feels OK;
       forward/back/side/diagonal dodges start without a body twist, move during the hop, and land
       with a short crouch instead of snapping; remote players look the same
+- Tuning points: `angleJumpCooldownTicks` (config), `DODGE_LAUNCH_TICKS` / `DODGE_RECOVERY_TICKS` /
+  `DODGE_LANDING_CROUCH` and the lean factors in `SmartMovingClientState.sampleDodgePose`, limb
+  coefficients in `MixinPlayerEntityModelClient.sm_animateDodge`
