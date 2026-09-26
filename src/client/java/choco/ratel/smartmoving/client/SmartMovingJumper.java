@@ -74,6 +74,30 @@ public final class SmartMovingJumper {
             return Math.max(Math.abs(actual), Math.abs(move) * horizontal) * Math.signum(move);
     }
 
+    /**
+     * Horizontal velocity for a dodge (angle jump).
+     * The original `getJumpMoving(reset = false)` added `direction * max(|v|, factor)` to the current
+     * velocity with no cap, so chained dodges in one direction doubled the speed each time
+     * (docs/research_dodge_spam_and_animation.md). Instead: at least `factor` along the dodge
+     * direction (cancelling momentum against it), sideways momentum kept, and the result never faster
+     * than max(factor, current speed).
+     */
+    public static Vec3 getDodgeMotion(double motionX, double motionZ, double dirX, double dirZ,
+                                      double factor) {
+        double along = motionX * dirX + motionZ * dirZ;
+        double newAlong = Math.max(along, factor);
+        double x = motionX + (newAlong - along) * dirX;
+        double z = motionZ + (newAlong - along) * dirZ;
+
+        double limit = Math.max(factor, Math.sqrt(motionX * motionX + motionZ * motionZ));
+        double speed = Math.sqrt(x * x + z * z);
+        if (speed > limit) {
+            x *= limit / speed;
+            z *= limit / speed;
+        }
+        return new Vec3(x, 0, z);
+    }
+
     // ── [10-4] setPoseSmall / resetHeightOffset ──────────────────────────────
 
     /**
@@ -272,8 +296,16 @@ public final class SmartMovingJumper {
                     double horizontal = Math.max(horizontalMotion, horizontalJumpFactor);
                     double moveX = -Math.sin(jumpAngleRad);
                     double moveZ =  Math.cos(jumpAngleRad);
-                    motionX = getJumpMoving(sm.jumpMotionX, moveX, reset, horizontal, horizontalJumpFactor);
-                    motionZ = getJumpMoving(sm.jumpMotionZ, moveZ, reset, horizontal, horizontalJumpFactor);
+                    if (type == SmartMovingConfig.JUMP_TYPE_ANGLE) {
+                        // Dodge: capped so repeated dodges cannot stack speed (see getDodgeMotion).
+                        Vec3 dodge = getDodgeMotion(sm.jumpMotionX, sm.jumpMotionZ, moveX, moveZ,
+                                horizontalJumpFactor);
+                        motionX = dodge.x;
+                        motionZ = dodge.z;
+                    } else {
+                        motionX = getJumpMoving(sm.jumpMotionX, moveX, reset, horizontal, horizontalJumpFactor);
+                        motionZ = getJumpMoving(sm.jumpMotionZ, moveZ, reset, horizontal, horizontalJumpFactor);
+                    }
                     horizontalMotion = 0;
                     verticalMotion = verticalJumpFactor;
                 }
@@ -543,11 +575,13 @@ public final class SmartMovingJumper {
     }
 
     /**
-     * Trigger bound dodge key with current WASD direction. Does not activate without directional input.
+     * Trigger bound dodge key with current WASD direction. Does not activate without directional input,
+     * or while the previous dodge's cooldown (`angleJumpCooldownTicks` ground ticks) is running.
      */
     private static boolean tryKeyboundDodge(LocalPlayer player, SmartMovingClientState sm,
                                              SmartMovingConfig cfg, int forward, int right) {
         if (forward == 0 && right == 0) return false;
+        if (sm.dodgeCooldown > 0) return false;
         if (player.isSleeping() || !player.onGround()
                 || sm.isCrawling || sm.isClimbing || sm.isClimbCrawling
                 || sm.isCrawlClimbing || sm.isCeilingClimbing
@@ -562,7 +596,9 @@ public final class SmartMovingJumper {
 
         int relAngle = Math.round((float) Math.toDegrees(Math.atan2(right, forward)) / 45F) * 45;
         if (relAngle < 0) relAngle += 360;
-        return tryAngleJump(player, sm, relAngle);
+        if (!tryAngleJump(player, sm, relAngle)) return false;
+        sm.dodgeCooldown = (int) Math.ceil(cfg.angleJumpCooldownTicks);
+        return true;
     }
 
     /**

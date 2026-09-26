@@ -693,6 +693,9 @@ public class SmartMovingConfig {
     public float angleJumpHorizontalFactor = 0.4F;
     // Original L271: _angleJumpVerticalFactor = PositiveFactor(...).defaults(0.2F)
     public float angleJumpVerticalFactor = 0.2F;
+    // Ground ticks after a dodge before the dodge key works again. Not in original config (the original
+    // double-tap was rate limited by itself); stops dodge spam from being a faster way to travel.
+    public float angleJumpCooldownTicks = 10F;
 
     // === ClimbUp jumps (original SmartMovingConfig L273-L276) ===
     // Original L274: _climbUpJump = Unmodified("move.jump.climb.up") → default true
@@ -1601,6 +1604,7 @@ public class SmartMovingConfig {
         angleJumpBack            = getBool(p,   "move.jump.angle.back",           angleJumpBack);
         angleJumpHorizontalFactor = getFloat(p, "move.jump.angle.horizontal.factor", angleJumpHorizontalFactor);
         angleJumpVerticalFactor  = getFloat(p,  "move.jump.angle.vertical.factor", angleJumpVerticalFactor);
+        angleJumpCooldownTicks   = getFloat(p,  "move.jump.angle.cooldown.ticks", angleJumpCooldownTicks);
         climbUpJump              = getBool(p,   "move.jump.climb.up",             climbUpJump);
         climbUpJumpVerticalFactor = getFloat(p, "move.jump.climb.up.vertical.factor", climbUpJumpVerticalFactor);
         climbUpJumpHandsOnlyVerticalFactor = getFloat(p, "move.jump.climb.up.hands.only.vertical.factor", climbUpJumpHandsOnlyVerticalFactor);
@@ -1766,6 +1770,7 @@ public class SmartMovingConfig {
         p.setProperty("move.jump.angle.back",            String.valueOf(angleJumpBack));
         p.setProperty("move.jump.angle.horizontal.factor", String.valueOf(angleJumpHorizontalFactor));
         p.setProperty("move.jump.angle.vertical.factor", String.valueOf(angleJumpVerticalFactor));
+        p.setProperty("move.jump.angle.cooldown.ticks",  String.valueOf(angleJumpCooldownTicks));
         p.setProperty("move.jump.climb.up",              String.valueOf(climbUpJump));
         p.setProperty("move.jump.climb.up.vertical.factor", String.valueOf(climbUpJumpVerticalFactor));
         p.setProperty("move.jump.climb.up.hands.only.vertical.factor", String.valueOf(climbUpJumpHandsOnlyVerticalFactor));

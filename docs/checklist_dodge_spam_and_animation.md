@@ -3,13 +3,13 @@
 Reference: `docs/research_dodge_spam_and_animation.md`
 
 ## 1. Dodge speed
-- [ ] `SmartMovingJumper`: `getDodgeMotion` (≥ `h` along the dodge, sideways kept, total ≤
+- [x] `SmartMovingJumper`: `getDodgeMotion` (≥ `h` along the dodge, sideways kept, total ≤
       `max(h, |v|)`), used by `tryJump` D-11 for ANGLE only; wall jumps keep `getJumpMoving`
-- [ ] `SmartMovingConfig`: `angleJumpCooldownTicks` (default 10) + load/save
-- [ ] `SmartMovingClientState`: `dodgeCooldown` field, ground-only countdown in `tickEssential`,
+- [x] `SmartMovingConfig`: `angleJumpCooldownTicks` (default 10) + load/save
+- [x] `SmartMovingClientState`: `dodgeCooldown` field, ground-only countdown in `tickEssential`,
       reset in `resetState()`
-- [ ] `SmartMovingJumper.tryKeyboundDodge`: refuse while cooling down, start the cooldown on success
-- [ ] Build + commit
+- [x] `SmartMovingJumper.tryKeyboundDodge`: refuse while cooling down, start the cooldown on success
+- [x] Build + commit
 
 ## 2. Dodge animation
 - [ ] `SmartMovingClientState`: replace `angleJumpAnimStartAge` and the old pose helpers with

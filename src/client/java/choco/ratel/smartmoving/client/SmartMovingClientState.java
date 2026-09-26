@@ -673,6 +673,11 @@ public final class SmartMovingClientState {
     public boolean dodgeJustPressed;
     /** dodge key state from previous frame. */
     private boolean prevDodgeKeyPressed;
+    /**
+     * Ticks left before the dodge key works again. Set by a dodge and counted down only while
+     * standing on the ground, so every dodge is followed by some ground time (no dodge spam).
+     */
+    public int dodgeCooldown;
 
     /** velocity.x saved before jump (for getJumpMoving calculation). */
     public double jumpMotionX;
@@ -2661,6 +2666,9 @@ public final class SmartMovingClientState {
             if (player.onGround() || player.verticalCollision) {
                 angleJumpType = 0;
             }
+            if (dodgeCooldown > 0 && player.onGround() && !isAngleJumping()) {
+                dodgeCooldown--;
+            }
 
             // R-04: isSmall 갱신.
             // 원본 SmartMovingSelf L3110 `boolean isSmall = sp.height < 1;` —
@@ -3295,6 +3303,7 @@ public final class SmartMovingClientState {
         sneakDoubleTapCount = 0;
         dodgeJustPressed    = false;
         prevDodgeKeyPressed = false;
+        dodgeCooldown       = 0;
         prevSneakKeyPressed = false;
         jumpKeyStopPressed = false;
         isSliding = false;
