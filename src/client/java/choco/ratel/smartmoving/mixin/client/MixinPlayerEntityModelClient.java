@@ -240,8 +240,8 @@ public abstract class MixinPlayerEntityModelClient {
             at = @At("HEAD"),
             cancellable = true)
     private void sm_animateArmsOverride(HumanoidRenderState renderState, CallbackInfo ci) {
-        // vanilla early return path equivalent
-        float swing = renderState.attackTime;
+        // vanilla early return path equivalent (26.3 renamed attackTime to swingAnimation)
+        float swing = renderState.swingAnimation;
         if (swing <= 0F) return;
 
         // self + remote guard
@@ -470,7 +470,8 @@ public abstract class MixinPlayerEntityModelClient {
         //   User verbatim "STAND swing also weird" + "just keep vanilla default" → reset infrastructure
         //     breaks normal vanilla swing. Solution: when self + swing skip reset only for swing-affected items.
         //   Multi leak defense — naturally resets in frames without swing.
-        boolean preserveSwing = player.attackAnim > 0F
+        // 26.3 moved attackAnim into LivingEntity.SwingState; getSwingAnimation(1.0F) is its tick value.
+        boolean preserveSwing = player.getSwingAnimation(1.0F) > 0F
                 && net.minecraft.client.Minecraft.getInstance().player == player;
         if (!preserveSwing) {
             body.yRot    = 0f;
@@ -543,9 +544,9 @@ public abstract class MixinPlayerEntityModelClient {
             rightArm.zRot  = -THIRTYTWOTH;
             leftArm.zRot   =  THIRTYTWOTH;
         } else if (sm.isSwimming_sm) {
-            sm_animateSwimming(sm, player, limbSwing, limbSwingAmount, animationProgress, renderState.attackTime);
+            sm_animateSwimming(sm, player, limbSwing, limbSwingAmount, animationProgress, renderState.swingAnimation);
         } else if (sm.isDiving) {
-            sm_animateDiving(sm, player, limbSwing, limbSwingAmount, animationProgress, renderState.attackTime);
+            sm_animateDiving(sm, player, limbSwing, limbSwingAmount, animationProgress, renderState.swingAnimation);
         } else if (sm.isCrawling) {
             sm_animateCrawling(sm, player, headYaw);
         } else if (sm.isSliding) {
@@ -766,7 +767,7 @@ public abstract class MixinPlayerEntityModelClient {
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #177 패러다임 복원 (메모리 검증 패턴).
         //   feedback_animateArms_cancel 메모리 명시: preferred arm preserve 가드.
         //   클라이밍 분기는 setupTransforms 부모 R_x 회전 없음 → preCancelParentX 불필요 (메모리 명시).
-        float swingClimb = player.attackAnim;
+        float swingClimb = player.getSwingAnimation(1.0F);
         HumanoidArm preferredArmClimb = player.getMainArm();
         boolean preserveRightClimb = swingClimb > 0F && preferredArmClimb == HumanoidArm.RIGHT;
         boolean preserveLeftClimb  = swingClimb > 0F && preferredArmClimb == HumanoidArm.LEFT;
@@ -1417,7 +1418,7 @@ public abstract class MixinPlayerEntityModelClient {
         //   회전 순서 차이가 팔 위치에 큰 visual 영향. v2 = 원본 1:1.
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #177 패러다임 복원 (메모리 검증 패턴).
         //   preserve 가드 + preCancelParentX 복원. CR 분기 setupTransforms R_x(-78.75°) 부모 회전 있음.
-        float swingCrawl = player.attackAnim;
+        float swingCrawl = player.getSwingAnimation(1.0F);
         HumanoidArm preferredArmCrawl = player.getMainArm();
         boolean preserveRightCrawl = swingCrawl > 0F && preferredArmCrawl == HumanoidArm.RIGHT;
         boolean preserveLeftCrawl  = swingCrawl > 0F && preferredArmCrawl == HumanoidArm.LEFT;
@@ -1556,7 +1557,7 @@ public abstract class MixinPlayerEntityModelClient {
         //   preserve 가드 + preCancelParentX 복원. SLD setupTransforms R_x(-π/2) 부모 회전 있음.
         //   preferred arm 의 sm_setOverrideQuat skip → vanilla animateArms swing 효과 보존 +
         //   MixinModelPart override quat clear path (= 비-override frame vanilla path).
-        float swingSlide = player.attackAnim;
+        float swingSlide = player.getSwingAnimation(1.0F);
         HumanoidArm preferredArmSlide = player.getMainArm();
         boolean preserveRightSlide = swingSlide > 0F && preferredArmSlide == HumanoidArm.RIGHT;
         boolean preserveLeftSlide  = swingSlide > 0F && preferredArmSlide == HumanoidArm.LEFT;
@@ -1635,7 +1636,7 @@ public abstract class MixinPlayerEntityModelClient {
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #177 패러다임 복원 (메모리 검증 13단계 시행착오 정착).
         //   project_flying_complete 메모리 명시: 비행 swing arm 매핑 함부로 수정 금지.
         //   preserve 가드 + preCancelParentX 복원. FLY setupTransforms R_x(-θ) 부모 회전 있음.
-        float swing = player.attackAnim;
+        float swing = player.getSwingAnimation(1.0F);
         HumanoidArm preferredArm = player.getMainArm();
         boolean preserveRight = swing > 0F && preferredArm == HumanoidArm.RIGHT;
         boolean preserveLeft  = swing > 0F && preferredArm == HumanoidArm.LEFT;
@@ -1722,7 +1723,7 @@ public abstract class MixinPlayerEntityModelClient {
         float bendFactor = Math.min(smFactor(angle, QUARTER, 0f), smFactor(angle, -QUARTER, 0f));
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #182 패러다임 복원 (메모리 검증).
         //   preserve 가드 + preCancelParentX 복원. HJ setupTransforms R_x(QUARTER - angle) 부모 회전 있음.
-        float swingHJ = player.attackAnim;
+        float swingHJ = player.getSwingAnimation(1.0F);
         HumanoidArm preferredArmHJ = player.getMainArm();
         boolean preserveRightHJ = swingHJ > 0F && preferredArmHJ == HumanoidArm.RIGHT;
         boolean preserveLeftHJ  = swingHJ > 0F && preferredArmHJ == HumanoidArm.LEFT;
@@ -1876,7 +1877,7 @@ public abstract class MixinPlayerEntityModelClient {
         // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #177 패러다임 복원.
         //   메모리: falling 은 setupTransforms 부모 R_x 회전 없음 → preCancelParentX 불필요.
         //   preferred arm 만 vanilla swing 보존. swing > 0 시에만 활성.
-        float swing = player.attackAnim;
+        float swing = player.getSwingAnimation(1.0F);
         HumanoidArm preferredArm = player.getMainArm();
         boolean preserveRight = swing > 0F && preferredArm == HumanoidArm.RIGHT;
         boolean preserveLeft  = swing > 0F && preferredArm == HumanoidArm.LEFT;

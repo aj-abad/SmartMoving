@@ -444,7 +444,8 @@ public abstract class MixinPlayerEntityClient {
         if (f <= 0.02F || f >= 0.05F) return;
 
         float f1 = (float)(Math.atan2(d1, d) * 180.0 / Math.PI) - 90F;
-        if (remote.attackAnim > 0.0F) f1 = remote.getYRot();
+        // 26.3 moved attackAnim into LivingEntity.SwingState; getSwingAnimation(1.0F) is its tick value.
+        if (remote.getSwingAnimation(1.0F) > 0.0F) f1 = remote.getYRot();
 
         float f4 = f1 - remote.yBodyRot;
         for (; f4 < -180F; f4 += 360F) {}

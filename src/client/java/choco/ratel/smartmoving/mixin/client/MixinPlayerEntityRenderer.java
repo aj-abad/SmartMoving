@@ -673,9 +673,9 @@ public class MixinPlayerEntityRenderer {
             matrices.translate(0f, pivotY, 0f);
             if (yawLerped != 0f) {
                 // vanilla scale(-1,-1,1) 의 Y axis 부호 반전 보정 — isFlying L786-L788 패턴.
-                matrices.mulPose(Axis.YP.rotation(-yawLerped));
+                matrices.rotate(Axis.YP.rotation(-yawLerped));
             }
-            matrices.mulPose(Axis.XP.rotation(-laggedTilt));
+            matrices.rotate(Axis.XP.rotation(-laggedTilt));
             matrices.translate(0f, -pivotY, 0f);
             sm.smOuterTiltX = laggedTilt;
         } else {
@@ -708,7 +708,7 @@ public class MixinPlayerEntityRenderer {
             float pivotY = 1.5f - 3f / 16f;    // = 1.3125 (엎드리기와 동일 회전 중심)
 
             matrices.translate(0f, pivotY, 0f);
-            matrices.mulPose(Axis.XP.rotation(-tiltAngle));
+            matrices.rotate(Axis.XP.rotation(-tiltAngle));
             matrices.translate(0f, -pivotY, 0f);
             sm.smOuterTiltX = tiltAngle;
 
@@ -792,8 +792,8 @@ public class MixinPlayerEntityRenderer {
             float zAngle = (float)(Math.cos(distance + Math.PI / 2) * (Math.PI / 64)) * walkFactor;
 
             matrices.translate(0f, pivotY, 0f);
-            matrices.mulPose(Axis.XP.rotation(-tiltAngle));   // 부호 반전 (scale -1,-1,1 보정)
-            matrices.mulPose(Axis.ZP.rotation(zAngle));        // L406 매핑 — 그대로 (scale commute)
+            matrices.rotate(Axis.XP.rotation(-tiltAngle));   // 부호 반전 (scale -1,-1,1 보정)
+            matrices.rotate(Axis.ZP.rotation(zAngle));        // L406 매핑 — 그대로 (scale commute)
             matrices.translate(0f, -pivotY, 0f);
             sm.smOuterTiltX = tiltAngle;
             // 🔴 bipedTorso.rotationPointY = 3F 매핑 — 부호 반전 (사용자 보고 fix — "여전히 살짝 떠있음",
@@ -834,7 +834,7 @@ public class MixinPlayerEntityRenderer {
             // 부모 R_x 매핑 (원본 L265 bipedTorso.X = bodyAngleX 1:1).
             // 부호 반전 (메모리 feedback_render_scale_negation.md): input -bodyAngleX → 시각 +bodyAngleX.
             matrices.translate(0f, 1.5f, 0f);
-            matrices.mulPose(Axis.XP.rotation(-bodyAngleX));
+            matrices.rotate(Axis.XP.rotation(-bodyAngleX));
             matrices.translate(0f, -1.5f, 0f);
         }
         // 🔴 fade reset (2026-05-04): isCrawlClimbing 종료 시 모든 fade prev field reset →
@@ -888,9 +888,9 @@ public class MixinPlayerEntityRenderer {
             //   vanilla LivingEntityRenderer.render() L342: setupTransforms 후 scale(-1,-1,1) 적용
             //   → Y axis 반전 → POSITIVE_Y rotation mirror → 부호 반전 보정.
             if (yawLerped != 0f) {
-                matrices.mulPose(Axis.YP.rotation(-yawLerped));
+                matrices.rotate(Axis.YP.rotation(-yawLerped));
             }
-            matrices.mulPose(Axis.XP.rotation(-thetaLerped));
+            matrices.rotate(Axis.XP.rotation(-thetaLerped));
             matrices.translate(0f, -1.5f, 0f);
 
             // fade prev 갱신 (다음 프레임 보간용)
@@ -939,7 +939,7 @@ public class MixinPlayerEntityRenderer {
             float thetaLerped = lerpFadeAngle(sm.smHeadJumpTiltX_prev, thetaTarget,
                                                sm.smHeadJumpFade_prevTime, animationProgress);
             matrices.translate(0f, 1.5f, 0f);
-            matrices.mulPose(Axis.XP.rotation(-thetaLerped));
+            matrices.rotate(Axis.XP.rotation(-thetaLerped));
             matrices.translate(0f, -1.5f, 0f);
             sm.smHeadJumpTiltX_prev = thetaLerped;
             sm.smHeadJumpFade_prevTime = animationProgress;
@@ -962,8 +962,8 @@ public class MixinPlayerEntityRenderer {
 
             float pivotY = 1.5f - 12f / 16f;   // hips (model leg pivot y=12)
             matrices.translate(0f, pivotY, 0f);
-            if (roll  != 0f) matrices.mulPose(Axis.ZP.rotation(roll));
-            if (pitch != 0f) matrices.mulPose(Axis.XP.rotation(-pitch));
+            if (roll  != 0f) matrices.rotate(Axis.ZP.rotation(roll));
+            if (pitch != 0f) matrices.rotate(Axis.XP.rotation(-pitch));
             matrices.translate(0f, -pivotY, 0f);
             sm.smOuterTiltX = pitch;
         }

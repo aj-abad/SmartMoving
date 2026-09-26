@@ -104,10 +104,13 @@ public abstract class MixinServerPlayNetworkHandler {
      *
      * Note: sleeping check in between (offset 325, dload 25) branches when isSleeping=true
      * which is return path anyway so distSq=0 impact is none.
+     *
+     * 26.3: the check moved from handleMovePlayer into handlePlayerPositionChange, and the variable
+     * (movedDist) moved from slot 25 to 33, so it is now selected by name. Same two stores.
      */
-    @ModifyVariable(method = "handleMovePlayer", require = 0,
+    @ModifyVariable(method = "handlePlayerPositionChange", require = 0,
         at = @At(value = "STORE", ordinal = 0),
-        index = 25)
+        name = "movedDist")
     private double sm_suppressDistanceSq(double original) {
         return sm_suppressPositionCheck ? 0.0 : original;
     }
@@ -126,10 +129,12 @@ public abstract class MixinServerPlayNetworkHandler {
      * ifeq 923` with wronglyMoved=0 (default) branches to isPlayerNotCollidingWithBlocks. There too
      * false positive possible due to box diff during SM phase → existing requestTeleport redirect
      * is safeguard. Proceeds to updatePositionAndAngles so server sync normal.
+     *
+     * 26.3: second store of movedDist in handlePlayerPositionChange (see fix #101 above).
      */
-    @ModifyVariable(method = "handleMovePlayer", require = 0,
+    @ModifyVariable(method = "handlePlayerPositionChange", require = 0,
         at = @At(value = "STORE", ordinal = 1),
-        index = 25)
+        name = "movedDist")
     private double sm_suppressPostDistSq(double original) {
         return sm_suppressPositionCheck ? 0.0 : original;
     }
@@ -141,8 +146,11 @@ public abstract class MixinServerPlayNetworkHandler {
      *
      * Note: fix #101/#102 blocks both IF branches themselves, so this redirect rarely
      * gets called during SM phase. But it's safeguard for isPlayerNotCollidingWithBlocks=true edge case.
+     *
+     * 26.3: the same three teleport calls (sleeping, too quickly, collision fallback) now sit in
+     * handlePlayerPositionChange.
      */
-    @Redirect(method = "handleMovePlayer", require = 0,
+    @Redirect(method = "handlePlayerPositionChange", require = 0,
         at = @At(value = "INVOKE",
             target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;teleport(DDDFF)V"))
     private void sm_cancelTeleportForSmMove(ServerGamePacketListenerImpl handler,

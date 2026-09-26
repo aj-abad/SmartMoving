@@ -164,15 +164,46 @@ packets of its own (only `ServerboundPlayerAbilitiesPacket`).
   26.3 (`Avatar` does). Both are `require = 0`, so they have never applied;
   `MixinAvatarDimensions`/`MixinAvatarDimensionsClient` do that work. Left as-is.
 
-## Verification Plan
+## Port Results
 
-- Full Gradle build on 26.3.
-- Re-run the reference and mixin check against the 26.3 build: no problems
-  other than the two pre-existing dead injectors.
-- Dev client: resource reload, singleplayer world, SM toggles.
-- Dedicated server start with the common/server mixins.
-- Confirm the `handlePlayerPositionChange` injectors applied, since
-  `require = 0` would not report a miss.
+- `gradlew build` succeeds with Loom 1.17.21, Gradle 9.6.0, Minecraft 26.3,
+  Loader 0.19.5 and Fabric API 0.161.0+26.3. The only deprecation warnings are
+  the two `Entity.hurt(DamageSource, float)` calls, which were already
+  deprecated in 26.2.
+- The reference and mixin check, re-run on the 26.3 jar against 26.3, reports
+  nothing except the two pre-existing dead injectors: every reference resolves,
+  every selector matches, every `@At` has matches.
+- Smoke test on a dedicated 26.3 server (offline mode, isolated run dirs under
+  `build/smoke`, the 26.2 worlds in `run/` untouched) with two dev clients:
+  - Both clients joined; the server logged SmartMoving's config handshake
+    ("Smart Moving allows client configurations"). No errors or exceptions in
+    the server or client logs.
+  - `-Dmixin.debug.export=true` showed all three server move-check injectors
+    applied in `handlePlayerPositionChange`: both `movedDist` stores routed
+    through `sm_suppressDistanceSq`/`sm_suppressPostDistSq`, and all three
+    `teleport` calls redirected.
+  - The client saved the SM keys as `key.keyboard.r`, `c`, `f9`, `o`, `i` and
+    `unknown` (dodge), so the SDL codes are right. The old GLFW numbers would
+    have landed on other keys (82 is SDL's Up arrow, 67 is F10).
+  - Each client rendered the other player (name tag, standing model), a remote
+    player falling with SmartMoving's arms-out falling pose, and a submerged
+    remote player in SmartMoving's horizontal diving pose.
+- Not exercised: transitions that need keyboard input (crawl, slide, climb,
+  head jump, flying). That includes the remote-player Y corrections in
+  `SmartMovingClient` that call the rebuilt interpolation accessor, so those
+  are covered by the reasoning in section 3 only and deserve an in-game check.
+
+Observations that are the same on 26.2 and outside this port:
+
+- An idle player loses about one food point every four seconds.
+  `handleExhaustion` adds `exhaustionLossHungerFactor × exhaustionLoss` every
+  tick (0.02 × 1.2 × 2.0 while standing), even when SmartMoving's own fatigue is
+  already zero. The original mod has the same coupling (default 0.05, easy 0.02,
+  hard 0.08). `FoodData` and `causeFoodExhaustion` are identical in 26.2 and 26.3.
+- A standing player placed in a one-block gap is not forced to crawl:
+  `mustCrawl` is only evaluated while already crawling.
+- `Requested post effect does not exist: minecraft:end_of_frame` on join comes
+  from vanilla 26.3 (`GameRenderer.END_OF_FRAME_POST_EFFECT` has no asset).
 
 ## Primary Sources
 

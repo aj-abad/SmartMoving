@@ -3,7 +3,7 @@
   "id": "smartmoving",
   "version": "${version}",
   "name": "SmartMoving",
-  "description": "A Minecraft mod that enriches character movement. Fabric 26.2 port of the classic SmartMoving — climbing, crawling, sliding, head jump and more.",
+  "description": "A Minecraft mod that enriches character movement. Fabric 26.3 port of the classic SmartMoving — climbing, crawling, sliding, head jump and more.",
   "authors": [
     "View-Studio"
   ],

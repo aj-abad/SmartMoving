@@ -12,26 +12,27 @@
 
 ## Build
 
-- [ ] Set Minecraft 26.3, Loader 0.19.5, Fabric API 0.161.0+26.3.
-- [ ] Set the mod version to `1.0.1+26.3`.
-- [ ] Upgrade the Gradle wrapper to 9.6.0.
-- [ ] Update the `fabric.mod.json` description.
+- [x] Set Minecraft 26.3, Loader 0.19.5, Fabric API 0.161.0+26.3.
+- [x] Set the mod version to `1.0.1+26.3`.
+- [x] Upgrade the Gradle wrapper to 9.6.0.
+- [x] Update the `fabric.mod.json` description.
 
 ## Source
 
-- [ ] Keybindings: `InputConstants.Type.KEYBOARD` and `InputConstants.KEY_*` instead of GLFW codes.
-- [ ] Swing: `renderState.attackTime` → `renderState.swingAnimation`.
-- [ ] Swing: `player.attackAnim` → `player.getSwingAnimation(1.0F)`.
-- [ ] Interpolation: rebuild `MixinLivingEntityAccessor` on `getInterpolation()` / `getClientPosition()`.
-- [ ] `PoseStack.mulPose(Quaternionfc)` → `rotate(Quaternionfc)`.
-- [ ] Server move check: retarget the two `@ModifyVariable`s and the teleport `@Redirect` to `handlePlayerPositionChange`, selecting `movedDist` by name.
+- [x] Keybindings: `InputConstants.Type.KEYBOARD` and `InputConstants.KEY_*` instead of GLFW codes.
+- [x] Swing: `renderState.attackTime` → `renderState.swingAnimation`.
+- [x] Swing: `player.attackAnim` → `player.getSwingAnimation(1.0F)`.
+- [x] Interpolation: rebuild `MixinLivingEntityAccessor` on `getInterpolation()` / `getClientPosition()`.
+- [x] `PoseStack.mulPose(Quaternionfc)` → `rotate(Quaternionfc)`.
+- [x] Server move check: retarget the two `@ModifyVariable`s and the teleport `@Redirect` to `handlePlayerPositionChange`, selecting `movedDist` by name.
 
 ## Verification
 
-- [ ] Full Gradle build.
-- [ ] Re-run the reference and mixin check against the 26.3 build.
-- [ ] Confirm the `handlePlayerPositionChange` injectors applied.
-- [ ] Dev client smoke test.
-- [ ] Dedicated server smoke test.
-- [ ] Update README and record results.
-- [ ] Commit to `master`.
+- [x] Full Gradle build.
+- [x] Re-run the reference and mixin check against the 26.3 build.
+- [x] Confirm the `handlePlayerPositionChange` injectors applied.
+- [x] Dev client smoke test (two clients on the dedicated server).
+- [x] Dedicated server smoke test.
+- [x] Update README and record results.
+- [x] Commit to `master`.
+- [ ] In-game check of input-driven transitions (crawl, slide, climb, head jump, flying exit), including how remote players look during them.

@@ -43,7 +43,7 @@ public abstract class MixinModelPart implements SmModelPartOverride {
     private void sm_rotate_override(PoseStack matrices, CallbackInfo ci) {
         if (sm_overrideQuat != null) {
             matrices.translate(this.x / 16f, this.y / 16f, this.z / 16f);
-            matrices.mulPose(sm_overrideQuat);
+            matrices.rotate(sm_overrideQuat);
             if (this.xScale != 1.0F || this.yScale != 1.0F || this.zScale != 1.0F) {
                 matrices.scale(this.xScale, this.yScale, this.zScale);
             }
