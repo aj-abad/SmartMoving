@@ -47,7 +47,7 @@ All bindings appear under **Options → Controls → Key Binds → Smart Moving*
 | Grab | `R` | Hold while climbing or grabbing an edge |
 | Prone | `C` | Hold to crawl, or press when crawl toggle is enabled |
 | Dodge | Unbound | Press with a movement key to dodge in that direction |
-| Toggle Smart Moving | `F9` | Enable or disable Smart Moving |
+| Toggle Smart Moving | `F9` | Enable or disable Smart Moving; the new state shows above the hotbar |
 
 ## Build
 

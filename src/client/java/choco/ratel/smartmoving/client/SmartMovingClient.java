@@ -690,6 +690,7 @@ public class SmartMovingClient implements ClientModInitializer {
         // ConfigChange: Server notifies "no permission to change config" (C-12)
         // Original: SmartMovingOptions.writeNoRightsToChangeConfigMessageToChat(isConnectedToRemoteServer())
         // A-26: Verify original — remote/local differentiated message (en_us.json smartmoving.message.config.illegal.*)
+        // Shown on screen like the toggle key's own enabled/disabled status, not in chat.
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.ConfigChangePayload.ID,
             (payload, context) -> {
                 Minecraft client = context.client();
@@ -698,7 +699,7 @@ public class SmartMovingClient implements ClientModInitializer {
                     ? "smartmoving.message.config.illegal.remote"
                     : "smartmoving.message.config.illegal.local";
                 client.execute(() -> {
-                    if (client.player != null) client.player.sendSystemMessage(Component.translatable(key));
+                    if (client.player != null) client.player.sendOverlayMessage(Component.translatable(key));
                 });
             });
     }

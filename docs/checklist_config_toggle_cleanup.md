@@ -31,10 +31,10 @@ Reference: `docs/research_config_toggle_cleanup.md`
 - [x] Build + commit
 
 ## 3. On-screen status
-- [ ] `SmartMovingClientState.tickEssential`: send the toggle result with `sendOverlayMessage`
-- [ ] `SmartMovingClient`: send the server's "no rights" reply with `sendOverlayMessage`
-- [ ] `README.md`: mention the on-screen status in the Toggle Smart Moving row
-- [ ] Build + commit
+- [x] `SmartMovingClientState.tickEssential`: send the toggle result with `sendOverlayMessage`
+- [x] `SmartMovingClient`: send the server's "no rights" reply with `sendOverlayMessage`
+- [x] `README.md`: mention the on-screen status in the Toggle Smart Moving row
+- [x] Build + commit
 
 ## 4. Verification
 - [ ] `pnpm build` compilation success

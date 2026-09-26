@@ -1421,7 +1421,7 @@ public final class SmartMovingClientState {
         // In inactive path, resetState() resets exhaustion=0.
 
         // IMPL-04: Config toggle key handling (original: toggleButton.update() + StartPressed branch)
-        // Single-player: direct toggle() call + chat feedback / Multi-player: send config change request packet to server
+        // Single-player: direct toggle() call + on-screen feedback / Multi-player: send config change request packet to server
         if (SmartMovingKeys.configToggle.consumeClick()) {
             if (SmartMovingConfig.Config == SmartMovingConfig.INSTANCE) {
                 SmartMovingConfig.INSTANCE.toggle();
@@ -1429,7 +1429,8 @@ public final class SmartMovingClientState {
                 Component msg = Component.translatable(cfg.enabled
                         ? "smartmoving.message.config.client.enabled"
                         : "smartmoving.message.config.client.disabled");
-                if (player != null) player.sendSystemMessage(msg);
+                // Overlay above the hotbar (same as the debug stick), not chat.
+                if (player != null) player.sendOverlayMessage(msg);
             } else {
                 ClientPlayNetworking.send(new SmartMovingNetwork.ConfigChangePayload());
             }
