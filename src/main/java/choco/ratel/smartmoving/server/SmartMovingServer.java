@@ -468,10 +468,8 @@ public final class SmartMovingServer {
      * Original: SmartMovingServerOptions.logConfigState(config, username, reconfig)
      *           (SmartMovingServerOptions.md L80-L113).
      *
-     * H-18 (Session 23) 2-branch simplification: after focus #5 "disabled↔enabled 2-state" decision,
-     * `currentKey` always null (configKeys={null}). Original 3-branch only `currentKey==null` path survives,
-     * simplified to single "default server configuration" line. Other 2 branches (with key / named)
-     * reintroduced when restoring Medium/Hard/Creative presets (follow-up to `focus_09_difficulty_presets.md`).
+     * The original also logged the current difficulty key; this port has no difficulty presets, so only
+     * its no-key "default server configuration" branch is kept.
      *
      * globalConfig=true path:
      *   reconfig=false → prints "Smart Moving overrides client configurations" first.

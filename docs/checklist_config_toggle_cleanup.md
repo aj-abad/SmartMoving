@@ -22,13 +22,13 @@ Reference: `docs/research_config_toggle_cleanup.md`
 - [x] Build + commit
 
 ## 2. Remove difficulty presets
-- [ ] `SmartMovingConfig`: `toggle()` flips `enabled` and saves; remove `DEFAULT_KEYS`,
+- [x] `SmartMovingConfig`: `toggle()` flips `enabled` and saves; remove `DEFAULT_KEYS`,
       `configKeys`, `toggler`, `updateToggler`, `setKeys` and the preset comments; fix the
       `enabled` javadoc
-- [ ] `SmartMovingClientState.tickEssential`: remove the H-15 preset comment block
-- [ ] `SmartMovingServer.logConfigState`: drop the preset note from the javadoc
-- [ ] `en_us.json`: relabel `key.smartmoving.config_toggle` to "Toggle Smart Moving"
-- [ ] Build + commit
+- [x] `SmartMovingClientState.tickEssential`: remove the H-15 preset comment block
+- [x] `SmartMovingServer.logConfigState`: drop the preset note from the javadoc
+- [x] `en_us.json`: relabel `key.smartmoving.config_toggle` to "Toggle Smart Moving"
+- [x] Build + commit
 
 ## 3. On-screen status
 - [ ] `SmartMovingClientState.tickEssential`: send the toggle result with `sendOverlayMessage`

@@ -1196,7 +1196,7 @@ public class SmartMovingConfig {
     // ── Activation flag ──────────────────────────────────────────
     /**
      * SM enabled state. Original SmartMovingProperties.enabled (L33).
-     * Derived as `toggler != -1` on `update()` call — direct writing prohibited, use toggle()/setCurrentKey instead.
+     * Saved as `move.enabled`; the toggle key flips it through toggle().
      */
     public boolean enabled = true;
 
@@ -1359,47 +1359,6 @@ public class SmartMovingConfig {
         return crawlToggle && enabled;
     }
 
-    // ── Config key toggle system (original SmartMovingProperties L26-L31) ─────────────────
-    // H-19 (session 23): Deleted CONFIG_KEY_ENABLED/DISABLED constants. Also deleted 5 methods
-    //   getCurrentKey/getKey/getNextKey/hasKey/setCurrentKey (confirmed 0 external call sites).
-    //   Kept DEFAULT_KEYS only — used as fallback when setKeys(null).
-    /**
-     * Original SmartMovingProperties._defaultKeys = new String[1] = {null}.
-     * Single null element — if `keys[0] == null` simple on/off toggle mode.
-     */
-    private static final String[] DEFAULT_KEYS = new String[] { null };
-
-    /**
-     * Original SmartMovingProperties.keys (L31) corresponding.
-     * Current valid config key array. Initial value {null} (simple on/off) — replaced by `setKeys(...)` call
-     * with per-game-type arrays ({"e","m","h"} / {"c"} etc). setKeys called after gameType determination in
-     * `initializeForGameIfNeccessary()` porting (F section).
-     */
-    public String[] configKeys = DEFAULT_KEYS;
-
-    /**
-     * Original SmartMovingProperties.toggler (L30) corresponding. Initial value -2 (pre-load sentinel).
-     * State table:
-     *   -2 : before initialization (load() not called)
-     *   -1 : disabled (enabled = false)
-     *   0..configKeys.length-1 : enabled, current key index
-     * Derived: `enabled = (toggler != -1)` — synced in `update()`. Direct writing prohibited, use toggle()/
-     *   setCurrentKey() instead.
-     */
-    public int toggler = -2;
-
-    // H-18 (session 23): Deleted configKeyName Map. In 2-state toggle (configKeys={null}), currentKey
-    // is always null so all "Easy"/"Medium"/"Hard" label display paths removed. Will reintroduce when
-    // restoring Medium/Hard presets (follow-up to `focus_09_difficulty_presets.md`).
-    //
-    // H-20 (session 23): Deleted entire gameType system. GameType detection/switching unnecessary for
-    // 2-state toggle. Removed original SmartMovingOptions.initializeForGameIfNeccessary / resetForNewGame /
-    // gameType cache + GAME_TYPE_UNKNOWN/SURVIVAL/CREATIVE/ADVENTURE 4 constants + 6 per-game-type
-    // fields (survival/creative/adventure × configKeys+defaultConfigKey) all deleted.
-    // Save file compatibility: existing keys (move.config.{survival,creative,adventure}.keys{,.default})
-    // simply ignored (readFrom call deleted). Will reintroduce when restoring Medium/Hard presets.
-
-
     // ── Singleton / Config transition ────────────────────────────────
     /** Client file-based config (Options). Immutable singleton. */
     public static final SmartMovingConfig INSTANCE = new SmartMovingConfig();
@@ -1559,9 +1518,7 @@ public class SmartMovingConfig {
 
     private void readFrom(Properties p) {
         enabled                  = getBool(p,   "move.enabled",                   enabled);
-        // H-20 (session 23): Per-game-type 6 keys (move.config.{survival,creative,adventure}.keys{,.default})
-        // Read deleted. Removed with fields/methods. Existing save file keys ignored.
-        speedFactor              = getFloat(p,  "move.speed.factor",              speedFactor);
+        speedFactor             = getFloat(p,  "move.speed.factor",              speedFactor);
         vanillaStyle             = getBool(p,   "move.general.vanilla",           vanillaStyle);
         sneakFactor              = getFloat(p,  "move.sneak.factor",              sneakFactor);
         crawlFactor              = getFloat(p,  "move.crawl.factor",              crawlFactor);
@@ -1726,8 +1683,7 @@ public class SmartMovingConfig {
 
     private void writeTo(Properties p) {
         p.setProperty("move.enabled",                    String.valueOf(enabled));
-        // H-20 (session 23): Deleted per-game-type 6-key writeTo (symmetrical with readFrom).
-        p.setProperty("move.speed.factor",               String.valueOf(speedFactor));
+        p.setProperty("move.speed.factor",              String.valueOf(speedFactor));
         p.setProperty("move.general.vanilla",            String.valueOf(vanillaStyle));
         p.setProperty("move.sneak.factor",               String.valueOf(sneakFactor));
         p.setProperty("move.crawl.factor",               String.valueOf(crawlFactor));
@@ -1968,88 +1924,15 @@ public class SmartMovingConfig {
     }
 
     /**
-     * Original SmartMovingProperties.update() (L163-L172) 1:1 approximation port.
-     *
-     * Original:
-     *   protected void update() {
-     *       List<Property<?>> properties = getProperties();
-     *       Iterator<Property<?>> iterator = properties.iterator();
-     *       String currentKey = getCurrentKey();
-     *       while (iterator.hasNext())
-     *           iterator.next().update(currentKey);   // ① Property key-scoped value recalculation
-     *       enabled = toggler != -1;                   // ② enabled derivation
-     *   }
-     *
-     * 1.21.1: No Property hierarchy → ① is N/A (single field value structure). Only ② ported.
-     * Called: after toggler change in toggle() / setKeys() / setCurrentKey() / load() etc.
-     */
-    private void updateToggler() {
-        enabled = toggler != -1;
-    }
-
-    /**
-     * Original SmartMovingProperties.toggle() (L81-L88) 1:1 port.
-     *
-     * Original:
-     *   public void toggle() {
-     *       int length = keys == null ? 0 : keys.length;
-     *       toggler++;
-     *       if (toggler == length) toggler = -1;
-     *       update();
-     *   }
-     *
-     * Cycle pattern:
-     *   configKeys.length == 3 (survival/adventure, "e"/"m"/"h"):
-     *     0 → 1 → 2 → -1 → 0 → ...       (Easy → Medium → Hard → disabled → Easy ...)
-     *   configKeys.length == 1 (creative "c" or DEFAULT_KEYS {null}):
-     *     0 → -1 → 0 → ...                 (on/off toggle)
-     *
-     * save(): not in original Properties.toggle(). Original SmartMovingOptions.toggle() (override,
-     *   SmartMovingOptions.md L500-L531) calls saveToOptionsFile(optionsPath). 1.21.1
-     *   Properties/Options/Config hierarchy integrated into single SmartMovingConfig — calls save() here.
-     *   Other additional behaviors in SmartMovingOptions.toggle() (chat, defaultKey update) are separate atomic operations.
+     * Flip Smart Moving on/off and save it (`move.enabled`).
+     * Original SmartMovingProperties.toggle() (L81-L88) cycled the difficulty keys
+     * (disabled → Easy → Medium → Hard). This port has no difficulty presets, so it is a plain
+     * on/off switch. Saves like the original SmartMovingOptions.toggle() (SmartMovingOptions.md L500-L531).
      */
     public void toggle() {
-        int length = configKeys == null ? 0 : configKeys.length;
-        toggler++;
-        if (toggler == length) toggler = -1;
-        updateToggler();
+        enabled = !enabled;
         save();
     }
-
-    /**
-     * Original SmartMovingProperties.setKeys(String[]) (L90-L97) 1:1 port.
-     *
-     * Original:
-     *   public void setKeys(String[] keys) {
-     *       if (keys == null || keys.length == 0)
-     *           keys = _defaultKeys;          // simple on/off mode ({null})
-     *       this.keys = keys;
-     *       toggler = 0;                      // always initialize to first key
-     *       update();
-     *   }
-     *
-     * Called: passes per-game-type keys array from initializeForGameIfNeccessary(gameType) (F section).
-     * `save()` call not in original setKeys — omitted.
-     */
-    public void setKeys(String[] keys) {
-        if (keys == null || keys.length == 0)
-            keys = DEFAULT_KEYS;
-        this.configKeys = keys;
-        this.toggler = 0;
-        updateToggler();
-    }
-
-    // H-19 (session 23): Deleted 5 methods getCurrentKey / getKey / getNextKey / hasKey / setCurrentKey.
-    // After H-18 confirmed 0 external call sites. Unnecessary for 2-state toggle (only toggle/setKeys/updateToggler
-    // maintained). Will reintroduce from `focus_09_difficulty_presets.md` when restoring Medium/Hard presets.
-    // Original method bodies preserved in `docs/research/original/smartmoving/config/SmartMovingProperties.md`
-    // L99-L156.
-
-    // H-20 (session 23): Deleted initializeForGameIfNeccessary / resetForNewGame methods.
-    // Goal is maintaining 2-state toggle (configKeys={null}), so gameType-based setKeys call path unnecessary.
-    // Original function bodies preserved in focus_05 §5 research file. Will reintroduce from subsequent
-    // `focus_09_difficulty_presets.md` focus when restoring Medium/Hard presets.
 
     private static float getFloat(Properties p, String key, float def) {
         String v = p.getProperty(key);

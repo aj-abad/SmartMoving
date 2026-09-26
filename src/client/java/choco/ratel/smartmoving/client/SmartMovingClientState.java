@@ -1373,20 +1373,6 @@ public final class SmartMovingClientState {
         //   After handleCrash branch set, blocks auto transition for N ticks.
         if (this.slideToHeadCooldown > 0) this.slideToHeadCooldown--;
 
-        // H-15 (Session 22): Forced restoration of 2-state toggle. Original `initializeForGameIfNeccessary`
-        // overwrites configKeys with setKeys({"e","m","h"}), causing configToggle to cycle through 4 states —
-        // violates user decision "disabled↔enabled 2-state". Removed tickEssential call. `configKeys = DEFAULT_KEYS = {null}`
-        // initial value maintained, so toggle() cycles through 2-state only (0 ↔ -1). Section F methods kept in code
-        // (subsequent focus `focus_10_config_toggle_cleanup.md` will clean up all redundant code).
-        //
-        // Original call (preserved only, not executed):
-        //   MinecraftClient client = MinecraftClient.getInstance();
-        //   if (SmartMovingConfig.Config == SmartMovingConfig.INSTANCE
-        //           && client.interactionManager != null) {
-        //       SmartMovingConfig.INSTANCE.initializeForGameIfNeccessary(
-        //               client.interactionManager.getCurrentGameMode().getId());
-        //   }
-
         // Corresponds to original Button.update() — key edge detection this tick.
         // Corresponds to jumpButton.StartPressed / StopPressed / sneakButton.StartPressed / StopPressed.
         // Can be re-referenced in multiple handlers inside sm_travel_client.
@@ -1439,9 +1425,6 @@ public final class SmartMovingClientState {
         if (SmartMovingKeys.configToggle.consumeClick()) {
             if (SmartMovingConfig.Config == SmartMovingConfig.INSTANCE) {
                 SmartMovingConfig.INSTANCE.toggle();
-                // H-18 (Session 23): Simplified to 2-branch. Since 2-state toggle (disabled↔enabled) basis,
-                // original 4-branch (named/unnamed/enabled/disabled) unnecessary. configKeyName /
-                // CONFIG_KEY_ENABLED redundant code to be removed in H-19.
                 SmartMovingConfig cfg = SmartMovingConfig.INSTANCE;
                 Component msg = Component.translatable(cfg.enabled
                         ? "smartmoving.message.config.client.enabled"
