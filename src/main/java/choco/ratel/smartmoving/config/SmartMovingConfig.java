@@ -697,6 +697,40 @@ public class SmartMovingConfig {
     // double-tap was rate limited by itself); stops dodge spam from being a faster way to travel.
     public float angleJumpCooldownTicks = 10F;
 
+    // === Movement prototypes (docs/research_movement_prototypes.md) — not in the original ===
+    // Landing roll: dodge key pressed while airborne arms a roll for the next landing.
+    public boolean roll = true;
+    /** Ticks an airborne dodge press stays armed. */
+    public float rollBufferTicks = 8F;
+    /** Minimum fall distance for the landing to become a roll. */
+    public float rollMinFallDistance = 3F;
+    /** Above this fall distance the roll no longer reduces damage. */
+    public float rollMaxFallDistance = 12F;
+    /** Multiplier on vanilla fall damage when rolling (0 = none, 1 = unchanged). */
+    public float rollFallDamageFactor = 0.25F;
+    /** Initial roll speed in blocks per tick (before the speed factor). */
+    public float rollSpeedFactor = 0.45F;
+    /** Roll length in ticks. */
+    public float rollDurationTicks = 10F;
+
+    // Sprint vault: sprinting into a 1 to 1.5 block obstacle hops over it.
+    public boolean vault = true;
+    /** Scales the vault takeoff velocity. */
+    public float vaultVerticalFactor = 1F;
+    /** Horizontal boost on takeoff. */
+    public float vaultHorizontalFactor = 1.15F;
+    /** Tallest obstacle (above the feet) that can be vaulted. */
+    public float vaultMaxHeight = 1.55F;
+    /** How far ahead of the player the obstacle is detected. */
+    public float vaultReach = 0.6F;
+
+    // Chain climb: vertical chains are climbable, sneak slides down.
+    public boolean chainClimb = true;
+    public float chainClimbSpeedFactor = 1F;
+    public float chainSlideSpeedFactor = 1F;
+    /** Largest horizontal distance from the player centre to a chain centre that still grabs. */
+    public float chainGrabDistance = 0.8F;
+
     // === ClimbUp jumps (original SmartMovingConfig L273-L276) ===
     // Original L274: _climbUpJump = Unmodified("move.jump.climb.up") → default true
     public boolean climbUpJump = true;
@@ -1605,6 +1639,23 @@ public class SmartMovingConfig {
         angleJumpHorizontalFactor = getFloat(p, "move.jump.angle.horizontal.factor", angleJumpHorizontalFactor);
         angleJumpVerticalFactor  = getFloat(p,  "move.jump.angle.vertical.factor", angleJumpVerticalFactor);
         angleJumpCooldownTicks   = getFloat(p,  "move.jump.angle.cooldown.ticks", angleJumpCooldownTicks);
+        // Movement prototypes.
+        roll                     = getBool(p,   "move.roll",                      roll);
+        rollBufferTicks          = getFloat(p,  "move.roll.buffer.ticks",         rollBufferTicks);
+        rollMinFallDistance      = getFloat(p,  "move.roll.fall.min",             rollMinFallDistance);
+        rollMaxFallDistance      = getFloat(p,  "move.roll.fall.max",             rollMaxFallDistance);
+        rollFallDamageFactor     = getFloat(p,  "move.roll.fall.damage.factor",   rollFallDamageFactor);
+        rollSpeedFactor          = getFloat(p,  "move.roll.speed.factor",         rollSpeedFactor);
+        rollDurationTicks        = getFloat(p,  "move.roll.duration.ticks",       rollDurationTicks);
+        vault                    = getBool(p,   "move.vault",                     vault);
+        vaultVerticalFactor      = getFloat(p,  "move.vault.vertical.factor",     vaultVerticalFactor);
+        vaultHorizontalFactor    = getFloat(p,  "move.vault.horizontal.factor",   vaultHorizontalFactor);
+        vaultMaxHeight           = getFloat(p,  "move.vault.max.height",          vaultMaxHeight);
+        vaultReach               = getFloat(p,  "move.vault.reach",               vaultReach);
+        chainClimb               = getBool(p,   "move.climb.chain",               chainClimb);
+        chainClimbSpeedFactor    = getFloat(p,  "move.climb.chain.speed.factor",  chainClimbSpeedFactor);
+        chainSlideSpeedFactor    = getFloat(p,  "move.climb.chain.slide.speed.factor", chainSlideSpeedFactor);
+        chainGrabDistance        = getFloat(p,  "move.climb.chain.grab.distance", chainGrabDistance);
         climbUpJump              = getBool(p,   "move.jump.climb.up",             climbUpJump);
         climbUpJumpVerticalFactor = getFloat(p, "move.jump.climb.up.vertical.factor", climbUpJumpVerticalFactor);
         climbUpJumpHandsOnlyVerticalFactor = getFloat(p, "move.jump.climb.up.hands.only.vertical.factor", climbUpJumpHandsOnlyVerticalFactor);
@@ -1771,6 +1822,23 @@ public class SmartMovingConfig {
         p.setProperty("move.jump.angle.horizontal.factor", String.valueOf(angleJumpHorizontalFactor));
         p.setProperty("move.jump.angle.vertical.factor", String.valueOf(angleJumpVerticalFactor));
         p.setProperty("move.jump.angle.cooldown.ticks",  String.valueOf(angleJumpCooldownTicks));
+        // Movement prototypes.
+        p.setProperty("move.roll",                       String.valueOf(roll));
+        p.setProperty("move.roll.buffer.ticks",          String.valueOf(rollBufferTicks));
+        p.setProperty("move.roll.fall.min",              String.valueOf(rollMinFallDistance));
+        p.setProperty("move.roll.fall.max",              String.valueOf(rollMaxFallDistance));
+        p.setProperty("move.roll.fall.damage.factor",    String.valueOf(rollFallDamageFactor));
+        p.setProperty("move.roll.speed.factor",          String.valueOf(rollSpeedFactor));
+        p.setProperty("move.roll.duration.ticks",        String.valueOf(rollDurationTicks));
+        p.setProperty("move.vault",                      String.valueOf(vault));
+        p.setProperty("move.vault.vertical.factor",      String.valueOf(vaultVerticalFactor));
+        p.setProperty("move.vault.horizontal.factor",    String.valueOf(vaultHorizontalFactor));
+        p.setProperty("move.vault.max.height",           String.valueOf(vaultMaxHeight));
+        p.setProperty("move.vault.reach",                String.valueOf(vaultReach));
+        p.setProperty("move.climb.chain",                String.valueOf(chainClimb));
+        p.setProperty("move.climb.chain.speed.factor",   String.valueOf(chainClimbSpeedFactor));
+        p.setProperty("move.climb.chain.slide.speed.factor", String.valueOf(chainSlideSpeedFactor));
+        p.setProperty("move.climb.chain.grab.distance",  String.valueOf(chainGrabDistance));
         p.setProperty("move.jump.climb.up",              String.valueOf(climbUpJump));
         p.setProperty("move.jump.climb.up.vertical.factor", String.valueOf(climbUpJumpVerticalFactor));
         p.setProperty("move.jump.climb.up.hands.only.vertical.factor", String.valueOf(climbUpJumpHandsOnlyVerticalFactor));

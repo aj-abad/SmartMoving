@@ -33,6 +33,10 @@ package choco.ratel.smartmoving.network;
  * bit  34:    isClimbCrawling      (server-only read — box +1 mixin offset sync)
  * bit  35:    wasSelfSlideFire
  * bit  36:    angleJumpType upper bit (1-8 direction code extended with forward)
+ * bit  37:    isRolling        (landing roll in progress — remote animation)
+ * bit  38:    rollArmed        (airborne dodge press buffered — server reads for fall damage)
+ * bit  39:    isVaulting       (sprint vault in progress — remote animation)
+ * bit  40:    isChainClimbing  (vertical chain climb — remote body yaw / pose)
  */
 public final class SmartMovingState {
 
@@ -73,6 +77,12 @@ public final class SmartMovingState {
     //   Solution: Add SmartMovingState bit 35 → server relay → remote-side packet lambda set.
     public boolean wasSelfSlideFire;
 
+    // Movement prototypes (docs/research_movement_prototypes.md): bits 37-40.
+    public boolean isRolling;
+    public boolean rollArmed;
+    public boolean isVaulting;
+    public boolean isChainClimbing;
+
     public static long encode(SmartMovingState s) {
         long bits = 0L;
         bits |= (s.actualFeetClimbType  & 0xF);
@@ -104,6 +114,10 @@ public final class SmartMovingState {
         if (s.isClimbCrawling)      bits |= 1L << 34;
         if (s.wasSelfSlideFire)     bits |= 1L << 35;  // fix #96
         if ((s.angleJumpType & 0x8) != 0) bits |= 1L << 36;
+        if (s.isRolling)            bits |= 1L << 37;
+        if (s.rollArmed)            bits |= 1L << 38;
+        if (s.isVaulting)           bits |= 1L << 39;
+        if (s.isChainClimbing)      bits |= 1L << 40;
         return bits;
     }
 
@@ -138,6 +152,10 @@ public final class SmartMovingState {
         s.isSneakButtonPressed = ((bits >> 33) & 1) != 0;
         s.isClimbCrawling      = ((bits >> 34) & 1) != 0;
         s.wasSelfSlideFire     = ((bits >> 35) & 1) != 0;  // fix #96
+        s.isRolling            = ((bits >> 37) & 1) != 0;
+        s.rollArmed            = ((bits >> 38) & 1) != 0;
+        s.isVaulting           = ((bits >> 39) & 1) != 0;
+        s.isChainClimbing      = ((bits >> 40) & 1) != 0;
         return s;
     }
 }

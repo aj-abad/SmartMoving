@@ -679,6 +679,39 @@ public final class SmartMovingClientState {
      */
     public int dodgeCooldown;
 
+    // ── Movement prototypes (docs/research_movement_prototypes.md) ──────────
+    // Landing roll: an airborne dodge press arms a roll for the next landing.
+    /** Roll in progress (state packet bit 37). */
+    public boolean isRolling;
+    /** Ticks the airborne dodge press stays armed (bit 38 while > 0). */
+    public int rollArmedTicks;
+    /** World yaw (degrees) the armed / running roll travels toward. */
+    public float rollYaw;
+    /** Largest fallDistance seen while armed (vanilla resets it on landing before we look). */
+    public double rollPeakFall;
+    /** Ticks left in the current roll. */
+    public int rollTicks;
+    /** tickCount when the current roll started. Integer.MIN_VALUE when idle. */
+    public int rollStartTick = Integer.MIN_VALUE;
+    /** Roll length in ticks (copied from config at start so remote players animate the same). */
+    public int rollDuration = 10;
+
+    // Sprint vault.
+    /** Vault in progress (bit 39). */
+    public boolean isVaulting;
+    /** tickCount when the current vault started. Integer.MIN_VALUE when idle. */
+    public int vaultStartTick = Integer.MIN_VALUE;
+    /** World yaw (degrees) of the vault direction. */
+    public float vaultYaw;
+
+    // Chain climb.
+    /** Vertical chain climb in progress (bit 40). Also sets isClimbing for the server. */
+    public boolean isChainClimbing;
+    /** Centre of the chain column being climbed. */
+    public double chainX, chainZ;
+    /** World yaw (degrees) from the player toward the chain, for the body pose. */
+    public float chainYaw;
+
     /** velocity.x saved before jump (for getJumpMoving calculation). */
     public double jumpMotionX;
     /** velocity.z saved before jump. */
@@ -1417,6 +1450,10 @@ public final class SmartMovingClientState {
         //   self-side tickEssential L2144 sets on self-sliding fire / false on sliding phase entry.
         //   remote-side only updates from packet (= tickEssential not called).
         wasSelfSlideFire  = ((bits >> 35) & 1) != 0;
+        // Movement prototypes (bits 37-40). rollArmed (38) is server-only.
+        isRolling         = ((bits >> 37) & 1) != 0;
+        isVaulting        = ((bits >> 39) & 1) != 0;
+        isChainClimbing   = ((bits >> 40) & 1) != 0;
     }
 
     // ── 4-2: tickEssential() ─────────────────────────────────────────
@@ -3334,6 +3371,13 @@ public final class SmartMovingClientState {
         isCrawlClimbing = false;
         isCeilingClimbing = false;
         isRopeSliding = false;
+        isRolling = false;
+        rollArmedTicks = 0;
+        rollTicks = 0;
+        rollStartTick = Integer.MIN_VALUE;
+        isVaulting = false;
+        vaultStartTick = Integer.MIN_VALUE;
+        isChainClimbing = false;
         actualFeetClimbType = 0;
         actualHandsClimbType = 0;
         isFeetVineClimbing = false;
@@ -4689,6 +4733,11 @@ public final class SmartMovingClientState {
         s.isSneakButtonPressed = player.isShiftKeyDown();
         s.isClimbCrawling      = isClimbCrawling;
         s.wasSelfSlideFire     = wasSelfSlideFire;  // fix #96 (remote 측 시각 fix #81/#94/#95 동기화)
+        // Movement prototypes (bits 37-40).
+        s.isRolling            = isRolling;
+        s.rollArmed            = rollArmedTicks > 0;
+        s.isVaulting           = isVaulting;
+        s.isChainClimbing      = isChainClimbing;
 
         long bits = SmartMovingState.encode(s);
         // 🔴 (Phase 1-B fix-1) dirty bit 검사 제거 — 매 tick 무조건 송신.

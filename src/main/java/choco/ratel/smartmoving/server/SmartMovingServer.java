@@ -106,6 +106,16 @@ public final class SmartMovingServer {
      */
     public boolean isClimbCrawling;
 
+    // Movement prototypes (docs/research_movement_prototypes.md), SmartMovingState bits 37-40.
+    /** bit 37: landing roll in progress (relayed to other clients). */
+    public boolean isRolling;
+    /** bit 38: the next landing is a roll — fall damage is reduced in MixinPlayerEntity. */
+    public boolean rollArmed;
+    /** bit 39: sprint vault in progress (relayed to other clients). */
+    public boolean isVaulting;
+    /** bit 40: vertical chain climb (relayed; isClimbing bit 14 carries the server behavior). */
+    public boolean isChainClimbing;
+
     /**
      * 🔴 (Phase 2 multi-network optimization) For server-side broadcast dirty check.
      *   Even if client sends identical state packet every tick, server compares with last broadcast bits →
@@ -178,6 +188,11 @@ public final class SmartMovingServer {
         isCrawlClimbing   = ((bits >> 12) & 1) != 0;
         isCeilingClimbing = ((bits >> 18) & 1) != 0;
         isWallJumping     = ((bits >> 31) & 1) != 0;
+        // Movement prototypes (bits 37-40).
+        isRolling         = ((bits >> 37) & 1) != 0;
+        rollArmed         = ((bits >> 38) & 1) != 0;
+        isVaulting        = ((bits >> 39) & 1) != 0;
+        isChainClimbing   = ((bits >> 40) & 1) != 0;
         boolean _oldCrawl = isCrawling;
         setCrawling(((bits >> 13) & 1) != 0);
         // 🔴 (2026-05-22) User-reported fix: 1-block space swim end + crouch → water entry server reconcile.
