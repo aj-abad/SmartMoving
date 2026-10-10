@@ -21,13 +21,13 @@ Based on `research_movement_prototypes.md`. Each phase ends with a compile and a
 - [x] Compile + commit
 
 ## Phase 2 — Sprint vault
-- [ ] `SmartMovingVaulter.tryStartVault`: trigger, obstacle probe, clearance, launch
-- [ ] `SmartMovingVaulter.tickVault`: end on landing / timeout
-- [ ] `MixinLivingEntityClient.sm_travel_client`: call after `handleJumping`
-- [ ] Model: `sm_animateVaulting` (hand plant, tucked legs)
-- [ ] Renderer: forward lean during vault
-- [ ] Remote: track `vaultStartTick` on bit edge
-- [ ] Compile + commit
+- [x] `SmartMovingVaulter.tick`: trigger, obstacle probe, clearance, launch (plus `move.vault.min.height` so fences-only is configurable)
+- [x] `SmartMovingVaulter.tick`: end on landing / timeout
+- [x] `MixinLivingEntityClient.sm_travel_client`: call after `handleJumping`
+- [x] Model: `sm_animateVaulting` (hand plant, tucked legs)
+- [x] Renderer: forward lean during vault
+- [x] Remote: track `vaultStartTick` on bit edge
+- [x] Compile + commit
 
 ## Phase 3 — Chain climb
 - [ ] `SmartMovingChainClimber.findChain` (3×3 columns, feet + head level, nearest vertical `ChainBlock`)

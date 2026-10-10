@@ -719,6 +719,8 @@ public class SmartMovingConfig {
     public float vaultVerticalFactor = 1F;
     /** Horizontal boost on takeoff. */
     public float vaultHorizontalFactor = 1.15F;
+    /** Lowest obstacle (above the feet) that triggers a vault; raise above 1.0 to vault fences only. */
+    public float vaultMinHeight = 0.6F;
     /** Tallest obstacle (above the feet) that can be vaulted. */
     public float vaultMaxHeight = 1.55F;
     /** How far ahead of the player the obstacle is detected. */
@@ -1650,6 +1652,7 @@ public class SmartMovingConfig {
         vault                    = getBool(p,   "move.vault",                     vault);
         vaultVerticalFactor      = getFloat(p,  "move.vault.vertical.factor",     vaultVerticalFactor);
         vaultHorizontalFactor    = getFloat(p,  "move.vault.horizontal.factor",   vaultHorizontalFactor);
+        vaultMinHeight           = getFloat(p,  "move.vault.min.height",          vaultMinHeight);
         vaultMaxHeight           = getFloat(p,  "move.vault.max.height",          vaultMaxHeight);
         vaultReach               = getFloat(p,  "move.vault.reach",               vaultReach);
         chainClimb               = getBool(p,   "move.climb.chain",               chainClimb);
@@ -1833,6 +1836,7 @@ public class SmartMovingConfig {
         p.setProperty("move.vault",                      String.valueOf(vault));
         p.setProperty("move.vault.vertical.factor",      String.valueOf(vaultVerticalFactor));
         p.setProperty("move.vault.horizontal.factor",    String.valueOf(vaultHorizontalFactor));
+        p.setProperty("move.vault.min.height",           String.valueOf(vaultMinHeight));
         p.setProperty("move.vault.max.height",           String.valueOf(vaultMaxHeight));
         p.setProperty("move.vault.reach",                String.valueOf(vaultReach));
         p.setProperty("move.climb.chain",                String.valueOf(chainClimb));
