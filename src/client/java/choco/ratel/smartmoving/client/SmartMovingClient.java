@@ -181,9 +181,11 @@ public class SmartMovingClient implements ClientModInitializer {
                             target.rollStartTick = remoteDodge.tickCount;
                             target.rollDuration = Math.max(2,
                                     (int) Math.ceil(SmartMovingConfig.Config.rollDurationTicks));
-                            Vec3 v = remoteDodge.getDeltaMovement();
-                            target.rollYaw = v.horizontalDistanceSqr() > 1.0E-4
-                                    ? (float) Math.toDegrees(Math.atan2(-v.x, v.z))
+                            // Remote velocity is not synced; use the last position step instead.
+                            double mx = remoteDodge.getX() - remoteDodge.xo;
+                            double mz = remoteDodge.getZ() - remoteDodge.zo;
+                            target.rollYaw = mx * mx + mz * mz > 1.0E-4
+                                    ? (float) Math.toDegrees(Math.atan2(-mx, mz))
                                     : remoteDodge.getYRot();
                         } else if (!target.isRolling && wasRolling) {
                             target.rollStartTick = Integer.MIN_VALUE;

@@ -38,8 +38,14 @@ Based on `research_movement_prototypes.md`. Each phase ends with a compile and a
 - [x] Compile + commit
 
 ## Phase 4 — Docs
-- [ ] README: features + controls rows for roll, vault, chain climb
-- [ ] Tick this checklist, commit
+- [x] README (en + ko): features + controls rows for roll, vault, chain climb
+- [x] Tick this checklist, commit
+
+## Known prototype limits (follow-ups)
+- Hitbox stays 1.8 tall during roll / vault; the first-person camera does not dip during the roll.
+- No exhaustion, sounds or particles for the three moves.
+- Vanilla auto-jump (if enabled) can fire before the vault probe reaches the obstacle.
+- Remote roll direction comes from the last position step, not the exact roll yaw.
 
 ## Verification (in-game, manual)
 - [ ] Roll: dodge pressed mid-fall from 4+ blocks → tumble, reduced damage; short hop + press → regular dodge on landing
