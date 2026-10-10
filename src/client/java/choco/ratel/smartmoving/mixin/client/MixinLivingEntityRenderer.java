@@ -110,7 +110,7 @@ public abstract class MixinLivingEntityRenderer {
         boolean anySmState = sm.isFlying || sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isRopeSliding || sm.isClimbJumping
-                || sm.doFallingAnimation;
+                || sm.doFallingAnimation || sm.isRolling || sm.isVaulting;
         renderState.walkAnimationSpeed = anySmState
                 ? 0F
                 : sm.stats.getCurrentHorizontalSpeed(tickDelta);

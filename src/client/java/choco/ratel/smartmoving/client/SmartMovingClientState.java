@@ -695,6 +695,17 @@ public final class SmartMovingClientState {
     public int rollStartTick = Integer.MIN_VALUE;
     /** Roll length in ticks (copied from config at start so remote players animate the same). */
     public int rollDuration = 10;
+    /** WASD state captured with the airborne press, replayed as a dodge when the fall was too short. */
+    public int rollArmForward, rollArmRight;
+    /** Vertical speed tracked by the roll itself (vanilla travel is cancelled while rolling). */
+    public double rollVy;
+
+    /** 0..1 progress of the current roll for rendering; 1 once it is over. */
+    public float rollProgress(float ageInTicks) {
+        if (rollStartTick == Integer.MIN_VALUE) return 1f;
+        float t = (ageInTicks - rollStartTick) / Math.max(1, rollDuration);
+        return t < 0f ? 0f : (t > 1f ? 1f : t);
+    }
 
     // Sprint vault.
     /** Vault in progress (bit 39). */
@@ -778,7 +789,8 @@ public final class SmartMovingClientState {
     /** True when no other Smart Moving pose is active, so the dodge pose may show. */
     public boolean canShowDodgePose() {
         return !(isRopeSliding || isClimbing || isCrawlClimbing || isCeilingClimbing || isClimbJumping
-                || isSwimming_sm || isDiving || isCrawling || isSliding || isHeadJumping || isFlying);
+                || isSwimming_sm || isDiving || isCrawling || isSliding || isHeadJumping || isFlying
+                || isRolling || isVaulting || isChainClimbing);
     }
 
     /**
@@ -2768,6 +2780,8 @@ public final class SmartMovingClientState {
             if (dodgeCooldown > 0 && player.onGround() && !isAngleJumping()) {
                 dodgeCooldown--;
             }
+            // Landing roll: buffered airborne dodge press → roll (or plain dodge) on landing.
+            SmartMovingRoller.tickArmed(player, this, SmartMovingConfig.Config);
 
             // R-04: isSmall 갱신.
             // 원본 SmartMovingSelf L3110 `boolean isSmall = sp.height < 1;` —

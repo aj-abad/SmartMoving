@@ -168,12 +168,31 @@ public class SmartMovingClient implements ClientModInitializer {
                         // 🔴 (BUG D fix, 2026-05-13) bb just before flight end (= moment when mixin offset active) — for gap measurement.
                         if (wasFlying) flyBoxMinYBefore = bbMinY;
                     }
+                    boolean wasRolling = target.isRolling;
+                    boolean wasVaulting = target.isVaulting;
                     target.processStatePacket(payload.state());
                     // Dodge takeoff/landing ticks for the remote player's dodge animation.
                     if (entity instanceof AbstractClientPlayer remoteDodge
                             && !(entity instanceof LocalPlayer)) {
                         target.trackRemoteAngleJump(wasAngleJumpType, remoteDodge.tickCount,
                                 remoteDodge.getYRot());
+                        // Roll / vault start ticks for the timed poses (docs/research_movement_prototypes.md).
+                        if (target.isRolling && !wasRolling) {
+                            target.rollStartTick = remoteDodge.tickCount;
+                            target.rollDuration = Math.max(2,
+                                    (int) Math.ceil(SmartMovingConfig.Config.rollDurationTicks));
+                            Vec3 v = remoteDodge.getDeltaMovement();
+                            target.rollYaw = v.horizontalDistanceSqr() > 1.0E-4
+                                    ? (float) Math.toDegrees(Math.atan2(-v.x, v.z))
+                                    : remoteDodge.getYRot();
+                        } else if (!target.isRolling && wasRolling) {
+                            target.rollStartTick = Integer.MIN_VALUE;
+                        }
+                        if (target.isVaulting && !wasVaulting) {
+                            target.vaultStartTick = remoteDodge.tickCount;
+                        } else if (!target.isVaulting && wasVaulting) {
+                            target.vaultStartTick = Integer.MIN_VALUE;
+                        }
                     }
                     // 🔴 (Phase 2 multi BUG-12/14) Update dim immediately on packet arrival → determine dim based on sm.* bits
                     //   without waiting for vanilla pose sync. Remove boolean OR guard — avoid missing detection on

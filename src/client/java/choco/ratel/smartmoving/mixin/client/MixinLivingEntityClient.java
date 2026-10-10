@@ -94,6 +94,13 @@ public abstract class MixinLivingEntityClient {
             player.setDeltaMovement(vel.x, vel.y * 0.5999755859375D, vel.z);
         }
 
+        // Landing roll owns the motion while it plays; jump/dodge input is ignored until it ends
+        // (docs/research_movement_prototypes.md).
+        if (choco.ratel.smartmoving.client.SmartMovingRoller.handleRolling(player, sm)) {
+            ci.cancel();
+            return;
+        }
+
         // [10-1] Jump judgment — execute every tick before swimming check
         SmartMovingJumper.handleJumping(player, sm);
 

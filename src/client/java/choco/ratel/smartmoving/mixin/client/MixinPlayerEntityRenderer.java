@@ -177,7 +177,16 @@ public class MixinPlayerEntityRenderer {
         boolean smActive = sm.isClimbing || sm.isClimbCrawling || sm.isCrawlClimbing
                 || sm.isFlying || sm.isSwimming_sm || sm.isDiving
                 || sm.isCeilingClimbing || sm.isHeadJumping
-                || sm.isSliding;
+                || sm.isSliding || sm.isRolling;
+
+        // Landing roll (docs/research_movement_prototypes.md): the body faces the roll direction for
+        // the whole tumble; mouse yaw does not turn it. Same head handling as sliding.
+        if (sm.isRolling) {
+            sm.smBodyYawActive = true;
+            sm.smBodyYawOverride = sm.rollYaw;
+            sm.smCrawlMode = true;
+            return;
+        }
 
         // 🔴 User report fix refinement (2026-05-03 — "after max body rotates sharply following mouse, need smooth lag"):
         //   Original SmartMovingRender L147 force branch doesn't include isCrawl alone → vanilla 1.21.1
@@ -967,6 +976,30 @@ public class MixinPlayerEntityRenderer {
             if (sm.dodgePitch != 0f) matrices.rotate(Axis.XP.rotation(-sm.dodgePitch));
             matrices.translate(0f, -pivotY, 0f);
             sm.smOuterTiltX = sm.dodgePitch;
+        }
+
+        // Landing roll (docs/research_movement_prototypes.md): one full forward tumble about the hips
+        // over the roll, dropped toward the ground in the middle so the ball stays near the feet.
+        if (sm.isRolling && sm.rollStartTick != Integer.MIN_VALUE) {
+            float p = sm.rollProgress(animationProgress);
+            float k = (float) Math.sin(p * Math.PI);
+            float pivotY = 1.5f - 12f / 16f;   // hips, same pivot as the dodge lean
+            matrices.translate(0f, -0.35f * k, 0f);
+            matrices.translate(0f, pivotY, 0f);
+            matrices.rotate(Axis.XP.rotation(-(float) (2.0 * Math.PI * p)));
+            matrices.translate(0f, -pivotY, 0f);
+        }
+
+        // Sprint vault (docs/research_movement_prototypes.md): lean forward over the planted hand.
+        if (sm.isVaulting && sm.vaultStartTick != Integer.MIN_VALUE) {
+            float t = animationProgress - sm.vaultStartTick;
+            float k = Math.min(1f, Math.max(0f, t / 3f));
+            float pivotY = 1.5f - 12f / 16f;
+            matrices.translate(0f, pivotY, 0f);
+            matrices.rotate(Axis.XP.rotation(-0.55f * k));
+            matrices.rotate(Axis.ZP.rotation(0.20f * k));
+            matrices.translate(0f, -pivotY, 0f);
+            sm.smOuterTiltX = 0.55f * k;
         }
 
         // 🔴 D-4 매트릭스 변환 시도 → 회전 중심 차이로 자세 잘못 (사용자 보고 5회차).

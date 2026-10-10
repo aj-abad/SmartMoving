@@ -570,23 +570,30 @@ public final class SmartMovingJumper {
                     - (mc.options.keyDown.isDown() ? 1 : 0);
             int right = (mc.options.keyRight.isDown() ? 1 : 0)
                     - (mc.options.keyLeft.isDown() ? 1 : 0);
-            tryKeyboundDodge(player, sm, cfg, forward, right);
+            if (!player.onGround()) {
+                // Airborne press: arm a landing roll (docs/research_movement_prototypes.md).
+                SmartMovingRoller.armRoll(player, sm, cfg, forward, right);
+            } else {
+                tryKeyboundDodge(player, sm, cfg, forward, right);
+            }
         }
     }
 
     /**
      * Trigger bound dodge key with current WASD direction. Does not activate without directional input,
      * or while the previous dodge's cooldown (`angleJumpCooldownTicks` ground ticks) is running.
+     * Package-private: SmartMovingRoller replays a buffered press through it on landing.
      */
-    private static boolean tryKeyboundDodge(LocalPlayer player, SmartMovingClientState sm,
-                                             SmartMovingConfig cfg, int forward, int right) {
+    static boolean tryKeyboundDodge(LocalPlayer player, SmartMovingClientState sm,
+                                    SmartMovingConfig cfg, int forward, int right) {
         if (forward == 0 && right == 0) return false;
         if (sm.dodgeCooldown > 0) return false;
         if (player.isSleeping() || !player.onGround()
                 || sm.isCrawling || sm.isClimbing || sm.isClimbCrawling
                 || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isSliding
-                || sm.isHeadJumping || sm.isFlying) {
+                || sm.isHeadJumping || sm.isFlying
+                || sm.isRolling || sm.isVaulting || sm.isChainClimbing) {
             return false;
         }
 

@@ -3,12 +3,14 @@ package choco.ratel.smartmoving.mixin;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import choco.ratel.smartmoving.server.SmartMovingServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -25,6 +27,27 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(Player.class)
 public abstract class MixinPlayerEntity {
+
+    /**
+     * Landing roll (docs/research_movement_prototypes.md): the client sends state bit 38 (rollArmed)
+     * while the airborne dodge press is buffered, so it is already known here when the landing move
+     * packet runs checkFallDamage → causeFallDamage. Scales the damage multiplier for that one landing.
+     * ServerPlayer does not override causeFallDamage, so the Player method is the one that runs.
+     */
+    @ModifyVariable(method = "causeFallDamage", at = @At("HEAD"), argsOnly = true)
+    private float sm_rollFallDamage(float damageMultiplier, double fallDistance,
+                                    float damageMultiplierArg, DamageSource source) {
+        if (!((Object) this instanceof ServerPlayer player)) return damageMultiplier;
+        SmartMovingConfig cfg = SmartMovingConfig.Config;
+        if (!cfg.enabled || !cfg.roll) return damageMultiplier;
+        SmartMovingServer sm = SmartMovingServer.get(player);
+        if (!sm.rollArmed) return damageMultiplier;
+        sm.rollArmed = false;   // consumed by this landing; the next state packet refreshes it anyway
+        if (fallDistance < cfg.rollMinFallDistance || fallDistance > cfg.rollMaxFallDistance) {
+            return damageMultiplier;
+        }
+        return damageMultiplier * Math.max(0F, cfg.rollFallDamageFactor);
+    }
 
     /**
      * 6-1 (server): Returns custom EntityDimensions by SM pose.
