@@ -166,23 +166,34 @@ New config keys (all with defaults, all in `readFrom` / `writeTo`):
    `rollStartTick` from the bit edge in the receive lambda and compute yaw from their motion.
 
 ### Sprint vault (`SmartMovingVaulter`, client)
-1. **Trigger** (in `sm_travel_client` right after `handleJumping`): `cfg.vault`, on ground,
-   `player.isSprinting()`, not crawling/sliding/head-jumping/climbing/rolling/vaulting, not
-   sneaking.
-2. **Probe.** Direction = horizontal velocity if speed > 0.05 else look yaw. Probe box =
-   player box moved `reach` along the direction. Obstacle top = highest collision top inside
-   the probe box between `minY + 0.6` (above step height) and `minY + maxHeight`. No obstacle →
-   no vault.
-3. **Clearance.** `noCollision` for the player box moved by `reach` and raised to the obstacle
-   top (+0.05), and again moved by `reach + 1.0` (landing spot) so the player never vaults into
-   a wall.
-4. **Launch.** `vy = 0.42 × vaultVerticalFactor × (h <= 1 ? 1 : 1 + 0.4·(h − 1))` (≈0.50 for
-   a fence), horizontal = max(current speed, 0.28) × `vaultHorizontalFactor` along the
-   direction. `isVaulting = true`, `vaultStartTick`, `vaultYaw`. Normal air physics continue
-   (`handleLand`), no travel cancel.
-5. **End.** `onGround` after at least 2 ticks, or 30 ticks elapsed (fell off something).
-6. **Animation.** Model: lead arm planted down, legs tucked sideways, blended by an envelope
-   over the first 10 ticks. Renderer: forward lean about the hips.
+Revised after the first play-test request: the vault must be deliberate (sprint + Grab) and must
+actually carry the player over the obstacle. A ballistic hop started within 0.6 blocks of the
+face reaches only ~0.4-0.75 blocks of height before the box hits the face, so the player scraped
+up the obstacle and lost momentum. The vault is now a short scripted rise followed by a release.
+
+1. **Trigger** (in `sm_travel_client` before `handleJumping`, so jump input cannot interfere):
+   `cfg.vault`, on ground, `player.isSprinting()`, **Grab held**, not sneaking, forward input,
+   none of crawl/slide/head-jump/climb/chain/ceiling/swim/dive/fly/roll, no jump charge.
+2. **Probe.** Direction = horizontal velocity if speed > 0.05 else look yaw. Probe box = player
+   box moved `reach` along the direction, Y between `minY + max(0.6, vaultMinHeight)` and
+   `minY + vaultMaxHeight`. Obstacle top = highest collision top intersecting the probe; the
+   distance to the obstacle = smallest slab-test entry distance of the player box along the
+   direction against each collision box (0 when already touching).
+3. **Clearance.** `noCollision` for the player box moved `distance + 0.5` and raised to
+   `top + 0.1` with 0.4 extra headroom for the release arc, and again moved `distance + 1.3`
+   (landing spot) so the player never vaults into a wall.
+4. **Rise.** `riseTicks = clamp(ceil(max(distance / speed, lift / 0.6)), 2, 6)` where
+   `speed = max(current, 0.28)` and `lift = h + 0.1`. Each rise tick sets velocity
+   `(dir × speed, lift / riseTicks)` and calls `player.move`, with `fallDistance = 0` and vanilla
+   travel cancelled (no gravity). The first rise step runs on the trigger tick. A vertical
+   collision during the rise (ceiling) ends the vault immediately.
+5. **Release.** On the last rise tick the velocity becomes `(dir × speed × vaultHorizontalFactor,
+   0.25 × vaultVerticalFactor)`: forward with a little upward momentum, then normal air physics.
+   `vaultVerticalFactor` therefore scales the release hop, not a takeoff jump.
+6. **End.** `onGround` at least 2 ticks after the rise, 40 ticks elapsed, water, flight or a
+   climbing state.
+7. **Animation.** Unchanged: hand plant pose blended in over the first 3 ticks, forward lean
+   about the hips, remote players track `vaultStartTick` from the packet bit edge.
 
 ### Chain climb (`SmartMovingChainClimber`, client)
 1. **Find chain.** Scan the 3×3 columns around the player at feet and head level for

@@ -713,11 +713,11 @@ public class SmartMovingConfig {
     /** Roll length in ticks. */
     public float rollDurationTicks = 10F;
 
-    // Sprint vault: sprinting into a 1 to 1.5 block obstacle hops over it.
+    // Sprint vault: sprinting into a 1 to 1.5 block obstacle while holding Grab carries the player over it.
     public boolean vault = true;
-    /** Scales the vault takeoff velocity. */
+    /** Scales the upward momentum handed over once the player is above the obstacle (base 0.25). */
     public float vaultVerticalFactor = 1F;
-    /** Horizontal boost on takeoff. */
+    /** Scales the forward speed handed over once the player is above the obstacle. */
     public float vaultHorizontalFactor = 1.15F;
     /** Lowest obstacle (above the feet) that triggers a vault; raise above 1.0 to vault fences only. */
     public float vaultMinHeight = 0.6F;

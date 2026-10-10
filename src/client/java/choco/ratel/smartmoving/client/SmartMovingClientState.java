@@ -714,6 +714,14 @@ public final class SmartMovingClientState {
     public int vaultStartTick = Integer.MIN_VALUE;
     /** World yaw (degrees) of the vault direction. */
     public float vaultYaw;
+    /** Unit horizontal direction of the vault. */
+    public double vaultDirX, vaultDirZ;
+    /** Horizontal speed (blocks/tick) during the scripted rise. */
+    public double vaultSpeed;
+    /** Vertical lift per tick during the scripted rise. */
+    public double vaultLift;
+    /** Scripted rise ticks left, and how many there were (for the landing grace). */
+    public int vaultRiseTicks, vaultRiseTotal;
 
     // Chain climb.
     /** Vertical chain climb in progress (bit 40). Also sets isClimbing for the server. */
@@ -3391,6 +3399,7 @@ public final class SmartMovingClientState {
         rollStartTick = Integer.MIN_VALUE;
         isVaulting = false;
         vaultStartTick = Integer.MIN_VALUE;
+        vaultRiseTicks = 0;
         isChainClimbing = false;
         actualFeetClimbType = 0;
         actualHandsClimbType = 0;

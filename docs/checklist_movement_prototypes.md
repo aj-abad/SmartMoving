@@ -41,6 +41,13 @@ Based on `research_movement_prototypes.md`. Each phase ends with a compile and a
 - [x] README (en + ko): features + controls rows for roll, vault, chain climb
 - [x] Tick this checklist, commit
 
+## Phase 5 — Vault revision (sprint + Grab, scripted rise)
+- [x] Trigger requires Grab held; moved before `handleJumping` and cancels travel while rising
+- [x] Entry distance to the obstacle (slab test), rise planned so the feet clear the top at the face
+- [x] Release over the top with forward speed × `vaultHorizontalFactor` and 0.25 × `vaultVerticalFactor` upward
+- [x] Research doc, README (en + ko), config comments updated
+- [x] Compile, build, redeploy to `X:\Games\Minecraft\latest-fabric`
+
 ## Known prototype limits (follow-ups)
 - Hitbox stays 1.8 tall during roll / vault; the first-person camera does not dip during the roll.
 - No exhaustion, sounds or particles for the three moves.

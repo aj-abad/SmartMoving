@@ -101,12 +101,15 @@ public abstract class MixinLivingEntityClient {
             return;
         }
 
+        // Sprint vault (docs/research_movement_prototypes.md): sprint + Grab into a 1 to 1.5 block
+        // obstacle. Owns the motion during the scripted rise, then hands over to normal air physics.
+        if (choco.ratel.smartmoving.client.SmartMovingVaulter.tick(player, sm, movementInput)) {
+            ci.cancel();
+            return;
+        }
+
         // [10-1] Jump judgment — execute every tick before swimming check
         SmartMovingJumper.handleJumping(player, sm);
-
-        // Sprint vault: hop over a 1 to 1.5 block obstacle the player is sprinting into
-        // (docs/research_movement_prototypes.md). Only sets velocity; normal air physics follow.
-        choco.ratel.smartmoving.client.SmartMovingVaulter.tick(player, sm, movementInput);
 
         // Original SmartMovingSelf.superMoveEntityWithHeading L97-L100: isSwimming/isDiving snapshot right after entry.
         // Used in handleSwimming's isFakeShallowWaterSneaking judgment (original L243) + detect fromSwimmingOrDiving transition.

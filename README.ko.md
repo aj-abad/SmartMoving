@@ -22,7 +22,7 @@
 - **Vine Climbing** — Weeping / Twisting vines 사다리 애니메이션
 - **Chain Climbing** *(프로토타입)* — 세로 사슬(철/구리) 등반, Sneak 으로 빠르게 하강, 낙하 중 사슬 잡기; 머리 위 가로 사슬은 천장 등반 손잡이
 - **Landing Roll** *(프로토타입)* — 낙하 중 Dodge 키를 누르면 착지 시 구르기: 속도 유지 + 낙하 피해 감소
-- **Sprint Vault** *(프로토타입)* — 달리기 중 1칸 턱 / 울타리 / 담장에 돌진하면 손을 짚고 뛰어넘기
+- **Sprint Vault** *(프로토타입)* — Grab 키를 누른 채 달리기로 1칸 턱 / 울타리 / 담장에 돌진하면 손을 짚고 앞·위 관성을 유지하며 넘어가기
 - **Multiplayer Sync** — self ↔ server ↔ remote 상태 동기화
 
 ## Requirements
