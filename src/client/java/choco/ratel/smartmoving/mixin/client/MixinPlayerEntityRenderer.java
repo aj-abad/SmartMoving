@@ -188,6 +188,23 @@ public class MixinPlayerEntityRenderer {
             return;
         }
 
+        // Chain climb (docs/research_movement_prototypes.md): the body faces the chain. The local player
+        // stores the yaw while climbing; remote players recompute it from the same chain scan.
+        if (sm.isChainClimbing) {
+            float yaw = sm.chainYaw;
+            if (!(player instanceof net.minecraft.client.player.LocalPlayer)) {
+                net.minecraft.world.phys.Vec3 chain = choco.ratel.smartmoving.client.SmartMovingChainClimber
+                        .findChain(player, SmartMovingConfig.Config.chainGrabDistance + 0.5D);
+                yaw = chain != null
+                        ? choco.ratel.smartmoving.client.SmartMovingChainClimber.yawToward(player, chain)
+                        : player.getYRot();
+            }
+            sm.smBodyYawActive = true;
+            sm.smBodyYawOverride = yaw;
+            sm.smCrawlMode = true;
+            return;
+        }
+
         // 🔴 User report fix refinement (2026-05-03 — "after max body rotates sharply following mouse, need smooth lag"):
         //   Original SmartMovingRender L147 force branch doesn't include isCrawl alone → vanilla 1.21.1
         //   LivingEntity.turnHead natural behavior (= getMaxRelativeHeadRotation = 50°).

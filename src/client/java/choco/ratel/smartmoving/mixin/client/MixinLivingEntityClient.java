@@ -274,6 +274,13 @@ public abstract class MixinLivingEntityClient {
             player.setDeltaMovement(_v.x, _v.y + _boost, _v.z);
         }
 
+        // Chain climb (docs/research_movement_prototypes.md): vertical chains are climbable. Runs before
+        // the ladder/vine detection so its climbing flags survive the tick (handleClimbing would reset them).
+        if (choco.ratel.smartmoving.client.SmartMovingChainClimber.handle(player, sm, movementInput)) {
+            ci.cancel();
+            return;
+        }
+
         // [5-1] Climbing handling
         Level world = player.level();
         boolean isSmall = sm.isSmall || sm.isCrawling;

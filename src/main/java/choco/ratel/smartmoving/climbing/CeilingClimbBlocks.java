@@ -1,6 +1,9 @@
 package choco.ratel.smartmoving.climbing;
 
+import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ChainBlock;
+import net.minecraft.world.level.block.RotatedPillarBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -45,6 +48,12 @@ public final class CeilingClimbBlocks {
         // Original meta 0-3 = OPEN=false equivalent
         if (state.getBlock() instanceof TrapDoorBlock) {
             return !state.getValue(TrapDoorBlock.OPEN);
+        }
+
+        // Horizontal chains overhead work like monkey bars (docs/research_movement_prototypes.md).
+        // Vertical chains are handled by SmartMovingChainClimber instead.
+        if (state.getBlock() instanceof ChainBlock) {
+            return state.getValue(RotatedPillarBlock.AXIS) != Direction.Axis.Y;
         }
 
         return false;

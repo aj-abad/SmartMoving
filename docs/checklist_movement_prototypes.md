@@ -30,12 +30,12 @@ Based on `research_movement_prototypes.md`. Each phase ends with a compile and a
 - [x] Compile + commit
 
 ## Phase 3 — Chain climb
-- [ ] `SmartMovingChainClimber.findChain` (3×3 columns, feet + head level, nearest vertical `ChainBlock`)
-- [ ] `SmartMovingChainClimber.handle`: enter / exit rules, pull to hang point, climb / hold / slide motion, flags, cancel travel
-- [ ] `MixinLivingEntityClient.sm_travel_client`: call before `[5-1]` climbing detection
-- [ ] `CeilingClimbBlocks.supports`: horizontal chains
-- [ ] Renderer: body yaw toward the chain for `isChainClimbing` (self and remote)
-- [ ] Compile + commit
+- [x] `SmartMovingChainClimber.findChain` (3×3 columns, feet + head level, nearest vertical `ChainBlock`)
+- [x] `SmartMovingChainClimber.handle`: enter / exit rules, pull to hang point, climb / hold / slide motion, flags, cancel travel
+- [x] `MixinLivingEntityClient.sm_travel_client`: call before `[5-1]` climbing detection
+- [x] `CeilingClimbBlocks.supports`: horizontal chains
+- [x] Renderer: body yaw toward the chain for `isChainClimbing` (self and remote)
+- [x] Compile + commit
 
 ## Phase 4 — Docs
 - [ ] README: features + controls rows for roll, vault, chain climb
