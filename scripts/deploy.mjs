@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Build the Fabric mod and copy its loadable jar into the launcher profile's mods folder,
-// `<.minecraft>/<minecraft_version>-fabric/mods` (for example `26.2-fabric/mods`).
+// `X:\Games\Minecraft\<profile>\mods` (by default `latest-fabric\mods`).
 //
 //   pnpm deploy            build, then copy
 //   pnpm build             build only
@@ -19,7 +19,6 @@ import {
   rmSync,
   statSync,
 } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
 
 const root = process.cwd();
@@ -117,20 +116,13 @@ function findJar(baseName, version) {
   return path.join(libs, jars[0]);
 }
 
-function minecraftDirectory() {
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA ?? path.join(homedir(), "AppData", "Roaming");
-    return path.join(appData, ".minecraft");
-  }
-  if (process.platform === "darwin") {
-    return path.join(homedir(), "Library", "Application Support", "minecraft");
-  }
-  return path.join(homedir(), ".minecraft");
-}
+// The launcher profiles' game directories sit side by side here, each with its own mods/.
+const GAMES_DIRECTORY = "X:\\Games\\Minecraft";
+const PROFILE = "latest-fabric";
 
-function modsDirectory(profile) {
+function modsDirectory() {
   if (process.env.MINECRAFT_MODS) return process.env.MINECRAFT_MODS;
-  return path.join(minecraftDirectory(), process.env.MINECRAFT_PROFILE ?? profile, "mods");
+  return path.join(GAMES_DIRECTORY, process.env.MINECRAFT_PROFILE ?? PROFILE, "mods");
 }
 
 function pruneOldVersions(destination, baseName, keep) {
@@ -145,7 +137,6 @@ function pruneOldVersions(destination, baseName, keep) {
 
 const baseName = gradleProperty("archives_base_name");
 const version = gradleProperty("mod_version");
-const profile = `${gradleProperty("minecraft_version")}-fabric`;
 
 if (!skipBuild) {
   const jdk = resolveGradleJdk();
@@ -160,7 +151,7 @@ if (!skipBuild) {
 
 if (!skipCopy) {
   const jar = findJar(baseName, version);
-  const destination = modsDirectory(profile);
+  const destination = modsDirectory();
   mkdirSync(destination, { recursive: true });
   const name = path.basename(jar);
   if (!skipPrune) pruneOldVersions(destination, baseName, name);
