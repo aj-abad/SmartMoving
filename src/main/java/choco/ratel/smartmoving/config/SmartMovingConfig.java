@@ -726,11 +726,9 @@ public class SmartMovingConfig {
     /** How far ahead of the player the obstacle is detected. */
     public float vaultReach = 0.6F;
 
-    // Chain climb: vertical chains are climbable, sneak slides down.
+    // Chain climb: vertical chains count as ladders in the climbing detection (ladder speeds apply).
     public boolean chainClimb = true;
-    public float chainClimbSpeedFactor = 1F;
-    public float chainSlideSpeedFactor = 1F;
-    /** Largest horizontal distance from the player centre to a chain centre that still grabs. */
+    /** Largest horizontal distance from the player centre to a chain centre that still counts as a hold. */
     public float chainGrabDistance = 0.8F;
 
     // === ClimbUp jumps (original SmartMovingConfig L273-L276) ===
@@ -1656,8 +1654,6 @@ public class SmartMovingConfig {
         vaultMaxHeight           = getFloat(p,  "move.vault.max.height",          vaultMaxHeight);
         vaultReach               = getFloat(p,  "move.vault.reach",               vaultReach);
         chainClimb               = getBool(p,   "move.climb.chain",               chainClimb);
-        chainClimbSpeedFactor    = getFloat(p,  "move.climb.chain.speed.factor",  chainClimbSpeedFactor);
-        chainSlideSpeedFactor    = getFloat(p,  "move.climb.chain.slide.speed.factor", chainSlideSpeedFactor);
         chainGrabDistance        = getFloat(p,  "move.climb.chain.grab.distance", chainGrabDistance);
         climbUpJump              = getBool(p,   "move.jump.climb.up",             climbUpJump);
         climbUpJumpVerticalFactor = getFloat(p, "move.jump.climb.up.vertical.factor", climbUpJumpVerticalFactor);
@@ -1840,8 +1836,6 @@ public class SmartMovingConfig {
         p.setProperty("move.vault.max.height",           String.valueOf(vaultMaxHeight));
         p.setProperty("move.vault.reach",                String.valueOf(vaultReach));
         p.setProperty("move.climb.chain",                String.valueOf(chainClimb));
-        p.setProperty("move.climb.chain.speed.factor",   String.valueOf(chainClimbSpeedFactor));
-        p.setProperty("move.climb.chain.slide.speed.factor", String.valueOf(chainSlideSpeedFactor));
         p.setProperty("move.climb.chain.grab.distance",  String.valueOf(chainGrabDistance));
         p.setProperty("move.jump.climb.up",              String.valueOf(climbUpJump));
         p.setProperty("move.jump.climb.up.vertical.factor", String.valueOf(climbUpJumpVerticalFactor));

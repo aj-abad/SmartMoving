@@ -20,7 +20,7 @@ Fabric 26.3 port of the classic [SmartMoving](https://www.curseforge.com/minecra
 - **Swimming** — Swim / dive states + left-click swing animation
 - **Wall Jump** — Mid-air wall jump with motion order / rotation correction
 - **Vine Climbing** — Weeping / twisting vines ladder animation
-- **Chain Climbing** *(prototype)* — Climb vertical iron / copper chains, sneak to slide down, catch a chain mid-fall; horizontal chains overhead work as ceiling handholds
+- **Chain Climbing** *(prototype)* — Vertical iron / copper chains climb exactly like ladders, with a hand-over-hand pose; horizontal chains overhead work as ceiling handholds
 - **Landing Roll** *(prototype)* — Press Dodge while falling to roll on landing: momentum is kept and fall damage is reduced
 - **Sprint Vault** *(prototype)* — Hold Grab and sprint into a 1-block ledge, fence or wall to plant a hand and carry over it with forward and upward momentum
 - **Multiplayer Sync** — Full self ↔ server ↔ remote state synchronization
@@ -50,7 +50,7 @@ All bindings appear under **Options → Controls → Key Binds → Smart Moving*
 | Grab | `R` | Hold while climbing or grabbing an edge |
 | Prone | `C` | Hold to crawl, or press when crawl toggle is enabled |
 | Dodge | Unbound | Press with a movement key to dodge in that direction; after landing there is a short cooldown before the next dodge. Press while falling (3+ blocks) to roll on landing in that direction; a shorter fall turns the press into a dodge on landing |
-| Chain climb | — | Walk into a vertical chain while facing it, or hold Grab next to it. Forward / back climb, Sneak slides down, Jump lets go |
+| Chain climb | — | Same as a ladder: face a vertical chain and move forward to climb, back to descend, Sneak to hold, step sideways to let go |
 | Sprint vault | `R` + sprint | Hold Grab while sprinting straight at a 1-block ledge, fence or wall with clear space above and beyond it |
 | Toggle Smart Moving | `F9` | Enable or disable Smart Moving; the new state shows above the hotbar |
 

@@ -4453,6 +4453,7 @@ public final class SmartMovingClientState {
         actualHandsClimbType = HandsClimbing.NO_GRAB;
         actualFeetClimbType  = FeetClimbing.NO_STEP;
         isCeilingClimbing    = false;
+        isChainClimbing      = false;
     }
 
     /**

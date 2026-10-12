@@ -277,14 +277,8 @@ public abstract class MixinLivingEntityClient {
             player.setDeltaMovement(_v.x, _v.y + _boost, _v.z);
         }
 
-        // Chain climb (docs/research_movement_prototypes.md): vertical chains are climbable. Runs before
-        // the ladder/vine detection so its climbing flags survive the tick (handleClimbing would reset them).
-        if (choco.ratel.smartmoving.client.SmartMovingChainClimber.handle(player, sm, movementInput)) {
-            ci.cancel();
-            return;
-        }
-
-        // [5-1] Climbing handling
+        // [5-1] Climbing handling (vertical chains are detected here as ladder holds — see
+        //       SmartMovingClimber.getOnLadderOrVine / docs/research_movement_prototypes.md)
         Level world = player.level();
         boolean isSmall = sm.isSmall || sm.isCrawling;
 
@@ -295,6 +289,8 @@ public abstract class MixinLivingEntityClient {
         boolean[] handsVine = {false};
         boolean[] feetVine  = {false};
         SmartMovingClimber.getOnLadderOrVine(player, world, isSmall, false, hands, feet, handsGap, feetGap, handsVine, feetVine);
+        // Chain pose flag is re-derived below once climbing has been resolved for this tick.
+        sm.isChainClimbing = false;
 
         // R-01: Save climbing type for State packet encoding
         sm.actualHandsClimbType = hands[0].ordinal();
@@ -323,6 +319,19 @@ public abstract class MixinLivingEntityClient {
 
         if (onClimbable || wantFreeClimb) SmartMovingClimber.handleClimbing(player, sm);
         SmartMovingClimber.handleCeilingClimbing(player, sm);
+
+        // Chain climb: when the ladder hold found above is a vertical chain, use the chain pose and face
+        // the chain (docs/research_movement_prototypes.md). Mechanics are the plain ladder code.
+        sm.isChainClimbing = sm.isClimbing && !sm.isCeilingClimbing
+                && (choco.ratel.smartmoving.client.SmartMovingChainClimber.isVerticalChain(handsGap[0].state)
+                    || choco.ratel.smartmoving.client.SmartMovingChainClimber.isVerticalChain(feetGap[0].state));
+        if (sm.isChainClimbing) {
+            net.minecraft.world.phys.Vec3 chain = choco.ratel.smartmoving.client.SmartMovingChainClimber
+                    .findChain(player, cfg.chainGrabDistance + 0.5D);
+            if (chain != null) {
+                sm.chainYaw = choco.ratel.smartmoving.client.SmartMovingChainClimber.yawToward(player, chain);
+            }
+        }
 
         // If climbing doesn't trigger, attempt land branch.
         // 🔴 Add onClimbable guard (user report: while climbing ladder, rotate mouse or sneak hold +

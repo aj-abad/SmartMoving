@@ -48,6 +48,13 @@ Based on `research_movement_prototypes.md`. Each phase ends with a compile and a
 - [x] Research doc, README (en + ko), config comments updated
 - [x] Compile, build, redeploy to `X:\Games\Minecraft\latest-fabric`
 
+## Phase 6 — Chain climb revision (ladder mechanics, chain pose)
+- [x] Remove the separate chain controller; chains join the ladder path in `getOnLadderOrVine` (own + neighbouring columns within reach) and `getOnLadderOrVineCount`
+- [x] `isChainClimbing` derived from the ladder hold state after `handleClimbing`; cleared after detection and in `resetClimbing`
+- [x] `sm_animateChainClimbing` pose (hand over hand, knees in) replaces the ladder pose; body yaw toward the chain kept
+- [x] Dead config keys removed (`move.climb.chain.speed.factor`, `move.climb.chain.slide.speed.factor`)
+- [x] Research doc, README (en + ko) updated; compile, build, redeploy
+
 ## Known prototype limits (follow-ups)
 - Hitbox stays 1.8 tall during roll / vault; the first-person camera does not dip during the roll.
 - No exhaustion, sounds or particles for the three moves.

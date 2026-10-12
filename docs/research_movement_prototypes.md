@@ -195,27 +195,37 @@ up the obstacle and lost momentum. The vault is now a short scripted rise follow
 7. **Animation.** Unchanged: hand plant pose blended in over the first 3 ticks, forward lean
    about the hips, remote players track `vaultStartTick` from the packet bit edge.
 
-### Chain climb (`SmartMovingChainClimber`, client)
-1. **Find chain.** Scan the 3×3 columns around the player at feet and head level for
-   `ChainBlock` with `AXIS == Y`; pick the nearest centre within `chainGrabDistance`.
-2. **Enter** when a chain is found, `cfg.chainClimb`, no blocking state (swim, dive, fly,
-   elytra, crawl, slide, head jump, ceiling climb), and either grab is held, forward is
-   pressed while facing the chain (≤ 60°), or the state is already active. Works airborne, so
-   a falling player can catch a chain.
-3. **Exit** on jump rising edge (release, vanilla motion resumes), chain out of range, or on
-   ground with no vertical input and grab not held.
-4. **Motion.** Horizontal: pull toward the hang point `0.42` blocks from the chain centre along
-   the chain→player vector (box just touching the chain), clamped to 0.15/tick. Vertical:
-   forward or jump held → up `0.12 × speedFactor`; back → down `0.12`; sneak and not on
-   ground → rope slide `-0.5 × slideFactor` with `isRopeSliding = true`; otherwise hold.
-   Upward motion stops when no chain remains above the hands. `player.move`,
-   `fallDistance = 0`, cancel travel. Flags: `isClimbing`, `isChainClimbing`,
-   `isHandsVineClimbing`, `actualHandsClimbType = 1`, `actualFeetClimbType = 1`; all cleared on
-   exit.
-5. **Rendering.** Body yaw forced toward the chain (`chainYaw`, recomputed for remote players
-   from the same scan). Existing climbing / rope-sliding animations are reused.
+### Chain climb (ladder detection hook + `SmartMovingChainClimber` helpers, client)
+Revised: the first prototype was a separate controller that pulled the player to a hang point and
+only moved up and down. The user wants chains to behave exactly like ladders with a different
+pose, so the controller is gone and chains now enter the ladder path at the detection level.
+
+1. **Detection.** `SmartMovingClimber.getOnLadderOrVine` only ever looked at the player's own
+   column (a ladder's block is the one the player stands in). Chains have a centre collision box,
+   so the player is almost never inside the chain block. A second pass now treats a vertical
+   `ChainBlock` in the own column, or in one of the four neighbouring columns within
+   `chainGrabDistance` of the player centre, as a ladder hold: `HandsClimbing.UP` at hands level,
+   `FeetClimbing.SLOW_UP_WITH_HOLD_WITHOUT_HANDS` at feet level, `gap.state` = the chain state,
+   `gap.direction` = the direction toward it. With `faceOnly` only the faced neighbour counts, so
+   `isFacedToLadder` (auto entry when `freeClimbAutoLadder`) works for chains unchanged.
+2. **Count.** `getOnLadderOrVineCount` counts a vertical chain in the own column or a neighbouring
+   column within reach as one ladder, so the one-ladder climb speed factor applies.
+3. **Mechanics.** Nothing chain-specific: `handleClimbing` runs as for a ladder (forward = up,
+   back = down, sneak = hold, sideways movement and stepping off as on a ladder, `isClimbing`
+   bit 14 for the server fall reset). Grab-free-climb near a chain behaves as before.
+4. **Pose flag.** After `handleClimbing` / `handleCeilingClimbing` in `sm_travel_client`:
+   `isChainClimbing = isClimbing && !isCeilingClimbing && (hands or feet gap state is a vertical
+   chain)`; `chainYaw` = yaw toward the nearest chain. Cleared right after detection every tick
+   and in `resetClimbing`, so it never outlives the climb.
+5. **Rendering.** Model: `sm_animateChainClimbing` (arms overhead gripping hand over hand, knees
+   bent and turned in, driven by climbed distance like the ladder pose) replaces the ladder
+   pose when `isChainClimbing && isClimbing`. Renderer: body yaw toward the chain (`chainYaw`
+   for the local player, recomputed from `findChain` for remote players). Remote players receive
+   bit 40 plus the usual climbing bits.
 6. **Ceiling.** `CeilingClimbBlocks.supports` returns true for a `ChainBlock` whose axis is
    not Y.
+7. **Config.** `move.climb.chain` and `move.climb.chain.grab.distance` only; the speed and slide
+   keys from the first prototype are removed (ladder speeds apply).
 
 ### Out of scope for the prototype
 - Hitbox shrinking during roll / vault (see above).

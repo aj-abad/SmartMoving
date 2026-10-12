@@ -522,6 +522,9 @@ public abstract class MixinPlayerEntityModelClient {
             sm_animateRopeSliding(animationProgress, player);
         } else if (sm.isCeilingClimbing) {
             sm_animateCeilingClimbing(sm, headYaw);
+        } else if (sm.isChainClimbing && sm.isClimbing && !sm.isCrawlClimbing) {
+            // Chain climb: same mechanics as a ladder, different pose (docs/research_movement_prototypes.md).
+            sm_animateChainClimbing(sm, headPitch);
         } else if (sm.isClimbing || sm.isCrawlClimbing) {
             sm_animateClimbing(sm, player, limbSwing, limbSwingAmount, headPitch, animationProgress);
         } else if (isWeepingTwistingVines) {
@@ -1976,6 +1979,45 @@ public abstract class MixinPlayerEntityModelClient {
             leftLeg.z += 4.0f * crouch;
             rightLeg.z += 4.0f * crouch;
         }
+    }
+
+    /**
+     * Chain climb (docs/research_movement_prototypes.md): hands overhead gripping the chain hand over
+     * hand, knees bent and turned in around it. The cycle is driven by the climbed distance (like the
+     * ladder pose) so it stops when the player hangs still and runs backwards when descending.
+     */
+    private void sm_animateChainClimbing(SmartMovingClientState sm, float headPitch) {
+        float partialTicks = SmartMovingClientState.globalCachedTickDelta;
+        float verticalSpeed = Math.min(0.5f, Math.abs(sm.stats.getCurrentVerticalSpeed(partialTicks)));
+        float phase = sm.stats.getTotalVerticalDistance(partialTicks) * 3.0f;
+        float reach = 0.30f + verticalSpeed * 0.9f;   // arm alternation grows with climb speed
+
+        setArmScales(rightArm, leftArm, 1f, 1f);
+        setLegScales(rightLeg, leftLeg, 1f, 1f);
+        rightLeg.z = 0f;
+        leftLeg.z  = 0f;
+        rightLeg.x = -2f;
+        leftLeg.x  =  2f;
+
+        // Arms straight up, hands meeting over the head, alternating hand over hand.
+        float up = -(float) Math.PI + 0.35f;
+        rightArm.xRot = up + reach * Mth.cos(phase);
+        leftArm.xRot  = up - reach * Mth.cos(phase);
+        rightArm.yRot = 0f;
+        leftArm.yRot  = 0f;
+        rightArm.zRot =  0.28f;
+        leftArm.zRot  = -0.28f;
+
+        // Legs wrapped around the chain: knees up and turned in, opposite to the arms.
+        rightLeg.xRot = -0.95f - 0.30f * Mth.cos(phase);
+        leftLeg.xRot  = -0.95f + 0.30f * Mth.cos(phase);
+        rightLeg.zRot = -0.32f;
+        leftLeg.zRot  =  0.32f;
+
+        // Look up the chain a little, body leaning back off it.
+        head.yRot = 0f;
+        head.xRot = headPitch * DEG_TO_RAD - 0.25f;
+        body.xRot = -0.12f;
     }
 
     /**

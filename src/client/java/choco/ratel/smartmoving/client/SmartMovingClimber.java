@@ -126,6 +126,10 @@ public final class SmartMovingClimber {
                 if (facedDir == null) {
                     result++;
                 }
+            } else if (SmartMovingConfig.Config.chainClimb
+                    && SmartMovingChainClimber.isVerticalChain(centerState)) {
+                // Vertical chain in the player's own column counts as one ladder (prototype).
+                result++;
             }
 
             if (result >= maxResult) return result;
@@ -152,6 +156,12 @@ public final class SmartMovingClimber {
                         default    -> false;
                     };
                     if (hasFace) result++;
+                } else if (SmartMovingConfig.Config.chainClimb
+                        && SmartMovingChainClimber.isVerticalChain(s)
+                        && SmartMovingChainClimber.distanceToColumn(player, px + dir.getStepX(), pz + dir.getStepZ())
+                                <= SmartMovingConfig.Config.chainGrabDistance) {
+                    // Neighbouring vertical chain within reach counts as one ladder (prototype).
+                    result++;
                 }
             }
         }
@@ -303,6 +313,52 @@ public final class SmartMovingClimber {
         //   User intent = vanilla behavior. → Disable adjacent check. Enable only player position check.
         //   (Vanilla ladder collision box is thin → automatic entry only when player's floor coordinate ==
         //    ladder position just before touching ladder face).
+
+        // Vertical chains (docs/research_movement_prototypes.md): a chain in the player's column, or in a
+        // neighbouring column within chainGrabDistance, is a ladder hold reachable from any side. Chains
+        // have a centre collision box, so unlike ladders the player is almost never inside the chain
+        // block itself; the neighbour scan is what makes them climbable. Same hold types as a ladder, so
+        // every downstream rule (auto entry, forward = up, back = down, sneak = hold, speeds) applies.
+        if (SmartMovingConfig.Config.chainClimb) {
+            double grabDistance = SmartMovingConfig.Config.chainGrabDistance;
+            for (int by = minY; by <= maxY; by++) {
+                boolean isHandsLevel = (by == maxY);
+                BlockState chainState = null;
+                Direction chainDir = null;
+
+                BlockState centerState = world.getBlockState(new BlockPos(px, by, pz));
+                if (SmartMovingChainClimber.isVerticalChain(centerState)) {
+                    chainState = centerState;
+                    chainDir = playerFacing;
+                } else {
+                    double best = grabDistance;
+                    for (Direction dir : Direction.Plane.HORIZONTAL) {
+                        if (faceOnly && dir != playerFacing) continue;
+                        int cx = px + dir.getStepX();
+                        int cz = pz + dir.getStepZ();
+                        BlockState s = world.getBlockState(new BlockPos(cx, by, cz));
+                        if (!SmartMovingChainClimber.isVerticalChain(s)) continue;
+                        double distance = SmartMovingChainClimber.distanceToColumn(player, cx, cz);
+                        if (distance <= best) {
+                            best = distance;
+                            chainState = s;
+                            chainDir = dir;
+                        }
+                    }
+                }
+
+                if (chainState != null) {
+                    ClimbGap gap = new ClimbGap();
+                    gap.state = chainState;
+                    gap.direction = chainDir;
+                    if (isHandsLevel) {
+                        out_hands[0] = out_hands[0].max(HandsClimbing.UP, out_handsGap, gap);
+                    } else {
+                        out_feet[0] = out_feet[0].max(FeetClimbing.SLOW_UP_WITH_HOLD_WITHOUT_HANDS, out_feetGap, gap);
+                    }
+                }
+            }
+        }
     }
 
     // ── 7-2: setShouldClimbSpeed / setOnlyShouldClimbSpeed ───────────────
