@@ -3,6 +3,7 @@ package choco.ratel.smartmoving.mixin.client.windrunner;
 import choco.ratel.smartmoving.windrunner.WindrunnerItems;
 import choco.ratel.smartmoving.windrunner.WindrunnerGlide;
 import choco.ratel.smartmoving.client.windrunner.model.WindrunnerGlideAnimation;
+import choco.ratel.smartmoving.client.windrunner.model.WindrunnerWallRunAnimation;
 import choco.ratel.smartmoving.client.windrunner.render.WindrunnerLayer;
 import choco.ratel.smartmoving.client.windrunner.render.WindrunnerRenderState;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -66,6 +67,14 @@ public abstract class MixinWindrunnerAvatarRenderer extends LivingEntityRenderer
             }
         }
         ((WindrunnerRenderState) state).windrunner$flight(data);
+        ((WindrunnerRenderState) state).windrunner$wallRun(entity instanceof Player player && !WindrunnerGlide.of(player).active()
+                ? WindrunnerWallRunAnimation.extract(player, state, partial) : WindrunnerRenderState.WallRun.NONE);
+    }
+
+    @Inject(method = "setupRotations(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;FF)V", at = @At("TAIL"))
+    private void windrunner$wallRunLean(AvatarRenderState state, PoseStack pose, float bodyRot, float scale, CallbackInfo ci) {
+        var run = ((WindrunnerRenderState) state).windrunner$wallRun();
+        if (run.weight() > 0) WindrunnerWallRunAnimation.rotate(run, pose);
     }
 
     @Inject(method = "setupRotations(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;FF)V", at = @At("HEAD"), cancellable = true)
