@@ -34,6 +34,6 @@
 ## Follow-up: drop the in-game tests
 
 - [x] Research note (`docs/research_windrunner_set.md`, "drop the in-game tests")
-- [ ] Delete the client test classes; empty the test mod's entrypoints
-- [ ] Confirm `runWindrunnerClientTest` still launches and exits cleanly
-- [ ] README: describe the harness instead of the tests
+- [x] Delete the client test classes; leave a no-op template entrypoint
+- [x] Confirm `runWindrunnerClientTest` still launches and exits cleanly
+- [x] README: describe the harness instead of the tests

@@ -115,7 +115,7 @@ The built jar will be located in `build/libs/`.
 ./gradlew runClient   # Run client
 ./gradlew runServer   # Run server
 ./gradlew windrunnerPhysicsTest   # Windrunner glide and movement simulations (also run by build)
-./gradlew runWindrunnerClientTest # Windrunner client game tests in a disposable world
+./gradlew runWindrunnerClientTest # client game test harness in a disposable world; add tests under src/windrunnerClientTest
 ```
 
 ## Credits
