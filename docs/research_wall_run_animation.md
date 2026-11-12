@@ -19,7 +19,7 @@ players.
   SmartMoving poses at the same `HumanoidModel.setupAnim` TAIL; the higher priority puts the wall
   run's callback after it. The run resets fall distance, so SmartMoving's falling pose
   (`doFallingAnimation`) stays off.
-- Run up: the body faces the wall, leans slightly into it, and the head tips up. Legs take high
+- Run up: the body faces the wall, leans back off it, and the head tips up. Legs take high
   alternating strides and the arms reach up in turn, opposite to the legs.
 - Run along: the body faces along the run (from the player's movement) and leans 20 degrees away from
   the wall, feet on it. Legs sprint; the outer arm swings out for balance while the wall-side arm pumps.
