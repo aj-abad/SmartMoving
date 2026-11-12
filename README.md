@@ -47,7 +47,7 @@ All bindings appear under **Options → Controls → Key Binds → Smart Moving*
 
 | Action | Default key | Usage |
 |--------|-------------|-------|
-| Grab | `R` | Hold while climbing or grabbing an edge |
+| Grab | `R` | Hold while climbing or grabbing an edge; with the Windrunner Boots, hold while sprinting into a wall to wall run |
 | Prone | `C` | Hold to crawl, or press when crawl toggle is enabled |
 | Dodge / Windrunner Dash | Unbound | With the Windrunner Headband, a ground or air dash instead of the dodge (see below). Otherwise, press with a movement key to dodge in that direction; after landing there is a short cooldown before the next dodge |
 | Chain climb | — | Same as a ladder: face a vertical chain and move forward to climb, back to descend, Sneak to hold, step sideways to let go |
@@ -74,7 +74,7 @@ Boots     leather boots + 2 breeze rods               (shapeless)
 | Headband | Dash with the Dodge key: along the ground, or once per airtime in the air. Replaces the dodge while worn |
 | Robes | Glide on the glide key; each fresh Dodge press while gliding is a boost, at the cost of durability |
 | Pants | 15% faster movement; double jump once per airtime |
-| Boots | 10% stronger jumps (SmartMoving's own jumps included); falls top out at 30 blocks/s (vanilla reaches 78) and only hurt past six blocks; a fall that would kill you from nine hearts or more leaves half a heart; sneak-charged jumps build twice as fast |
+| Boots | 10% stronger jumps (SmartMoving's own jumps included); falls top out at 30 blocks/s (vanilla reaches 78) and only hurt past six blocks; a fall that would kill you from nine hearts or more leaves half a heart; wall run with Grab; sneak-charged jumps build twice as fast |
 
 - **Dashes** burst 24 blocks/s along your movement keys, or along your view without input. A ground dash
   launches as a low hop that slides on after landing, every half second. The hop still counts as the
@@ -85,6 +85,13 @@ Boots     leather boots + 2 breeze rods               (shapeless)
 - **The double jump** kicks about 2 blocks high (2.4 with the boots) and resets your fall. The headband's
   dash and the double jump give way to SmartMoving while you climb, swim, fly, crawl, slide or
   vault, and the double jump yields to wall jumps next to a wall.
+- **The wall run** needs the boots, Grab held while sprinting, and a wall at least two blocks tall.
+  Hit it nearly head-on (70 degrees or more to its face) to run up it, about four blocks, slowing as
+  you go; reach the top and you step onto it. Hit it at a glancing angle (40 degrees or less) in the
+  air to run along it for up to 1.5 seconds, sinking slowly the whole way. Angles in between do
+  nothing. Jump during a run to kick off the wall, which also gives back the pants' double jump. You
+  can chain runs between walls, but not run the same wall twice before landing. Grab + sprint + Jump on
+  the ground is still SmartMoving's head jump, so press Grab after takeoff for a run along a wall.
 - **The boots' fall save** works like a totem for falls only: with nine hearts or more when you land, a
   fall that would kill you leaves half a heart instead, and a held totem is not used up. Absorption hearts
   don't count toward the nine.
