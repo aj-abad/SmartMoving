@@ -1,0 +1,10 @@
+# Checklist: wall run animation and first-person bob
+
+- [x] Research (`docs/research_wall_run_animation.md`)
+- [ ] Wall run payload, server relay and start-tracking sync
+- [ ] Shown run state with blend in `WindrunnerMoves`
+- [ ] Third-person poses: run up and run along
+- [ ] First-person view and hand bob during runs
+- [ ] Verify with a temporary client game test and screenshots
+- [ ] README (English and Korean)
+- [ ] Build, test, deploy
