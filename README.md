@@ -21,7 +21,6 @@ Fabric 26.3 port of the classic [SmartMoving](https://www.curseforge.com/minecra
 - **Wall Jump** — Mid-air wall jump with motion order / rotation correction
 - **Vine Climbing** — Weeping / twisting vines ladder animation
 - **Chain Climbing** *(prototype)* — Vertical iron / copper chains climb exactly like ladders, with a hand-over-hand pose; horizontal chains overhead work as ceiling handholds
-- **Sprint Vault** *(prototype)* — Hold Grab and sprint into a 1-block ledge, fence or wall to plant a hand and carry over it with forward and upward momentum
 - **Windrunner armor set** — A wind monk's traversal set in the Breeze's colours: a headband that dashes, robes that glide, pants that run faster and double-jump, and boots that jump higher and soften falls (see below)
 - **Multiplayer Sync** — Full self ↔ server ↔ remote state synchronization
 
@@ -51,7 +50,6 @@ All bindings appear under **Options → Controls → Key Binds → Smart Moving*
 | Prone | `C` | Hold to crawl, or press when crawl toggle is enabled |
 | Dodge / Windrunner Dash | Unbound | With the Windrunner Headband, a ground or air dash instead of the dodge (see below). Otherwise, press with a movement key to dodge in that direction; after landing there is a short cooldown before the next dodge |
 | Chain climb | — | Same as a ladder: face a vertical chain and move forward to climb, back to descend, Sneak to hold, step sideways to let go |
-| Sprint vault | `R` + sprint | Hold Grab while sprinting straight at a 1-block ledge, fence or wall with clear space above and beyond it |
 | Toggle Smart Moving | `F9` | Enable or disable Smart Moving; the new state shows above the hotbar |
 
 ## Windrunner armor set
@@ -82,8 +80,8 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   say, becomes an ordinary fall. Each dash darts the view wider (scaled by FOV effects), leaves a following
   gust and kicks up dust; a sliding ground dash slows the view and hand bob.
 - **The double jump** kicks about 2 blocks high (2.4 with the boots) and resets your fall. The headband's
-  dash and the double jump give way to SmartMoving while you climb, swim, fly, crawl, slide or
-  vault, and the double jump yields to wall jumps next to a wall.
+  dash and the double jump give way to SmartMoving while you climb, swim, fly, crawl or slide,
+  and the double jump yields to wall jumps next to a wall.
 - **The wall run** needs the boots, Grab held while sprinting, and a wall at least two blocks tall.
   Hit it nearly head-on (70 degrees or more to its face) to run up it, about four blocks, slowing as
   you go; reach the top and you step onto it. Hit it at a glancing angle (40 degrees or less) in the
