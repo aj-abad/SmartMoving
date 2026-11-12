@@ -50,3 +50,16 @@ or up it (head-on hit). Step one is keeping the sprint alive through the collisi
 - SmartMoving: its wall jump (`SmartMovingJumper.handleWallJumping`) stands down during a run, so the
   Jump press is the kick alone. The Grab + sprint + Jump head jump on the ground is unchanged, so an
   along-the-wall run is entered by pressing Grab after takeoff.
+
+## Implementation notes
+
+- SmartMoving's ledge climb claimed a run up as soon as the top came within reach and took about 1.4 s
+  to haul the player over. Climb entry (`SmartMovingClientState.wouldWantClimb`) now stands down while
+  a run is active, so the run crests itself; once a run ends short of the top, the ledge grab works
+  as before.
+- The crest waits for the feet, not the head, to clear the top: past the head the climb keeps at
+  least crest speed (0.35 blocks/tick), then pushes onto the top.
+- Temporary client game test results: run up peaked 4.2 blocks; a three-high wall was topped 32 ticks
+  after sprinting from five blocks away; a 55 degree hit did nothing; a 30 degree airborne run sank
+  0.7 blocks over 12 ticks while covering 4 blocks; the kick pushed off the wall, the server handed
+  the double jump back and the landing did no damage. Not covered: repeat runs on one wall.
