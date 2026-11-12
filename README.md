@@ -75,7 +75,7 @@ Boots     leather boots + 2 breeze rods               (shapeless)
 | Headband | Dash with the Dodge key: along the ground, or once per airtime in the air. Replaces the dodge while worn |
 | Robes | Glide on the glide key; each fresh Dodge press while gliding is a boost, at the cost of durability; hold Sneak in free air to slow your fall |
 | Pants | 15% faster movement |
-| Boots | 10% stronger jumps (SmartMoving's own jumps included) and 10% less fall damage; double jump once per airtime; sneak-charged jumps build twice as fast |
+| Boots | 10% stronger jumps (SmartMoving's own jumps included); falls top out at 30 blocks/s (vanilla reaches 78) and only hurt past six blocks; double jump once per airtime; sneak-charged jumps build twice as fast |
 
 - **Dashes** burst 24 blocks/s along your movement keys, or along your view without input. A ground dash
   launches as a low hop that slides on after landing, every half second. The hop still counts as the
