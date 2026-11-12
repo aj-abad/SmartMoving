@@ -4,17 +4,16 @@ import choco.ratel.smartmoving.windrunner.WindrunnerGlide;
 import choco.ratel.smartmoving.windrunner.WindrunnerGlideActionPayload;
 import choco.ratel.smartmoving.windrunner.WindrunnerGlidePhysics.Input;
 import choco.ratel.smartmoving.windrunner.WindrunnerGlideStatePayload;
-import choco.ratel.smartmoving.client.input.SmartMovingKeys;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 
 /**
- * The glide key (Mouse 4 by default) opens the robes in free air and folds them again; sneak also folds
- * them. Jump is left to the pants' double jump, and each fresh dash press while gliding is a boost.
+ * An airborne Jump press that nothing else spends (the wall-run kick, the dash's hop jump, the pants'
+ * double jump, SmartMoving's own wall and climb moves) opens the robes; Sneak folds them. Each fresh
+ * dash press while gliding is a boost.
  */
 public final class WindrunnerGlideControls {
     public static final float LOOK_YAW_LIMIT = 100;
@@ -24,8 +23,6 @@ public final class WindrunnerGlideControls {
     private static float lastYaw, lastPitch, yawStep, pitchStep;
     private static int cameraEpoch;
     private WindrunnerGlideControls() {}
-
-    public static KeyMapping glideKey() { return SmartMovingKeys.glide; }
 
     static void init() {
         ClientPlayNetworking.registerGlobalReceiver(WindrunnerGlideStatePayload.TYPE, (packet, context) ->
@@ -42,18 +39,13 @@ public final class WindrunnerGlideControls {
         boolean available = client.gui.screen() == null;
         // Jump and Sneak presses are noted where the key is pressed rather than drained as clicks, which
         // other mods may be draining too. Vanilla's own jump, creative double-tap and dismount are untouched.
-        boolean jumped = WindrunnerKeyPresses.takeJump(), sneaked = WindrunnerKeyPresses.takeSneak(), toggled = false;
-        while (SmartMovingKeys.glide.consumeClick()) toggled = true;
+        boolean jumped = WindrunnerKeyPresses.takeJump(), sneaked = WindrunnerKeyPresses.takeSneak();
         LocalPlayer player = client.player;
-        if (available && jumped && !flight.active()) WindrunnerControls.jump(client, player);
-        if (available && WindrunnerGlide.equipped(player)) {
-            // The robes open once airborne with enough clear air below, and the same key folds them.
-            if (toggled) {
-                if (flight.active()) send(WindrunnerGlide.CLOSED);
-                else if (flight.canDeploy()) send(WindrunnerGlide.GLIDING);
-            }
-            if (sneaked && flight.active()) send(WindrunnerGlide.CLOSED);
+        if (available && jumped && !flight.active() && !WindrunnerControls.jump(client, player)
+                && WindrunnerGlide.equipped(player) && flight.canDeploy() && !WindrunnerSmartMoving.claimsAirJump(player)) {
+            send(WindrunnerGlide.GLIDING);
         }
+        if (available && sneaked && flight.active()) send(WindrunnerGlide.CLOSED);
         WindrunnerControls.tick(client, player, available);
         if (flight.active()) {
             float pitch = available ? (client.options.keyUp.isDown() ? 1 : 0) - (client.options.keyDown.isDown() ? 1 : 0) : 0;

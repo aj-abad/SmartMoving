@@ -22,8 +22,6 @@ public class SmartMovingKeys {
     public static KeyMapping prone;
     public static KeyMapping dodge;
     public static KeyMapping configToggle;
-    /** Opens and folds the Windrunner Robes' glide in free air. */
-    public static KeyMapping glide;
 
     public static void register() {
         grab = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -42,12 +40,6 @@ public class SmartMovingKeys {
             "key.smartmoving.dodge",
             InputConstants.Type.KEYBOARD,
             InputConstants.UNKNOWN.getValue(),
-            CATEGORY_SMARTMOVING
-        ));
-        glide = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-            "key.smartmoving.windrunner_glide",
-            InputConstants.Type.MOUSE,
-            InputConstants.MOUSE_BUTTON_4,
             CATEGORY_SMARTMOVING
         ));
         configToggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
