@@ -83,11 +83,11 @@ Fall damage counts blocks fallen, not landing speed, so a speed cap alone saves 
 trade the 10% fall damage cut for a 30 blocks/s fall cap and three more blocks of safe fall.
 
 - Vanilla and SmartMoving both apply 0.08 gravity and 0.98 drag, settling near 78 blocks/s. A
-  1.5 blocks/tick cap is reached after about 24 ticks and 22 blocks of falling.
+  1.5 blocks/tick cap is reached after about 24 ticks and 19 blocks of falling.
 - SmartMoving has several gravity paths (land, climbing, rolling, sliding), so the cap clamps once at
   `Player.travel` RETURN, after vanilla or SmartMoving finished integrating. Anything that cancels
   `Player.travel` at HEAD (the robes' glide, Aircraft's wingsuit and parachute) never reaches it.
 - Skipped during elytra flight, riptide, creative flight and in fluids; client side only, since the
   local player's movement is client-authoritative and the server accepts a slower fall.
-- `Attributes.SAFE_FALL_DISTANCE` +3 (ADD_VALUE) replaces `FALL_DAMAGE_MULTIPLIER` -0.1, taking every
-  landing's damage down by three hearts' worth of blocks.
+- `Attributes.SAFE_FALL_DISTANCE` +3 (ADD_VALUE) replaces `FALL_DAMAGE_MULTIPLIER` -0.1, taking three
+  points (a heart and a half) off every landing.

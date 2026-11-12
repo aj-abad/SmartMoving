@@ -25,8 +25,8 @@
 ## Follow-up: boots cap falling speed
 
 - [x] Research note (`docs/research_windrunner_set.md`, "the boots cap falling speed")
-- [ ] `WindrunnerMoves.capFall` and `Player.travel` RETURN hook
-- [ ] Swap the fall damage modifier for +3 safe fall distance
-- [ ] Tests: physics cap check, client fall cap and attribute checks
-- [ ] README (English and Korean)
-- [ ] Build, run both test suites, deploy
+- [x] `WindrunnerMoves.capFall` and `Player.travel` RETURN hook
+- [x] Swap the fall damage modifier for +3 safe fall distance
+- [x] Tests: physics cap check, client fall cap and attribute checks
+- [x] README (English and Korean)
+- [x] Build, run both test suites, deploy
