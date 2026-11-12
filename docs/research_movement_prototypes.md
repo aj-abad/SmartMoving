@@ -235,3 +235,5 @@ pose, so the controller is gone and chains now enter the ladder path at the dete
   grab).
 
 > Removed in `docs/research_fall_rework.md`: the Landing Roll is no longer part of SmartMoving.
+
+> The Sprint Vault was removed later; see `docs/research_vault_removal.md`.
