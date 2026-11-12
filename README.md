@@ -97,7 +97,8 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   fall that would kill you leaves half a heart instead, and a held totem is not used up. Absorption hearts
   don't count toward the nine.
 - **The glide** needs three blocks of clear air below. The robes catch the air as they open, turning
-  your fall into a shallow glide (never steeper than 15 degrees nose-down) rather than a dive. It has responsive arcade handling (W/S pitch,
+  your fall into a shallow glide (never steeper than 15 degrees nose-down) rather than a dive; a fast
+  fall is braked to about 13 blocks/s within half a second before the glide builds speed again. It has responsive arcade handling (W/S pitch,
   A/D bank), stalls, wind, storms and lava updrafts, server-authoritative flight with client prediction,
   and a fan of phantom-membrane leaves on breeze-rod ribs. A settled glide covers about 4.8 blocks per
   block of altitude. Boosts add 8 blocks/s each, on a three-quarter-second cooldown. The robes have 240
