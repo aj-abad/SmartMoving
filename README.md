@@ -52,7 +52,6 @@ All bindings appear under **Options → Controls → Key Binds → Smart Moving*
 | Dodge / Windrunner Dash | Unbound | With the Windrunner Headband, a ground or air dash instead of the dodge (see below). Otherwise, press with a movement key to dodge in that direction; after landing there is a short cooldown before the next dodge |
 | Chain climb | — | Same as a ladder: face a vertical chain and move forward to climb, back to descend, Sneak to hold, step sideways to let go |
 | Sprint vault | `R` + sprint | Hold Grab while sprinting straight at a 1-block ledge, fence or wall with clear space above and beyond it |
-| Windrunner Glide | Mouse 4 | With the Windrunner Robes, open the glide in free air; press again or Sneak to fold it |
 | Toggle Smart Moving | `F9` | Enable or disable Smart Moving; the new state shows above the hotbar |
 
 ## Windrunner armor set
@@ -72,7 +71,7 @@ Boots     leather boots + 2 breeze rods               (shapeless)
 | Piece | Ability |
 |---|---|
 | Headband | Dash with the Dodge key: along the ground, or once per airtime in the air. Replaces the dodge while worn |
-| Robes | Glide on the glide key; each fresh Dodge press while gliding is a boost, at the cost of durability |
+| Robes | Glide: press Jump in free air once the double jump is spent (first air jump without the pants); Sneak folds it. Each fresh Dodge press while gliding is a boost, at the cost of durability |
 | Pants | 15% faster movement; double jump once per airtime |
 | Boots | 10% stronger jumps (SmartMoving's own jumps included); falls top out at 30 blocks/s (vanilla reaches 78) and only hurt past six blocks; a fall that would kill you from nine hearts or more leaves half a heart; wall run with Grab; sneak-charged jumps build twice as fast |
 
@@ -97,7 +96,8 @@ Boots     leather boots + 2 breeze rods               (shapeless)
 - **The boots' fall save** works like a totem for falls only: with nine hearts or more when you land, a
   fall that would kill you leaves half a heart instead, and a held totem is not used up. Absorption hearts
   don't count toward the nine.
-- **The glide** needs three blocks of clear air below. It has responsive arcade handling (W/S pitch,
+- **The glide** needs three blocks of clear air below. The robes catch the air as they open, turning
+  your fall into a shallow glide (never steeper than 15 degrees nose-down) rather than a dive. It has responsive arcade handling (W/S pitch,
   A/D bank), stalls, wind, storms and lava updrafts, server-authoritative flight with client prediction,
   and a fan of phantom-membrane leaves on breeze-rod ribs. A settled glide covers about 4.8 blocks per
   block of altitude. Boosts add 8 blocks/s each, on a three-quarter-second cooldown. The robes have 240
