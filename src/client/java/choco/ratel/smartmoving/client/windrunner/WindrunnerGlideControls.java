@@ -40,12 +40,9 @@ public final class WindrunnerGlideControls {
         if (client.player == null || client.isPaused()) return;
         var flight = WindrunnerGlide.of(client.player);
         boolean available = client.gui.screen() == null;
-        // Nothing else consumes these clicks, so drain them every tick; a physical press counts even under
-        // toggle sneak. Reading clicks rather than key state leaves vanilla's own jump, creative double-tap
-        // and dismount handling untouched.
-        boolean jumped = false, sneaked = false, toggled = false;
-        while (client.options.keyJump.consumeClick()) jumped = true;
-        while (client.options.keyShift.consumeClick()) sneaked = true;
+        // Jump and Sneak presses are noted where the key is pressed rather than drained as clicks, which
+        // other mods may be draining too. Vanilla's own jump, creative double-tap and dismount are untouched.
+        boolean jumped = WindrunnerKeyPresses.takeJump(), sneaked = WindrunnerKeyPresses.takeSneak(), toggled = false;
         while (SmartMovingKeys.glide.consumeClick()) toggled = true;
         LocalPlayer player = client.player;
         if (available && jumped && !flight.active()) WindrunnerControls.jump(client, player);

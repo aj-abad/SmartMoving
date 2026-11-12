@@ -25,6 +25,7 @@
     "windrunner.MixinWindrunnerAvatarRenderer",
     "windrunner.MixinWindrunnerAvatarRenderState",
     "windrunner.MixinWindrunnerCamera",
+    "windrunner.MixinWindrunnerKeyMapping",
     "windrunner.MixinWindrunnerPlayerModel"
   ],
   "injectors": {
