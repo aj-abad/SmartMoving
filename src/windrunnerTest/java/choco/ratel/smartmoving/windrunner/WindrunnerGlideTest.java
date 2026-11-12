@@ -202,22 +202,25 @@ final class WindrunnerGlideTest {
                 "Deployment heading uses horizontal momentum with look direction as the stationary fallback");
 
         // The robes catch the air: hands-off, a fresh glide must not keep dropping its nose.
-        for (Vec3 entry : new Vec3[] {Vec3.ZERO, new Vec3(0, -0.3, 0.28), new Vec3(0, -0.55, 0.2), new Vec3(0, -1.2, 0.1)}) {
+        for (Vec3 entry : new Vec3[] {Vec3.ZERO, new Vec3(0, -0.3, 0.28), new Vec3(0, -0.55, 0.2), new Vec3(0, -1.2, 0.1),
+                new Vec3(0, -2, 0.1), new Vec3(0, -3.5, 0)}) {
             State s = State.deploy(entry, 0);
             Vec3 v = State.deployVelocity(entry, s);
             check(Math.abs(WindrunnerGlideModel.sample(v, s, Environment.CALM).attack() - WindrunnerGlideModel.TRIM) < 1.0E-6,
                     "A fresh glide opens at its trim angle of attack");
             float start = s.pitch, worst = s.pitch;
-            double lost = 0;
+            double lost = 0, sinkAtHalf = 0;
             int settled = -1;
             for (int i = 0; i < 100; i++) {
                 v = WindrunnerGlideModel.tick(v, s, Input.NONE, Environment.CALM);
                 worst = Math.max(worst, s.pitch);
                 if (i < 40) lost -= v.y;
+                if (i == 9) sinkAtHalf = -v.y * 20;
                 if (settled < 0 && Math.abs(s.pitch - WindrunnerGlideModel.TRIM) < 6 && v.y > -0.25) settled = i;
             }
-            System.out.printf("Deploy from %s: nose %.1f -> worst %.1f, %.1f blocks lost in 2 s, settled at %d ticks%n",
-                    entry, start, worst, lost, settled);
+            System.out.printf("Deploy from %s: nose %.1f -> worst %.1f, sinking %.1f b/s at 0.5 s, %.1f blocks lost in 2 s, settled at %d ticks%n",
+                    entry, start, worst, sinkAtHalf, lost, settled);
+            if (entry.y < -1) check(sinkAtHalf < 8, "The opening brake catches a fast fall within half a second");
             check(worst - start < 3, "A fresh glide does not nosedive after opening");
             check(lost < 15 && settled >= 0 && settled < 50, "A fresh glide settles within two and a half seconds");
         }
