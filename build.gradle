@@ -138,6 +138,10 @@ tasks.register('windrunnerPhysicsTest', JavaExec) {
     dependsOn tasks.named('windrunnerTestClasses')
     classpath = sourceSets.windrunnerTest.runtimeClasspath
     mainClass = 'choco.ratel.smartmoving.windrunner.WindrunnerGlideTest'
+    // Minecraft's logging writes a logs folder into the working directory; keep it under build.
+    def simulationDirectory = layout.buildDirectory.dir('windrunner-test')
+    workingDir simulationDirectory
+    doFirst { simulationDirectory.get().asFile.mkdirs() }
 }
 
 tasks.named('check') { dependsOn 'windrunnerPhysicsTest' }
