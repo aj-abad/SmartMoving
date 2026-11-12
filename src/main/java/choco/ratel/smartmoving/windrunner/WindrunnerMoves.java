@@ -20,7 +20,10 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class WindrunnerMoves {
     // 3 and 4 were the slow fall's start and stop; left unused so the other ids keep their values.
-    public static final int DOUBLE_JUMP = 0, AIR_DASH = 1, GROUND_DASH = 2, DASH_JUMP = 5;
+    public static final int DOUBLE_JUMP = 0, AIR_DASH = 1, GROUND_DASH = 2, DASH_JUMP = 5,
+            WALL_RUN_START = 6, WALL_RUN_STOP = 7, WALL_KICK = 8;
+    /** The longest a run can last (a run up stops sooner); past it the server stops trusting the flag. */
+    private static final int WALL_RUN_MAX_TICKS = 40;
     public static final double DOUBLE_JUMP_SPEED = 0.55, JUMP_STEER = 0.12;
     public static final double DASH_SPEED = 1.2, DASH_LIFT = 0.12, DASH_SIDE_KEEP = 0.3;
     /** A ground dash leaves as a low hop, about a third of a block, and slides on after landing. */
@@ -39,7 +42,8 @@ public final class WindrunnerMoves {
     private static final int DASH_TRAIL_TICKS = 6;
 
     private final Player player;
-    private boolean jumpSpent, dashSpent;
+    private boolean jumpSpent, dashSpent, wallRunning;
+    private int wallRunTicks;
     private int dashCooldown, groundDashTicks, dashTrailTicks;
     private double groundDashY;
 
@@ -135,6 +139,8 @@ public final class WindrunnerMoves {
     }
 
     public void spendJump() { jumpSpent = true; }
+    /** A wall kick hands the pants' double jump back. */
+    public void refreshJump() { jumpSpent = false; }
     public void spendDash() { dashSpent = true; dashCooldown = DASH_COOLDOWN; }
     /** A ground dash leaves the air dash in hand: it spends only the shared cooldown. */
     public void groundDash() {
@@ -154,6 +160,13 @@ public final class WindrunnerMoves {
         }
         if (!(player instanceof ServerPlayer server)) return;
         if (dashTrailTicks > 0) trail(server, --dashTrailTicks);
+        if (wallRunning) {
+            // A run up may start from the ground, so its first few ticks still read as grounded.
+            if (++wallRunTicks > WALL_RUN_MAX_TICKS || !WindrunnerArmor.boots(player) || grounded() && wallRunTicks > 3) {
+                wallRunning = false;
+            }
+            else player.resetFallDistance();
+        }
     }
 
     public void handle(int action) {
@@ -182,6 +195,22 @@ public final class WindrunnerMoves {
                 player.resetFallDistance();
                 puff(server, ParticleTypes.SMALL_GUST, player.position(), 2, 0.25);
                 sound(server, 1.15F);
+            }
+            case WALL_RUN_START -> {
+                if (!WindrunnerArmor.boots(player) || !able()) return;
+                wallRunning = true;
+                wallRunTicks = 0;
+                player.resetFallDistance();
+                puff(server, ParticleTypes.SMALL_GUST, player.position(), 2, 0.2);
+            }
+            case WALL_RUN_STOP -> wallRunning = false;
+            case WALL_KICK -> {
+                if (!wallRunning) return;
+                wallRunning = false;
+                refreshJump();
+                player.resetFallDistance();
+                puff(server, ParticleTypes.SMALL_GUST, player.position(), 3, 0.3);
+                sound(server, 1.25F);
             }
             default -> {}
         }
