@@ -39,6 +39,10 @@ public final class Windrunner {
         PayloadTypeRegistry.serverboundPlay().register(WindrunnerGlideActionPayload.TYPE, WindrunnerGlideActionPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(WindrunnerGlideStatePayload.TYPE, WindrunnerGlideStatePayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(WindrunnerActionPayload.TYPE, WindrunnerActionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(WindrunnerWallRunPayload.TYPE, WindrunnerWallRunPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(WindrunnerWallRunPayload.TYPE, WindrunnerWallRunPayload.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(WindrunnerWallRunPayload.TYPE, (payload, context) ->
+                context.server().execute(() -> WindrunnerMoves.of(context.player()).wallRun(payload.mode(), payload.side())));
         ServerPlayNetworking.registerGlobalReceiver(WindrunnerGlideInputPayload.TYPE, (payload, context) ->
                 context.server().execute(() -> WindrunnerGlide.of(context.player()).acceptInput(payload)));
         ServerPlayNetworking.registerGlobalReceiver(WindrunnerGlideActionPayload.TYPE, (payload, context) ->
@@ -51,6 +55,9 @@ public final class Windrunner {
         EntityTrackingEvents.START_TRACKING.register((entity, observer) -> {
             if (entity instanceof Player player && WindrunnerGlide.of(player).active()) {
                 ServerPlayNetworking.send(observer, WindrunnerGlide.of(player).snapshot());
+            }
+            if (entity instanceof Player player && WindrunnerMoves.of(player).showsWallRun()) {
+                ServerPlayNetworking.send(observer, WindrunnerMoves.of(player).wallRunSnapshot());
             }
         });
     }

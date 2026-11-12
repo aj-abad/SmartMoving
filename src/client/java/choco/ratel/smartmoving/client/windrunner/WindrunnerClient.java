@@ -11,6 +11,7 @@ public final class WindrunnerClient {
 
     public static void init() {
         WindrunnerGlideControls.init();
+        WindrunnerWallRun.init();
         ClientTickEvents.START_CLIENT_TICK.register(WindrunnerGlideControls::beforeTick);
         ClientTickEvents.END_CLIENT_TICK.register(WindrunnerGlideControls::afterTick);
         ClientTickEvents.END_CLIENT_TICK.register(WindrunnerGlideSound::update);

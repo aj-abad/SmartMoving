@@ -8,10 +8,12 @@ import choco.ratel.smartmoving.windrunner.WindrunnerArmor;
 import choco.ratel.smartmoving.windrunner.WindrunnerGlide;
 import choco.ratel.smartmoving.windrunner.WindrunnerMoves;
 import choco.ratel.smartmoving.windrunner.WindrunnerWallRunModel;
+import choco.ratel.smartmoving.windrunner.WindrunnerWallRunPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -32,6 +34,7 @@ public final class WindrunnerWallRun {
     private WindrunnerWallRun() {}
 
     public static boolean running() { return mode != WindrunnerWallRunModel.NONE; }
+    public static int mode() { return mode; }
 
     /** Vanilla ends a sprint on a head-on wall hit; with the boots and Grab held it carries into the wall. */
     public static boolean keepsSprintIntoWall(LocalPlayer player) {
@@ -82,7 +85,7 @@ public final class WindrunnerWallRun {
         wall = lastWall = found;
         ticks = 0;
         tangent = WindrunnerWallRunModel.tangent(heading, into(best));
-        send(WindrunnerMoves.WALL_RUN_START);
+        show(player, kind, best.get2DDataValue());
         tick(client, player, available);
     }
 
@@ -91,6 +94,7 @@ public final class WindrunnerWallRun {
         if (!running()) return false;
         Vec3 into = into(wall.side());
         mode = WindrunnerWallRunModel.NONE;
+        WindrunnerMoves.of(player).showWallRun(WindrunnerWallRunModel.NONE, 0);
         WindrunnerMoves.of(player).refreshJump();
         player.setDeltaMovement(WindrunnerWallRunModel.kick(player.getDeltaMovement(), into, WindrunnerArmor.jumpScale(player)));
         player.resetFallDistance();
@@ -101,7 +105,25 @@ public final class WindrunnerWallRun {
     static void stop() {
         if (!running()) return;
         mode = WindrunnerWallRunModel.NONE;
-        send(WindrunnerMoves.WALL_RUN_STOP);
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player != null) show(player, WindrunnerWallRunModel.NONE, 0);
+    }
+
+    /** Watchers learn of other players' runs from the server. */
+    static void init() {
+        ClientPlayNetworking.registerGlobalReceiver(WindrunnerWallRunPayload.TYPE, (packet, context) ->
+                context.client().execute(() -> {
+                    if (context.client().level != null && context.client().level.getEntity(packet.playerId()) instanceof Player other
+                            && other != context.client().player) {
+                        WindrunnerMoves.of(other).showWallRun(packet.mode(), packet.side());
+                    }
+                }));
+    }
+
+    /** The local model's pose and the server's relay to watchers. */
+    private static void show(LocalPlayer player, int kind, int side) {
+        WindrunnerMoves.of(player).showWallRun(kind, side);
+        ClientPlayNetworking.send(new WindrunnerWallRunPayload(player.getId(), kind, side));
     }
 
     private static boolean held(Minecraft client, LocalPlayer player) {

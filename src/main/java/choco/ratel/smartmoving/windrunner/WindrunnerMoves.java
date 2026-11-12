@@ -1,5 +1,7 @@
 package choco.ratel.smartmoving.windrunner;
 
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -20,8 +22,10 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class WindrunnerMoves {
     // 3 and 4 were the slow fall's start and stop; left unused so the other ids keep their values.
-    public static final int DOUBLE_JUMP = 0, AIR_DASH = 1, GROUND_DASH = 2, DASH_JUMP = 5,
-            WALL_RUN_START = 6, WALL_RUN_STOP = 7, WALL_KICK = 8;
+    // 6 and 7 started and stopped wall runs before WindrunnerWallRunPayload carried them.
+    public static final int DOUBLE_JUMP = 0, AIR_DASH = 1, GROUND_DASH = 2, DASH_JUMP = 5, WALL_KICK = 8;
+    /** Ticks the wall run pose takes to blend in or out. */
+    public static final float WALL_RUN_BLEND_TICKS = 3;
     /** The longest a run can last (a run up stops sooner); past it the server stops trusting the flag. */
     private static final int WALL_RUN_MAX_TICKS = 40;
     public static final double DOUBLE_JUMP_SPEED = 0.55, JUMP_STEER = 0.12;
@@ -44,6 +48,9 @@ public final class WindrunnerMoves {
     private final Player player;
     private boolean jumpSpent, dashSpent, wallRunning;
     private int wallRunTicks;
+    /** The run shown on the model, for the local player and watchers alike; the last one keeps posing the blend out. */
+    private int shownMode = WindrunnerWallRunModel.NONE, shownSide, posedMode = WindrunnerWallRunModel.NONE, posedSide;
+    private int shownChangeTick = Integer.MIN_VALUE / 2;
     private int dashCooldown, groundDashTicks, dashTrailTicks;
     private double groundDashY;
 
@@ -150,6 +157,26 @@ public final class WindrunnerMoves {
     }
     public void spendDashJump() { groundDashTicks = 0; }
 
+    public void showWallRun(int mode, int side) {
+        if (mode == shownMode && (mode == WindrunnerWallRunModel.NONE || side == shownSide)) return;
+        if (mode != WindrunnerWallRunModel.NONE) { posedMode = mode; posedSide = side; }
+        shownMode = mode;
+        shownSide = side;
+        shownChangeTick = player.tickCount;
+    }
+
+    public int wallRunPoseMode() { return posedMode; }
+    public int wallRunPoseSide() { return posedSide; }
+
+    /** 0 to 1: how far the model is into the wall run pose. */
+    public float wallRunWeight(float partial) {
+        if (posedMode == WindrunnerWallRunModel.NONE) return 0;
+        float since = Math.max(0, player.tickCount - shownChangeTick + partial) / WALL_RUN_BLEND_TICKS;
+        float t = Math.min(1, since);
+        float eased = t * t * (3 - 2 * t);
+        return shownMode != WindrunnerWallRunModel.NONE ? eased : 1 - eased;
+    }
+
     /** Runs at the head of every player tick on both sides. */
     public void tick() {
         if (grounded()) jumpSpent = dashSpent = false;
@@ -163,7 +190,7 @@ public final class WindrunnerMoves {
         if (wallRunning) {
             // A run up may start from the ground, so its first few ticks still read as grounded.
             if (++wallRunTicks > WALL_RUN_MAX_TICKS || !WindrunnerArmor.boots(player) || grounded() && wallRunTicks > 3) {
-                wallRunning = false;
+                endWallRun(server);
             }
             else player.resetFallDistance();
         }
@@ -196,17 +223,9 @@ public final class WindrunnerMoves {
                 puff(server, ParticleTypes.SMALL_GUST, player.position(), 2, 0.25);
                 sound(server, 1.15F);
             }
-            case WALL_RUN_START -> {
-                if (!WindrunnerArmor.boots(player) || !able()) return;
-                wallRunning = true;
-                wallRunTicks = 0;
-                player.resetFallDistance();
-                puff(server, ParticleTypes.SMALL_GUST, player.position(), 2, 0.2);
-            }
-            case WALL_RUN_STOP -> wallRunning = false;
             case WALL_KICK -> {
                 if (!wallRunning) return;
-                wallRunning = false;
+                endWallRun(server);
                 refreshJump();
                 player.resetFallDistance();
                 puff(server, ParticleTypes.SMALL_GUST, player.position(), 3, 0.3);
@@ -214,6 +233,38 @@ public final class WindrunnerMoves {
             }
             default -> {}
         }
+    }
+
+    /** The runner's own start or stop; watchers get it relayed, and see it on the model. */
+    public void wallRun(int mode, int side) {
+        if (!(player instanceof ServerPlayer server)) return;
+        if (mode == WindrunnerWallRunModel.NONE) {
+            if (wallRunning) endWallRun(server);
+            return;
+        }
+        if (!WindrunnerArmor.boots(player) || !able() || side < 0 || side > 3) return;
+        wallRunning = true;
+        wallRunTicks = 0;
+        player.resetFallDistance();
+        showWallRun(mode, side);
+        relayWallRun(server);
+        puff(server, ParticleTypes.SMALL_GUST, player.position(), 2, 0.2);
+    }
+
+    private void endWallRun(ServerPlayer server) {
+        wallRunning = false;
+        showWallRun(WindrunnerWallRunModel.NONE, 0);
+        relayWallRun(server);
+    }
+
+    public WindrunnerWallRunPayload wallRunSnapshot() {
+        return new WindrunnerWallRunPayload(player.getId(), shownMode, shownSide);
+    }
+
+    public boolean showsWallRun() { return shownMode != WindrunnerWallRunModel.NONE; }
+
+    private void relayWallRun(ServerPlayer server) {
+        for (ServerPlayer watcher : PlayerLookup.tracking(server)) ServerPlayNetworking.send(watcher, wallRunSnapshot());
     }
 
     private void dashEffects(ServerPlayer server) {
