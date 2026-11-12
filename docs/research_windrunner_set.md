@@ -13,7 +13,7 @@ returns to its firework-powered wingsuit (commit `6005762`).
 | Windrunner Headband | Dash key: a ground dash (low hop, 24 blocks/s) or, once per airtime, an air dash |
 | Windrunner Robes | Glide (the wingsuit flight model); each fresh dash press while gliding is a boost; sneak slow fall |
 | Windrunner Pants | +15% movement speed |
-| Windrunner Boots | +10% jump strength, -10% fall damage, double jump |
+| Windrunner Boots | +10% jump strength, 30 blocks/s fall cap, +3 safe fall blocks, double jump |
 
 Rules carried over unchanged:
 
@@ -76,3 +76,18 @@ ever be worn.
 - The glide already blocks moves while it is open (`able()`), so Sneak still folds an open glide first;
   holding Sneak on after the fold brakes into the slow fall.
 - The boots keep the double jump, jump strength, fall damage reduction and the faster charged jump.
+
+## Follow-up: the boots cap falling speed
+
+Fall damage counts blocks fallen, not landing speed, so a speed cap alone saves no health. The boots
+trade the 10% fall damage cut for a 30 blocks/s fall cap and three more blocks of safe fall.
+
+- Vanilla and SmartMoving both apply 0.08 gravity and 0.98 drag, settling near 78 blocks/s. A
+  1.5 blocks/tick cap is reached after about 24 ticks and 22 blocks of falling.
+- SmartMoving has several gravity paths (land, climbing, rolling, sliding), so the cap clamps once at
+  `Player.travel` RETURN, after vanilla or SmartMoving finished integrating. Anything that cancels
+  `Player.travel` at HEAD (the robes' glide, Aircraft's wingsuit and parachute) never reaches it.
+- Skipped during elytra flight, riptide, creative flight and in fluids; client side only, since the
+  local player's movement is client-authoritative and the server accepts a slower fall.
+- `Attributes.SAFE_FALL_DISTANCE` +3 (ADD_VALUE) replaces `FALL_DAMAGE_MULTIPLIER` -0.1, taking every
+  landing's damage down by three hearts' worth of blocks.
