@@ -8,6 +8,10 @@ public final class WindrunnerGlidePhysics {
     public static final double GRAVITY = 0.045;
     /** Settled sink used to turn horizontal entry momentum into the initial glide attitude. */
     private static final double DEPLOY_REFERENCE_SINK = 0.15;
+    /** A fresh glide opens no steeper than this nose-down (or nose-up), whatever the entry. */
+    private static final float DEPLOY_PITCH_DOWN = 15, DEPLOY_PITCH_UP = -10;
+    /** Share of the entry speed the opening keeps, and the least it leaves for control authority. */
+    private static final double DEPLOY_KEEP = 0.85, DEPLOY_MIN_SPEED = 0.65;
 
     private WindrunnerGlidePhysics() {}
 
@@ -47,8 +51,19 @@ public final class WindrunnerGlidePhysics {
             s.yaw = horizontal > 0.05
                     ? (float) Math.toDegrees(Math.atan2(-velocity.x, velocity.z)) : lookYaw;
             s.pitch = Mth.clamp((float) Math.toDegrees(
-                    Math.atan2(DEPLOY_REFERENCE_SINK, horizontal)) - WindrunnerGlideModel.TRIM, -65, 75);
+                    Math.atan2(DEPLOY_REFERENCE_SINK, horizontal)) - WindrunnerGlideModel.TRIM, DEPLOY_PITCH_UP, DEPLOY_PITCH_DOWN);
             return s;
+        }
+
+        /**
+         * The robes catch the air: the entry is turned onto the flight path {@code TRIM} below the nose, so
+         * the glide opens at its trim angle of attack and passive stability has nothing to push the nose
+         * down with. Without this, a mostly downward entry meets the nose at a steep angle and the glide
+         * keeps diving for a second or more while it builds speed.
+         */
+        public static Vec3 deployVelocity(Vec3 entry, State s) {
+            double speed = Math.max(entry.length() * DEPLOY_KEEP, DEPLOY_MIN_SPEED);
+            return nose(s.pitch + WindrunnerGlideModel.TRIM, s.yaw).scale(speed);
         }
     }
 

@@ -194,12 +194,33 @@ final class WindrunnerGlideTest {
         State walking = State.deploy(new Vec3(0, 0.4, 0.25), 35);
         State falling = State.deploy(new Vec3(0, -2, 0.25), 35);
         State fast = State.deploy(new Vec3(0, -0.1, 0.8), 35);
-        check(stationary.pitch > walking.pitch && walking.pitch > fast.pitch,
-                "More horizontal deployment momentum starts a progressively shallower glide");
+        check(stationary.pitch >= walking.pitch && walking.pitch > fast.pitch && stationary.pitch <= 15,
+                "More horizontal momentum starts a shallower glide, and none opens steeper than 15 degrees");
         check(Math.abs(walking.pitch - falling.pitch) < 0.001,
                 "Vertical entry speed does not override the momentum-based initial pitch");
         check(stationary.yaw == 35 && fast.yaw == 0,
                 "Deployment heading uses horizontal momentum with look direction as the stationary fallback");
+
+        // The robes catch the air: hands-off, a fresh glide must not keep dropping its nose.
+        for (Vec3 entry : new Vec3[] {Vec3.ZERO, new Vec3(0, -0.3, 0.28), new Vec3(0, -0.55, 0.2), new Vec3(0, -1.2, 0.1)}) {
+            State s = State.deploy(entry, 0);
+            Vec3 v = State.deployVelocity(entry, s);
+            check(Math.abs(WindrunnerGlideModel.sample(v, s, Environment.CALM).attack() - WindrunnerGlideModel.TRIM) < 1.0E-6,
+                    "A fresh glide opens at its trim angle of attack");
+            float start = s.pitch, worst = s.pitch;
+            double lost = 0;
+            int settled = -1;
+            for (int i = 0; i < 100; i++) {
+                v = WindrunnerGlideModel.tick(v, s, Input.NONE, Environment.CALM);
+                worst = Math.max(worst, s.pitch);
+                if (i < 40) lost -= v.y;
+                if (settled < 0 && Math.abs(s.pitch - WindrunnerGlideModel.TRIM) < 6 && v.y > -0.25) settled = i;
+            }
+            System.out.printf("Deploy from %s: nose %.1f -> worst %.1f, %.1f blocks lost in 2 s, settled at %d ticks%n",
+                    entry, start, worst, lost, settled);
+            check(worst - start < 3, "A fresh glide does not nosedive after opening");
+            check(lost < 15 && settled >= 0 && settled < 50, "A fresh glide settles within two and a half seconds");
+        }
     }
 
     private static void updrafts() {

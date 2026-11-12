@@ -158,7 +158,7 @@ public final class WindrunnerGlide {
         lastInputTick = player.level().getGameTime();
         state = State.deploy(entry, player.getYRot());
         previous = state.copy();
-        player.setDeltaMovement(entry);
+        player.setDeltaMovement(State.deployVelocity(entry, state));
         visuals.reset(state, airspeed());
         player.stopFallFlying();
         player.setSprinting(false);
