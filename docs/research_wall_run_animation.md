@@ -15,9 +15,9 @@ players.
 ## Third-person pose
 
 - Hooks: `AvatarRenderer.extractRenderState` TAIL (capture into `WindrunnerRenderState`),
-  `PlayerModel.setupAnim` TAIL (limbs), `AvatarRenderer.setupRotations` TAIL (whole-body lean).
-  SmartMoving poses at `HumanoidModel.setupAnim` TAIL, which `PlayerModel.setupAnim` runs first, so
-  the wall run's limbs land on top. The run resets fall distance, so SmartMoving's falling pose
+  `HumanoidModel.setupAnim` TAIL at priority 1100 (limbs), `AvatarRenderer.setupRotations` TAIL (whole-body lean).
+  SmartMoving poses at the same `HumanoidModel.setupAnim` TAIL; the higher priority puts the wall
+  run's callback after it. The run resets fall distance, so SmartMoving's falling pose
   (`doFallingAnimation`) stays off.
 - Run up: the body faces the wall, leans slightly into it, and the head tips up. Legs take high
   alternating strides and the arms reach up in turn, opposite to the legs.
@@ -33,3 +33,14 @@ players.
   walked-distance hook adds the climb's vertical speed (x0.6, as vanilla scales its steps).
 - `AbstractClientPlayer.updateBob` sets the bob target to zero off the ground: during a run it takes
   `min(0.1, run speed)` instead, the same cap as on the ground.
+
+## Findings from the screenshots
+
+- A `PlayerModel` hook posed only the skin: armor (all four Windrunner pieces) is drawn by separate
+  humanoid armor models that pose themselves from the same render state, so the armor stayed in the
+  vanilla pose over it. Posing at `HumanoidModel.setupAnim` covers the skin and every armor model.
+- Running up, the body's center is 0.3 blocks from the wall, so a planted foot and raised hands sank
+  into the stone. The model is drawn 0.3 blocks off the wall (render state only), leans back 12
+  degrees, and the arms reach nearly straight up.
+- Bob measured in a run up and a run along: 0.10, the same cap as sprinting on the ground; the run up
+  walks 0.14 per tick of view-bob distance.
