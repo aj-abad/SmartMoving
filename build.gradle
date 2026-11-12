@@ -118,3 +118,44 @@ publishing {
         // retrieving dependencies.
     }
 }
+
+// Windrunner set: plain-Java glide and movement simulations (run by check) and client game tests in a
+// disposable world, both outside the shipped jar.
+sourceSets {
+    windrunnerTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+    windrunnerClientTest {
+        compileClasspath += sourceSets.main.output + sourceSets.client.output + sourceSets.client.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.client.output + sourceSets.client.runtimeClasspath
+    }
+}
+
+tasks.register('windrunnerPhysicsTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Windrunner glide, boost and movement simulations.'
+    dependsOn tasks.named('windrunnerTestClasses')
+    classpath = sourceSets.windrunnerTest.runtimeClasspath
+    mainClass = 'choco.ratel.smartmoving.windrunner.WindrunnerGlideTest'
+}
+
+tasks.named('check') { dependsOn 'windrunnerPhysicsTest' }
+
+loom {
+    mods {
+        "smartmoving_windrunner_tests" {
+            sourceSet sourceSets.windrunnerClientTest
+        }
+    }
+    runs {
+        windrunnerClientTest {
+            client()
+            name("Windrunner client tests")
+            source(sourceSets.windrunnerClientTest)
+            runDir("build/windrunner-client-test")
+            vmArg("-Dfabric.client.gametest")
+            vmArg("-Dfabric.client.gametest.modid=smartmoving_windrunner_tests")
+        }
+    }
+}
