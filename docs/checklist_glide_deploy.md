@@ -10,7 +10,7 @@
 ## Follow-up: opening brake
 
 - [x] Research (stall simulated and rejected; brake design)
-- [ ] `State.brakeTicks`, set on deploy, in copy and the state payload
-- [ ] Brake step in `WindrunnerGlideModel.tick`
-- [ ] Tune in simulation; checks for fast-fall deploys
-- [ ] Verify in game, README, deploy
+- [x] `State.brakeTicks`, set on deploy, in copy and the state payload
+- [x] Brake step in `WindrunnerGlideModel.tick`
+- [x] Tune in simulation; checks for fast-fall deploys
+- [x] Verify in game, README, deploy

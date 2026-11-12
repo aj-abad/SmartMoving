@@ -75,3 +75,18 @@ glide builds speed on its own.
 - `State.brakeTicks` counts the brake down inside `WindrunnerGlideModel.tick`, the step both the server
   and client prediction run, and goes in the state payload so a correction replays it the same way.
 - Entries already at the opening speed (a jump, a short drop) are not braked.
+
+### Brake results
+
+`BRAKE_TICKS` 10, `BRAKE_KEEP` 0.75, armed only when the caught speed would exceed the opening speed:
+
+| Entry | Sinking at 0.5 s | Lost in 2 s | Settled |
+|---|---|---|---|
+| Standstill to 2-block drop | 6.4 b/s (unbraked) | 11.7 | 1.75 s |
+| Falling 24 b/s | 5.7 b/s | 11.5 | 1.85 s |
+| Falling 40 b/s | 5.1 b/s | 10.4 | 1.25 s |
+| Falling 70 b/s | 4.9 b/s | 10.2 | 0.45 s |
+
+The brake costs fast entries some height against the bare catch (which turned the whole fall into a
+fast forward glide) in exchange for a clear stop. In game, a 41.5 b/s fall opened to 16.5 b/s and a
+7.7 b/s sink half a second later at y 291 (thin air), client and server speeds within 0.3 b/s.
