@@ -23,6 +23,7 @@ Fabric 26.3 port of the classic [SmartMoving](https://www.curseforge.com/minecra
 - **Chain Climbing** *(prototype)* — Vertical iron / copper chains climb exactly like ladders, with a hand-over-hand pose; horizontal chains overhead work as ceiling handholds
 - **Landing Roll** *(prototype)* — Press Dodge while falling to roll on landing: momentum is kept and fall damage is reduced
 - **Sprint Vault** *(prototype)* — Hold Grab and sprint into a 1-block ledge, fence or wall to plant a hand and carry over it with forward and upward momentum
+- **Windrunner armor set** — A wind monk's traversal set in the Breeze's colours: a headband that dashes, robes that glide, pants that run faster and boots that jump higher, double-jump and slow-fall (see below)
 - **Multiplayer Sync** — Full self ↔ server ↔ remote state synchronization
 
 ## Requirements
@@ -49,10 +50,54 @@ All bindings appear under **Options → Controls → Key Binds → Smart Moving*
 |--------|-------------|-------|
 | Grab | `R` | Hold while climbing or grabbing an edge |
 | Prone | `C` | Hold to crawl, or press when crawl toggle is enabled |
-| Dodge | Unbound | Press with a movement key to dodge in that direction; after landing there is a short cooldown before the next dodge. Press while falling (3+ blocks) to roll on landing in that direction; a shorter fall turns the press into a dodge on landing |
+| Dodge / Windrunner Dash | Unbound | With the Windrunner Headband, a ground or air dash instead of the dodge (see below). Otherwise, press with a movement key to dodge in that direction; after landing there is a short cooldown before the next dodge. Press while falling (3+ blocks) to roll on landing in that direction; a shorter fall turns the press into a dodge on landing |
 | Chain climb | — | Same as a ladder: face a vertical chain and move forward to climb, back to descend, Sneak to hold, step sideways to let go |
 | Sprint vault | `R` + sprint | Hold Grab while sprinting straight at a 1-block ledge, fence or wall with clear space above and beyond it |
+| Windrunner Glide | Mouse 4 | With the Windrunner Robes, open the glide in free air; press again or Sneak to fold it |
 | Toggle Smart Moving | `F9` | Enable or disable Smart Moving; the new state shows above the hotbar |
+
+## Windrunner armor set
+
+Upgraded leather armor (leather's protection, armor enchantments, repaired with breeze rods; the robes
+also take leather). Finding a breeze rod unlocks the recipes; in creative the set follows the leather
+armor in the Combat tab.
+
+```text
+Headband  leather helmet + breeze rod                 (shapeless)
+Robes     P B P      P = phantom membrane   B = breeze rod
+          P C P      C = leather chestplate
+Pants     leather leggings + 2 breeze rods            (shapeless)
+Boots     leather boots + 2 breeze rods               (shapeless)
+```
+
+| Piece | Ability |
+|---|---|
+| Headband | Dash with the Dodge key: along the ground, or once per airtime in the air. Replaces the dodge while worn |
+| Robes | Glide on the glide key; each fresh Dodge press while gliding is a boost, at the cost of durability |
+| Pants | 15% faster movement |
+| Boots | 10% stronger jumps (SmartMoving's own jumps included) and 10% less fall damage; double jump once per airtime; hold Sneak in free air to slow your fall; sneak-charged jumps build twice as fast |
+
+- **Dashes** burst 24 blocks/s along your movement keys, or along your view without input. A ground dash
+  launches as a low hop that slides on after landing, every half second. The hop still counts as the
+  ground: no air dash, and a jump out of it is a ground jump that keeps the dash's momentum and your
+  double jump. A ground dash that leaves its starting height by more than about half a block, off a cliff
+  say, becomes an ordinary fall. Each dash darts the view wider (scaled by FOV effects), leaves a following
+  gust and kicks up dust; a sliding ground dash slows the view and hand bob.
+- **The double jump** kicks about 2.4 blocks high with the boots and resets your fall. The headband's
+  dash and the double jump give way to SmartMoving while you climb, swim, fly, crawl, slide, roll or
+  vault, and the double jump yields to wall jumps next to a wall.
+- **Slow fall** eases a fall off gradually (a 60 blocks/s plunge takes about two seconds to settle near
+  2.5 blocks/s) and lands without fall damage once settled.
+- **The glide** needs three blocks of clear air below. It has responsive arcade handling (W/S pitch,
+  A/D bank), stalls, wind, storms and lava updrafts, server-authoritative flight with client prediction,
+  and a fan of phantom-membrane leaves on breeze-rod ribs. A settled glide covers about 4.8 blocks per
+  block of altitude. Boosts add 8 blocks/s each, on a three-quarter-second cooldown. The robes have 240
+  durability: opening costs one point, loaded fabric wears every five seconds, and overspeed, deep stalls
+  and boosts add wear.
+
+Textures come from `scripts/GenerateWindrunnerTextures.java`, which adapts the mage-robe baseline in
+`art/windrunner/` to the Breeze palette. The optional Wind mod, when installed,
+supplies the glide's horizontal breeze.
 
 ## Build
 
@@ -67,6 +112,8 @@ The built jar will be located in `build/libs/`.
 ```bash
 ./gradlew runClient   # Run client
 ./gradlew runServer   # Run server
+./gradlew windrunnerPhysicsTest   # Windrunner glide and movement simulations (also run by build)
+./gradlew runWindrunnerClientTest # Windrunner client game tests in a disposable world
 ```
 
 ## Credits
