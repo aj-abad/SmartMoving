@@ -1,6 +1,7 @@
 package choco.ratel.smartmoving.client;
 
 import choco.ratel.smartmoving.client.input.SmartMovingKeys;
+import choco.ratel.smartmoving.client.windrunner.WindrunnerControls;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -361,7 +362,8 @@ public final class SmartMovingJumper {
             }
 
             // === D-16 (original L2131-L2134) — setVelocity + isJumping ===
-            player.setDeltaMovement(motionX, noVertical ? vel.y : motionY, motionZ);
+            // Windrunner Boots raise every SmartMoving jump by their jump strength, as vanilla's would be.
+            player.setDeltaMovement(motionX, noVertical ? vel.y : WindrunnerControls.jumpVelocity(player, motionY), motionZ);
             // sp.isAirBorne = true — automatic vanilla (velocityDirty + fallDistance)
             sm.isJumping = true;
             // onLivingJump() — automatic vanilla PlayerEntity jump event handling
@@ -464,7 +466,7 @@ public final class SmartMovingJumper {
             if (actualJumpCharging) {
                 if (jumpKeyPressed
                         && (cfg.jumpChargeCancelOnSneakRelease || sm.wouldIsSneaking)) {
-                    float chargeStep = movingSneakCharge ? 0.5F : 1F;
+                    float chargeStep = (movingSneakCharge ? 0.5F : 1F) * WindrunnerControls.chargeRate(player);
                     sm.jumpCharge = Math.min(sm.jumpCharge + chargeStep, cfg.jumpChargeMaximum);
                 } else {
                     if (sm.jumpCharge > 0) {
@@ -586,6 +588,9 @@ public final class SmartMovingJumper {
      */
     static boolean tryKeyboundDodge(LocalPlayer player, SmartMovingClientState sm,
                                     SmartMovingConfig cfg, int forward, int right) {
+        // With the Windrunner Headband on, its own ground dash fires from this press instead; refusing
+        // here also covers the dodge a landing roll replays.
+        if (WindrunnerControls.overridesDodge(player)) return false;
         if (forward == 0 && right == 0) return false;
         if (sm.dodgeCooldown > 0) return false;
         if (player.isSleeping() || !player.onGround()

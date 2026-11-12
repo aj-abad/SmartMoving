@@ -1,0 +1,14 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "smartmoving:windrunner"
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "smartmoving:windrunner"
+      }
+    ]
+  }
+}

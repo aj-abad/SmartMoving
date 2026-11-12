@@ -13,5 +13,15 @@
     "category": "player",
     "subtitle": "subtitles.smartmoving.ceiling_climb",
     "sounds": []
+  },
+  "windrunner_unfurl": {
+    "category": "player",
+    "subtitle": "subtitles.smartmoving.windrunner_unfurl",
+    "sounds": [{ "name": "smartmoving:windrunner_unfurl", "stream": false }]
+  },
+  "windrunner_wind": {
+    "category": "player",
+    "subtitle": "subtitles.smartmoving.windrunner_wind",
+    "sounds": [{ "name": "smartmoving:windrunner_wind", "stream": false }]
   }
 }

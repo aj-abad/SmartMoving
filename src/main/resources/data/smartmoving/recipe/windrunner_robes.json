@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "PBP",
+    "PCP"
+  ],
+  "key": {
+    "P": "minecraft:phantom_membrane",
+    "B": "minecraft:breeze_rod",
+    "C": "minecraft:leather_chestplate"
+  },
+  "result": {
+    "id": "smartmoving:windrunner_robes"
+  }
+}

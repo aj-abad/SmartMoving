@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "breeze_rod": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:breeze_rod"
+          }
+        ]
+      }
+    },
+    "recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipes": "smartmoving:windrunner_boots"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "breeze_rod",
+      "recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "smartmoving:windrunner_boots"
+    ]
+  }
+}

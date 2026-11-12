@@ -11,7 +11,9 @@
     "MixinPlayerEntity",
     "server.MixinServerPlayNetworkHandler",
     "server.MixinServerPlayerEntity",
-    "server.MixinServerPlayerInteractionManager"
+    "server.MixinServerPlayerInteractionManager",
+    "windrunner.MixinWindrunnerPlayer",
+    "windrunner.MixinWindrunnerServerPlayNetworkHandler"
   ],
   "injectors": {
     "defaultRequire": 1

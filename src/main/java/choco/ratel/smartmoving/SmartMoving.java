@@ -3,6 +3,7 @@ package choco.ratel.smartmoving;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import choco.ratel.smartmoving.network.SmartMovingNetwork;
 import choco.ratel.smartmoving.server.SmartMovingServer;
+import choco.ratel.smartmoving.windrunner.Windrunner;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
@@ -24,6 +25,7 @@ public class SmartMoving implements ModInitializer {
         SmartMovingConfig.load();
         SmartMovingSounds.register();
         SmartMovingNetwork.register();
+        Windrunner.init();
         registerServerReceivers();
         registerConnectionEvents();
     }

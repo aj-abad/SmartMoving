@@ -10,6 +10,8 @@ public final class SmartMovingSounds {
     public static final SoundEvent CLIMB         = register("climb");
     public static final SoundEvent SLIDE         = register("slide");
     public static final SoundEvent CEILING_CLIMB = register("ceiling_climb");
+    public static final SoundEvent WINDRUNNER_UNFURL = register("windrunner_unfurl");
+    public static final SoundEvent WINDRUNNER_WIND = register("windrunner_wind");
 
     public static void register() {}
 

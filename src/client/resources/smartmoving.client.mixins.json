@@ -20,7 +20,12 @@
     "MixinPlayerEntityClient",
     "MixinCapeFeatureRenderer",
     "MixinPlayerEntityModelClient",
-    "MixinPlayerEntityRenderer"
+    "MixinPlayerEntityRenderer",
+    "windrunner.MixinWindrunnerAbstractClientPlayer",
+    "windrunner.MixinWindrunnerAvatarRenderer",
+    "windrunner.MixinWindrunnerAvatarRenderState",
+    "windrunner.MixinWindrunnerCamera",
+    "windrunner.MixinWindrunnerPlayerModel"
   ],
   "injectors": {
     "defaultRequire": 1

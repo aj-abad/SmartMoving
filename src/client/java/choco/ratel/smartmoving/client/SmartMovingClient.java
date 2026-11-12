@@ -1,5 +1,7 @@
 package choco.ratel.smartmoving.client;
 
+import choco.ratel.smartmoving.client.windrunner.WindrunnerClient;
+
 import choco.ratel.smartmoving.client.input.SmartMovingKeys;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import choco.ratel.smartmoving.network.SmartMovingNetwork;
@@ -46,6 +48,7 @@ public class SmartMovingClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         SmartMovingKeys.register();
+        WindrunnerClient.init();
         SmartMovingHud.register();
         registerClientReceivers();
         registerConnectionEvents();
