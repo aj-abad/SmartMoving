@@ -2,6 +2,7 @@ package choco.ratel.smartmoving.client;
 
 import choco.ratel.smartmoving.client.input.SmartMovingKeys;
 import choco.ratel.smartmoving.client.windrunner.WindrunnerControls;
+import choco.ratel.smartmoving.client.windrunner.WindrunnerWallRun;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -724,6 +725,8 @@ public final class SmartMovingJumper {
         //   getHorizontalCollisionangle NaN → original immediately return. Mapping: NaN → fallback
         //   movementAngle → handleWallJumping proceeds → in-air wall jump triggers.
         if (!sm.wantWallJumping) return;
+        // A Windrunner wall run turns the same Jump press into its own kick off the wall.
+        if (WindrunnerWallRun.running()) return;
         float horizontalCollisionAngle = calculateSeparateCollisionAngle(player);
         if (Float.isNaN(horizontalCollisionAngle)) return;
 

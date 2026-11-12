@@ -3,6 +3,7 @@ package choco.ratel.smartmoving.client;
 import choco.ratel.smartmoving.climbing.FeetClimbing;
 import choco.ratel.smartmoving.climbing.HandsClimbing;
 import choco.ratel.smartmoving.client.input.SmartMovingKeys;
+import choco.ratel.smartmoving.client.windrunner.WindrunnerWallRun;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
 import choco.ratel.smartmoving.network.SmartMovingNetwork;
 import choco.ratel.smartmoving.network.SmartMovingState;
@@ -1933,7 +1934,9 @@ public final class SmartMovingClientState {
                         && (!isSliding || (grabPressed0 && player.input.getMoveVector().y > 0F))
                         && !isHeadJumping
                         && !wantCrawlNotClimb
-                        && !_disabled3a;
+                        && !_disabled3a
+                        // A Windrunner wall run up crests the top itself; a run that falls short hands back here.
+                        && !WindrunnerWallRun.running();
                 // B-17b2-pre (Session 72): Promote `wantClimb16` local → public field.
                 wantClimb = cfg0.freeClimb && cfg0.enabled && wouldWantClimb;
 

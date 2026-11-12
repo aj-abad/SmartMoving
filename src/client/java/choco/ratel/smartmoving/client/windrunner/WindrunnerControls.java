@@ -13,7 +13,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Double jump, ground and air dashes. The dash fires from SmartMoving's Dodge
+ * Double jump, ground and air dashes, and the boots' wall run. The dash fires from SmartMoving's Dodge
  * binding, and with the headband on its ground dash replaces the dodge.
  */
 public final class WindrunnerControls {
@@ -40,6 +40,7 @@ public final class WindrunnerControls {
      */
     static boolean jump(Minecraft client, LocalPlayer player) {
         WindrunnerMoves moves = WindrunnerMoves.of(player);
+        if (WindrunnerWallRun.kick(player)) return true;
         if (WindrunnerSmartMoving.claimsAirJump(player)) return false;
         if (moves.canDashJump()) {
             moves.spendDashJump();
@@ -68,11 +69,13 @@ public final class WindrunnerControls {
         dartOld = dart;
         if (dartTick < DART_TICKS) dartTick++;
         dart = dartStrength(dartTick);
+        WindrunnerWallRun.tick(client, player, available);
         if (available && pressed) {
             Vec3 direction = WindrunnerMoves.dashDirection(player.getYRot(), forward(client), left(client));
             if (moves.canAirDash()) {
                 moves.spendDash();
                 player.setDeltaMovement(WindrunnerMoves.airDash(player.getDeltaMovement(), direction));
+                WindrunnerWallRun.stop();
                 send(WindrunnerMoves.AIR_DASH);
                 dartTick = 0;
             } else if (moves.canGroundDash() && !WindrunnerSmartMoving.claimsGroundDash(player)) {
