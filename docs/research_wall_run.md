@@ -13,7 +13,11 @@ or up it (head-on hit). Step one is keeping the sprint alive through the collisi
 - Override: inject at `shouldStopRunSprinting` RETURN and return false only when the collision is the
   sole reason (sprinting still possible, forward still held) and the boots plus Grab are held.
 - SmartMoving sets sprinting itself only on sprint-key edges (`SmartMovingClientState` ~L2084), not on
-  collisions, so it should not undo the override. To be confirmed in a client game test.
+  collisions, so it does not undo the override.
+- Confirmed in a temporary client game test (sprinting into a six-high stone wall, 30 ticks against
+  it): without the boots the sprint ends; with the boots and Grab it stays on, on the client and the
+  server; releasing Grab ends it within three ticks. SmartMoving neither climbs nor vaults on a flat
+  wall that tall, so nothing else claims the input.
 
 ## Grab + sprint is already used
 
