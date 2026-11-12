@@ -91,3 +91,14 @@ trade the 10% fall damage cut for a 30 blocks/s fall cap and three more blocks o
   local player's movement is client-authoritative and the server accepts a slower fall.
 - `Attributes.SAFE_FALL_DISTANCE` +3 (ADD_VALUE) replaces `FALL_DAMAGE_MULTIPLIER` -0.1, taking three
   points (a heart and a half) off every landing.
+
+## Follow-up: drop the in-game tests, keep the harness
+
+The client game tests (`src/windrunnerClientTest`) are removed; the plain-Java simulation
+(`windrunnerPhysicsTest`) stays and still runs with `check`.
+
+- Kept: the `windrunnerClientTest` source set, the `smartmoving_windrunner_tests` Loom mod, the
+  `runWindrunnerClientTest` run and the test mod's `fabric.mod.json`, with an empty
+  `fabric-client-gametest` entrypoint list.
+- To add a test, implement `FabricClientGameTest` under `src/windrunnerClientTest/java` and list the
+  class in that entrypoint list.

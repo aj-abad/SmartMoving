@@ -30,3 +30,10 @@
 - [x] Tests: physics cap check, client fall cap and attribute checks
 - [x] README (English and Korean)
 - [x] Build, run both test suites, deploy
+
+## Follow-up: drop the in-game tests
+
+- [x] Research note (`docs/research_windrunner_set.md`, "drop the in-game tests")
+- [ ] Delete the client test classes; empty the test mod's entrypoints
+- [ ] Confirm `runWindrunnerClientTest` still launches and exits cleanly
+- [ ] README: describe the harness instead of the tests
