@@ -32,9 +32,22 @@ Hands-off simulation from typical entries (`WindrunnerGlideModel.tick`, calm air
 
 ## Fix: the robes catch the air
 
-- The deploy pitch is capped at 30 degrees nose-down (and -10 up).
+- The deploy pitch is capped at 15 degrees nose-down (and -10 up).
 - The entry velocity is redirected along the flight path that sits `TRIM` below the nose, so the glide
   opens at its trim angle of attack with no nose-down push. Speed is kept at 85% of the entry's, with
-  a floor of 0.5 blocks/tick so even a standstill has control authority.
+  a floor of 0.65 blocks/tick so even a standstill has control authority.
 - The server sets this velocity when the robes open and sends it in the state snapshot, which the
   client already adopts, so prediction stays in step.
+
+## Results
+
+Tuned by simulation (cap 30/20/15 degrees, floor 0.5/0.6/0.65/0.7); 15 degrees and 0.65 opened gentlest:
+
+| Entry | Max pitch | Worst sink | Lost in 2 s | Settled |
+|---|---|---|---|---|
+| Standstill, sprint jump, 2-block ledge | 15.5 | 0.32 b/t | 11.7 | 1.75 s |
+| Falling fast | 15.0 | 0.39 b/t | 7.7 | 0.65 s |
+
+In game (temporary client test): with the pants, the first air jump double-jumped and the second
+opened the robes, holding 15.9 degrees and about 18 blocks/s forward half a second later; without
+the pants the first air jump opened them.
