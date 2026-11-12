@@ -285,6 +285,35 @@ final class WindrunnerGlideTest {
         check(jumpHeight(WindrunnerMoves.GROUND_DASH_HOP) < WindrunnerMoves.GROUND_DASH_ELEVATION,
                 "A ground dash's own hop never reads as leaving its starting height");
 
+        // Wall run: a dead band around 45 degrees between the along and up triggers.
+        check(WindrunnerWallRunModel.classify(80) == WindrunnerWallRunModel.UP
+                && WindrunnerWallRunModel.classify(30) == WindrunnerWallRunModel.ALONG, "Steep hits run up, glancing hits run along");
+        for (int angle = 41; angle < 70; angle++) {
+            check(WindrunnerWallRunModel.classify(angle) == WindrunnerWallRunModel.NONE, "No wall run at " + angle + " degrees");
+        }
+        check(WindrunnerWallRunModel.classify(-10) == WindrunnerWallRunModel.NONE, "Moving away from a wall never runs it");
+        Vec3 east = new Vec3(1, 0, 0);
+        Vec3 heading30 = new Vec3(Math.sin(Math.toRadians(30)), 0, Math.cos(Math.toRadians(30)));
+        check(Math.abs(WindrunnerWallRunModel.incidence(heading30, east) - 30) < 1.0E-6, "Incidence is measured against the wall's face");
+        double climbed = 0;
+        int upTicks = 0;
+        for (; WindrunnerWallRunModel.upSpeed(upTicks) > 0; upTicks++) climbed += WindrunnerWallRunModel.upSpeed(upTicks);
+        System.out.printf("Wall run up: %.1f blocks over %d ticks%n", climbed, upTicks);
+        check(climbed > 3.8 && climbed <= 4.3, "A run up tops out about four blocks up");
+        Vec3 tangent = WindrunnerWallRunModel.tangent(heading30, east);
+        check(tangent.distanceTo(new Vec3(0, 0, 1)) < 1.0E-9, "A glancing run follows the wall, not the heading");
+        Vec3 run = WindrunnerWallRunModel.along(new Vec3(0.1, 0.3, 0.5), tangent, east);
+        check(run.z == 0.5 && run.y == -WindrunnerWallRunModel.ALONG_SINK && run.x > 0,
+                "A run along keeps faster momentum, sinks from the start and presses into the wall");
+        check(WindrunnerWallRunModel.along(Vec3.ZERO, tangent, east).z == WindrunnerWallRunModel.ALONG_SPEED,
+                "A slow entry is brought up to running speed");
+        System.out.printf("Wall run along: sinks %.1f blocks over %.1f s%n",
+                WindrunnerWallRunModel.ALONG_SINK * WindrunnerWallRunModel.ALONG_TICKS, WindrunnerWallRunModel.ALONG_TICKS / 20.0);
+        Vec3 wallKick = WindrunnerWallRunModel.kick(new Vec3(0.08, -0.06, 0.4), east, 1.1);
+        check(wallKick.x == -WindrunnerWallRunModel.KICK_AWAY && wallKick.z == 0.4
+                        && Math.abs(wallKick.y - WindrunnerWallRunModel.KICK_LIFT * 1.1) < 1.0E-9,
+                "A kick pushes off the wall, keeps the run's momentum and scales with jump strength");
+
         // The boots clamp after gravity and drag, so the cap is the terminal sink.
         double drop = 0, capped = 0;
         int reach = 0;
