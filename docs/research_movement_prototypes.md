@@ -233,3 +233,5 @@ pose, so the controller is gone and chains now enter the ladder path at the dete
 - Sounds and particles.
 - Chain-top mantle onto an adjacent ledge (free climbing still works from a chain by holding
   grab).
+
+> Removed in `docs/research_fall_rework.md`: the Landing Roll is no longer part of SmartMoving.
