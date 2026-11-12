@@ -92,6 +92,8 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   nothing. Jump during a run to kick off the wall, which also gives back the pants' double jump. You
   can chain runs between walls, but not run the same wall twice before landing. Grab + sprint + Jump on
   the ground is still SmartMoving's head jump, so press Grab after takeoff for a run along a wall.
+  Runs have their own poses for every viewer (feet on the wall and hands reaching up, or leaning off
+  the wall at a sprint), and in first person the view and hands bob as you run.
 - **The boots' fall save** works like a totem for falls only: with nine hearts or more when you land, a
   fall that would kill you leaves half a heart instead, and a held totem is not used up. Absorption hearts
   don't count toward the nine.
