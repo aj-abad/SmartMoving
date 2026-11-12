@@ -265,6 +265,7 @@ final class WindrunnerGlideTest {
         System.out.printf("Boots jump: %.2f -> %.2f blocks, double jump %.2f blocks%n", vanilla, booted, jumpHeight(kick));
         check(Math.abs(booted - vanilla - 0.25) < 0.03, "The boots add about a quarter block to a standing jump");
         check(WindrunnerArmor.BOOTS_SAFE_FALL == 3, "The boots double vanilla's three-block safe fall");
+        check(WindrunnerArmor.BOOTS_SAVE_HEALTH == 18, "The boots save a lethal fall from nine hearts or more");
         Vec3 dashJump = WindrunnerMoves.dashJump(new Vec3(1.2, 0.15, 0), 0.462);
         check(dashJump.x == 1.2 && dashJump.y == 0.462, "A jump out of a ground dash keeps the dash's momentum");
 
@@ -283,28 +284,6 @@ final class WindrunnerGlideTest {
                 "A ground dash is the air dash's burst launched as a low hop");
         check(jumpHeight(WindrunnerMoves.GROUND_DASH_HOP) < WindrunnerMoves.GROUND_DASH_ELEVATION,
                 "A ground dash's own hop never reads as leaving its starting height");
-
-        // Vanilla moves by the velocity first, then applies gravity and drag for the next tick.
-        double v = -2.5, step = 0;
-        for (int i = 0; i < 40; i++) {
-            step = WindrunnerMoves.slowFall(new Vec3(0, v, 0)).y;
-            v = (step - 0.08) * 0.98;
-        }
-        System.out.printf("Slow fall: settled sink %.2f blocks/s%n", -step * 20);
-        check(-step < WindrunnerMoves.SLOW_FALL_MAX_SINK && -step > 0.1, "Sneak slow-fall settles into a gentle, still-falling sink");
-        check(WindrunnerMoves.slowFall(new Vec3(0, 0.3, 0)).y == 0.3, "Slow-fall never damps a rise");
-        // From a hard fall the brake eases the sink off instead of cutting it at once.
-        double fall = -3, sunk = 0;
-        int settling = 0;
-        while (fall < -0.25 && settling < 200) {
-            double move = WindrunnerMoves.slowFall(new Vec3(0, fall, 0)).y;
-            sunk -= move;
-            fall = (move - 0.08) * 0.98;
-            settling++;
-        }
-        System.out.printf("Slow fall from 60 blocks/s: %d ticks and %.1f blocks to settle%n", settling, sunk);
-        check(settling > 20 && settling < 45, "Slow-fall sheds a hard fall over one to two seconds");
-        check(WindrunnerMoves.slowFall(new Vec3(0, -3, 0)).y < -2.8, "One tick of slow-fall only shaves a hard fall");
 
         // The boots clamp after gravity and drag, so the cap is the terminal sink.
         double drop = 0, capped = 0;

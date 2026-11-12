@@ -14,13 +14,13 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Boots, headband and robe abilities outside the glide. Ordinary movement stays client-authoritative as in vanilla,
+ * Headband, pants and boots abilities outside the glide. Ordinary movement stays client-authoritative as in vanilla,
  * so the client applies each impulse; the server keeps the once-per-airtime charges, the fall-damage
  * bookkeeping, and the effects other players see.
  */
 public final class WindrunnerMoves {
-    public static final int DOUBLE_JUMP = 0, AIR_DASH = 1, GROUND_DASH = 2, SLOW_FALL_START = 3, SLOW_FALL_STOP = 4,
-            DASH_JUMP = 5;
+    // 3 and 4 were the slow fall's start and stop; left unused so the other ids keep their values.
+    public static final int DOUBLE_JUMP = 0, AIR_DASH = 1, GROUND_DASH = 2, DASH_JUMP = 5;
     public static final double DOUBLE_JUMP_SPEED = 0.55, JUMP_STEER = 0.12;
     public static final double DASH_SPEED = 1.2, DASH_LIFT = 0.12, DASH_SIDE_KEEP = 0.3;
     /** A ground dash leaves as a low hop, about a third of a block, and slides on after landing. */
@@ -32,19 +32,6 @@ public final class WindrunnerMoves {
      * longer on the ground: it ends, and the air dash and double jump apply as in any fall.
      */
     public static final double GROUND_DASH_ELEVATION = 0.6;
-    /**
-     * Applied before the move, this keeps 62% of the sink each tick. Vanilla moves by that velocity and
-     * then applies 0.08 gravity and 0.98 drag (SmartMoving uses the same pair), so the fall settles at
-     * about 2.5 blocks/s.
-     */
-    public static final double SLOW_FALL_KEEP = 0.62;
-    /**
-     * The most sink the slow fall sheds per tick before gravity, so a fast fall eases down over about
-     * a second and a half instead of stopping at once.
-     */
-    public static final double SLOW_FALL_BRAKE = 0.12;
-    /** Observed sink above this per tick is a real fall, and the server keeps counting it as one. */
-    public static final double SLOW_FALL_MAX_SINK = 0.35;
     /** The boots' fastest fall, 30 blocks/s against vanilla's 78; reached after about 19 blocks of falling. */
     public static final double FALL_CAP = 1.5;
     public static final int DASH_COOLDOWN = 10;
@@ -52,9 +39,9 @@ public final class WindrunnerMoves {
     private static final int DASH_TRAIL_TICKS = 6;
 
     private final Player player;
-    private boolean jumpSpent, dashSpent, slowFalling;
+    private boolean jumpSpent, dashSpent;
     private int dashCooldown, groundDashTicks, dashTrailTicks;
-    private double groundDashY, lastY = Double.NaN;
+    private double groundDashY;
 
     public WindrunnerMoves(Player player) { this.player = player; }
     public static WindrunnerMoves of(Player player) { return ((WindrunnerUser) player).windrunner$moves(); }
@@ -93,10 +80,6 @@ public final class WindrunnerMoves {
         return velocity.y < -FALL_CAP ? new Vec3(velocity.x, -FALL_CAP, velocity.z) : velocity;
     }
 
-    public static Vec3 slowFall(Vec3 velocity) {
-        if (velocity.y >= 0) return velocity;
-        return new Vec3(velocity.x, Math.min(velocity.y * SLOW_FALL_KEEP, velocity.y + SLOW_FALL_BRAKE), velocity.z);
-    }
 
     /** Horizontal unit vector for vanilla-style movement input facing {@code yaw}; zero without input. */
     public static Vec3 wish(float yaw, float forward, float left) {
@@ -126,7 +109,7 @@ public final class WindrunnerMoves {
     /** True from a ground dash's launch until it lands and slides out, unless it left its starting height. */
     public boolean groundDashing() { return groundDashTicks > 0; }
 
-    public boolean canDoubleJump() { return !jumpSpent && WindrunnerArmor.boots(player) && airborne(); }
+    public boolean canDoubleJump() { return !jumpSpent && WindrunnerArmor.pants(player) && airborne(); }
     /** A jump out of a ground dash's hop is the ground jump, so the double jump stays in hand. */
     public boolean canDashJump() { return groundDashing() && airborne(); }
     /** A ground dash's hop is still on the ground for dashing: no air dash until it lands or leaves its height. */
@@ -137,10 +120,6 @@ public final class WindrunnerMoves {
         return dashCooldown == 0 && WindrunnerArmor.headband(player) && player.onGround() && !player.isInWater()
                 && !player.isInLava() && !player.isPassenger() && !player.getAbilities().flying && able();
     }
-    /**
-     * The robes, not the boots: Aircraft's wingsuit also opens a parachute on Sneak, and sharing the chest
-     * slot means the two can never be worn together. Worn-out robes still slow-fall; only gliding needs wear.
-     */
     /** Elytra, riptide and fluids keep their own speeds; the glide never reaches the travel hook at all. */
     public boolean capsFall() {
         return WindrunnerArmor.boots(player) && !player.isFallFlying() && !player.isAutoSpinAttack()
@@ -155,7 +134,6 @@ public final class WindrunnerMoves {
         if (player.level().isClientSide() && capsFall()) player.setDeltaMovement(capFall(player.getDeltaMovement()));
     }
 
-    public boolean canSlowFall() { return WindrunnerArmor.robes(player) && airborne(); }
     public void spendJump() { jumpSpent = true; }
     public void spendDash() { dashSpent = true; dashCooldown = DASH_COOLDOWN; }
     /** A ground dash leaves the air dash in hand: it spends only the shared cooldown. */
@@ -176,11 +154,6 @@ public final class WindrunnerMoves {
         }
         if (!(player instanceof ServerPlayer server)) return;
         if (dashTrailTicks > 0) trail(server, --dashTrailTicks);
-        double sink = Double.isNaN(lastY) ? 0 : lastY - player.getY();
-        lastY = player.getY();
-        if (!slowFalling || !canSlowFall()) return;
-        if (sink < SLOW_FALL_MAX_SINK) player.resetFallDistance();
-        if (player.tickCount % 4 == 0) puff(server, ParticleTypes.CLOUD, player.position(), 2, 0.25);
     }
 
     public void handle(int action) {
@@ -210,8 +183,6 @@ public final class WindrunnerMoves {
                 puff(server, ParticleTypes.SMALL_GUST, player.position(), 2, 0.25);
                 sound(server, 1.15F);
             }
-            case SLOW_FALL_START -> slowFalling = true;
-            case SLOW_FALL_STOP -> slowFalling = false;
             default -> {}
         }
     }

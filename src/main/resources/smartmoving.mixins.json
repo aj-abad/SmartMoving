@@ -12,6 +12,7 @@
     "server.MixinServerPlayNetworkHandler",
     "server.MixinServerPlayerEntity",
     "server.MixinServerPlayerInteractionManager",
+    "windrunner.MixinWindrunnerLivingEntity",
     "windrunner.MixinWindrunnerPlayer",
     "windrunner.MixinWindrunnerServerPlayNetworkHandler"
   ],

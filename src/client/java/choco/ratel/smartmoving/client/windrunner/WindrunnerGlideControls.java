@@ -14,7 +14,7 @@ import net.minecraft.world.entity.player.Player;
 
 /**
  * The glide key (Mouse 4 by default) opens the robes in free air and folds them again; sneak also folds
- * them. Jump is left to the boots' double jump, and each fresh dash press while gliding is a boost.
+ * them. Jump is left to the pants' double jump, and each fresh dash press while gliding is a boost.
  */
 public final class WindrunnerGlideControls {
     public static final float LOOK_YAW_LIMIT = 100;

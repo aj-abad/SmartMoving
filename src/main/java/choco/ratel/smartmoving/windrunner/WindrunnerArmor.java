@@ -5,7 +5,10 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.TagKey;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -21,6 +24,8 @@ public final class WindrunnerArmor {
     public static final TagKey<Item> REPAIRS_ROBES = TagKey.create(Registries.ITEM, Windrunner.id("repairs_windrunner_robes"));
     public static final double PANTS_SPEED = 0.15;
     public static final double BOOTS_JUMP = 0.1, BOOTS_SAFE_FALL = 3;
+    /** Nine hearts: at or above this when a lethal fall lands, the boots leave half a heart instead. */
+    public static final float BOOTS_SAVE_HEALTH = 18;
     public static final ArmorMaterial MATERIAL = new ArmorMaterial(9,
             Map.of(ArmorType.HELMET, 1, ArmorType.CHESTPLATE, 3, ArmorType.LEGGINGS, 2, ArmorType.BOOTS, 1, ArmorType.BODY, 3),
             15, SoundEvents.ARMOR_EQUIP_LEATHER, 0, 0, REPAIRS_ARMOR, ResourceKey.create(EquipmentAssets.ROOT_ID, Windrunner.id("windrunner")));
@@ -73,6 +78,11 @@ public final class WindrunnerArmor {
     }
 
     public static boolean headband(Player player) { return player.getItemBySlot(EquipmentSlot.HEAD).is(WindrunnerItems.WINDRUNNER_HEADBAND); }
-    public static boolean robes(Player player) { return player.getItemBySlot(EquipmentSlot.CHEST).is(WindrunnerItems.WINDRUNNER_ROBES); }
+    public static boolean savesFall(LivingEntity entity, DamageSource source, float healthBefore) {
+        return entity instanceof Player player && boots(player) && source.is(DamageTypeTags.IS_FALL)
+                && healthBefore >= BOOTS_SAVE_HEALTH;
+    }
+
+    public static boolean pants(Player player) { return player.getItemBySlot(EquipmentSlot.LEGS).is(WindrunnerItems.WINDRUNNER_PANTS); }
     public static boolean boots(Player player) { return player.getItemBySlot(EquipmentSlot.FEET).is(WindrunnerItems.WINDRUNNER_BOOTS); }
 }

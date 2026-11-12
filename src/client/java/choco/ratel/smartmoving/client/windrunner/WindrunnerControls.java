@@ -13,14 +13,14 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Double jump, ground and air dashes, and sneak slow-fall. The dash fires from SmartMoving's Dodge
+ * Double jump, ground and air dashes. The dash fires from SmartMoving's Dodge
  * binding, and with the headband on its ground dash replaces the dodge.
  */
 public final class WindrunnerControls {
     /** The FOV kick of a dash: a smoothstep rise over two ticks, then a squared ease back out. */
     private static final int DART_ATTACK_TICKS = 2, DART_TICKS = 10;
     private static final float DART_STRENGTH = 0.12F;
-    private static boolean slowFalling, dashPressed;
+    private static boolean dashPressed;
     private static int dartTick = DART_TICKS;
     private static float dart, dartOld;
 
@@ -36,7 +36,7 @@ public final class WindrunnerControls {
 
     /**
      * Spends an airborne jump press: a jump out of a ground dash's hop first, which leaves the double
-     * jump in hand, otherwise the boots' double jump.
+     * jump in hand, otherwise the pants' double jump.
      */
     static boolean jump(Minecraft client, LocalPlayer player) {
         WindrunnerMoves moves = WindrunnerMoves.of(player);
@@ -84,16 +84,6 @@ public final class WindrunnerControls {
                 send(WindrunnerMoves.GROUND_DASH);
                 dartTick = 0;
             }
-        }
-        // SmartMoving reports isShiftKeyDown() as false in the air, so read the binding itself.
-        boolean slow = available && client.options.keyShift.isDown() && moves.canSlowFall();
-        if (slow) {
-            player.setDeltaMovement(WindrunnerMoves.slowFall(player.getDeltaMovement()));
-            player.resetFallDistance();
-        }
-        if (slow != slowFalling) {
-            slowFalling = slow;
-            send(slow ? WindrunnerMoves.SLOW_FALL_START : WindrunnerMoves.SLOW_FALL_STOP);
         }
     }
 
