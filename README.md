@@ -23,7 +23,7 @@ Fabric 26.3 port of the classic [SmartMoving](https://www.curseforge.com/minecra
 - **Chain Climbing** *(prototype)* — Vertical iron / copper chains climb exactly like ladders, with a hand-over-hand pose; horizontal chains overhead work as ceiling handholds
 - **Landing Roll** *(prototype)* — Press Dodge while falling to roll on landing: momentum is kept and fall damage is reduced
 - **Sprint Vault** *(prototype)* — Hold Grab and sprint into a 1-block ledge, fence or wall to plant a hand and carry over it with forward and upward momentum
-- **Windrunner armor set** — A wind monk's traversal set in the Breeze's colours: a headband that dashes, robes that glide, pants that run faster and boots that jump higher, double-jump and slow-fall (see below)
+- **Windrunner armor set** — A wind monk's traversal set in the Breeze's colours: a headband that dashes, robes that glide and slow-fall, pants that run faster and boots that jump higher and double-jump (see below)
 - **Multiplayer Sync** — Full self ↔ server ↔ remote state synchronization
 
 ## Requirements
@@ -73,9 +73,9 @@ Boots     leather boots + 2 breeze rods               (shapeless)
 | Piece | Ability |
 |---|---|
 | Headband | Dash with the Dodge key: along the ground, or once per airtime in the air. Replaces the dodge while worn |
-| Robes | Glide on the glide key; each fresh Dodge press while gliding is a boost, at the cost of durability |
+| Robes | Glide on the glide key; each fresh Dodge press while gliding is a boost, at the cost of durability; hold Sneak in free air to slow your fall |
 | Pants | 15% faster movement |
-| Boots | 10% stronger jumps (SmartMoving's own jumps included) and 10% less fall damage; double jump once per airtime; hold Sneak in free air to slow your fall; sneak-charged jumps build twice as fast |
+| Boots | 10% stronger jumps (SmartMoving's own jumps included) and 10% less fall damage; double jump once per airtime; sneak-charged jumps build twice as fast |
 
 - **Dashes** burst 24 blocks/s along your movement keys, or along your view without input. A ground dash
   launches as a low hop that slides on after landing, every half second. The hop still counts as the
@@ -87,7 +87,9 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   dash and the double jump give way to SmartMoving while you climb, swim, fly, crawl, slide, roll or
   vault, and the double jump yields to wall jumps next to a wall.
 - **Slow fall** eases a fall off gradually (a 60 blocks/s plunge takes about two seconds to settle near
-  2.5 blocks/s) and lands without fall damage once settled.
+  2.5 blocks/s) and lands without fall damage once settled. It belongs to the robes rather than the boots, so it never
+  shares a Sneak press with another mod's chest-slot parachute. Sneak folds an open glide first; keep holding it
+  to brake into the slow fall.
 - **The glide** needs three blocks of clear air below. It has responsive arcade handling (W/S pitch,
   A/D bank), stalls, wind, storms and lava updrafts, server-authoritative flight with client prediction,
   and a fan of phantom-membrane leaves on breeze-rod ribs. A settled glide covers about 4.8 blocks per
