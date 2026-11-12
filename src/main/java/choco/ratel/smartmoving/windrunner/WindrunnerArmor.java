@@ -20,7 +20,7 @@ public final class WindrunnerArmor {
     public static final TagKey<Item> REPAIRS_ARMOR = TagKey.create(Registries.ITEM, Windrunner.id("repairs_windrunner_armor"));
     public static final TagKey<Item> REPAIRS_ROBES = TagKey.create(Registries.ITEM, Windrunner.id("repairs_windrunner_robes"));
     public static final double PANTS_SPEED = 0.15;
-    public static final double BOOTS_JUMP = 0.1, BOOTS_FALL_DAMAGE = -0.1;
+    public static final double BOOTS_JUMP = 0.1, BOOTS_SAFE_FALL = 3;
     public static final ArmorMaterial MATERIAL = new ArmorMaterial(9,
             Map.of(ArmorType.HELMET, 1, ArmorType.CHESTPLATE, 3, ArmorType.LEGGINGS, 2, ArmorType.BOOTS, 1, ArmorType.BODY, 3),
             15, SoundEvents.ARMOR_EQUIP_LEATHER, 0, 0, REPAIRS_ARMOR, ResourceKey.create(EquipmentAssets.ROOT_ID, Windrunner.id("windrunner")));
@@ -46,15 +46,16 @@ public final class WindrunnerArmor {
 
     /**
      * Ten percent more jump strength lifts a standing jump from 1.25 to about 1.5 blocks; vanilla Jump
-     * Boost still adds on top. Falls also hurt a tenth less.
+     * Boost still adds on top. Falls hurt from six blocks instead of three, and the fall
+     * itself tops out at {@link WindrunnerMoves#FALL_CAP}.
      */
     public static Item boots(Item.Properties properties) {
         return new Item(properties.humanoidArmor(MATERIAL, ArmorType.BOOTS)
                 .attributes(MATERIAL.createAttributes(ArmorType.BOOTS)
                         .withModifierAdded(Attributes.JUMP_STRENGTH, new AttributeModifier(Windrunner.id("windrunner_boots_jump"),
                                 BOOTS_JUMP, AttributeModifier.Operation.ADD_MULTIPLIED_BASE), EquipmentSlotGroup.FEET)
-                        .withModifierAdded(Attributes.FALL_DAMAGE_MULTIPLIER, new AttributeModifier(Windrunner.id("windrunner_boots_fall"),
-                                BOOTS_FALL_DAMAGE, AttributeModifier.Operation.ADD_MULTIPLIED_BASE), EquipmentSlotGroup.FEET)));
+                        .withModifierAdded(Attributes.SAFE_FALL_DISTANCE, new AttributeModifier(Windrunner.id("windrunner_boots_safe_fall"),
+                                BOOTS_SAFE_FALL, AttributeModifier.Operation.ADD_VALUE), EquipmentSlotGroup.FEET)));
     }
 
     /**

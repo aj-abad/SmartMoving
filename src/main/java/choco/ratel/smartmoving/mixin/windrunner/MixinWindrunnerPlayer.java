@@ -35,6 +35,9 @@ public abstract class MixinWindrunnerPlayer implements WindrunnerUser {
     private void windrunner$afterTick(CallbackInfo ci) { windrunner$glide().afterTick(); }
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     private void windrunner$travel(Vec3 input, CallbackInfo ci) { if (windrunner$glide().travel()) ci.cancel(); }
+    // Cancelled travel (the glide, other mods' flight) returns early and never reaches this.
+    @Inject(method = "travel", at = @At("RETURN"))
+    private void windrunner$afterTravel(Vec3 input, CallbackInfo ci) { windrunner$moves().afterTravel(); }
     @Inject(method = "causeFallDamage", at = @At("HEAD"), cancellable = true)
     private void windrunner$flightImpact(CallbackInfoReturnable<Boolean> cir) {
         if (windrunner$glide().active()) cir.setReturnValue(false);

@@ -264,7 +264,7 @@ final class WindrunnerGlideTest {
         double vanilla = jumpHeight(0.42), booted = jumpHeight(0.42 * (1 + WindrunnerArmor.BOOTS_JUMP));
         System.out.printf("Boots jump: %.2f -> %.2f blocks, double jump %.2f blocks%n", vanilla, booted, jumpHeight(kick));
         check(Math.abs(booted - vanilla - 0.25) < 0.03, "The boots add about a quarter block to a standing jump");
-        check(WindrunnerArmor.BOOTS_FALL_DAMAGE > -0.2 && WindrunnerArmor.BOOTS_FALL_DAMAGE < 0, "The boots soften falls only slightly");
+        check(WindrunnerArmor.BOOTS_SAFE_FALL == 3, "The boots double vanilla's three-block safe fall");
         Vec3 dashJump = WindrunnerMoves.dashJump(new Vec3(1.2, 0.15, 0), 0.462);
         check(dashJump.x == 1.2 && dashJump.y == 0.462, "A jump out of a ground dash keeps the dash's momentum");
 
@@ -305,6 +305,19 @@ final class WindrunnerGlideTest {
         System.out.printf("Slow fall from 60 blocks/s: %d ticks and %.1f blocks to settle%n", settling, sunk);
         check(settling > 20 && settling < 45, "Slow-fall sheds a hard fall over one to two seconds");
         check(WindrunnerMoves.slowFall(new Vec3(0, -3, 0)).y < -2.8, "One tick of slow-fall only shaves a hard fall");
+
+        // The boots clamp after gravity and drag, so the cap is the terminal sink.
+        double drop = 0, capped = 0;
+        int reach = 0;
+        for (int i = 0; i < 200; i++) {
+            drop -= capped;
+            capped = WindrunnerMoves.capFall(new Vec3(0, (capped - 0.08) * 0.98, 0)).y;
+            if (capped == -WindrunnerMoves.FALL_CAP) { reach = i + 1; break; }
+        }
+        System.out.printf("Boots fall cap: %.0f blocks/s after %d ticks and %.1f blocks%n",
+                WindrunnerMoves.FALL_CAP * 20, reach, drop);
+        check(reach > 20 && reach < 30, "The boots' fall cap arrives after about a second of falling");
+        check(WindrunnerMoves.capFall(new Vec3(0.3, -1, 0.2)).equals(new Vec3(0.3, -1, 0.2)), "The fall cap leaves slower falls alone");
     }
 
     /** Peak height of a vanilla jump launched at {@code speed}, under 0.08 gravity and 0.98 drag. */

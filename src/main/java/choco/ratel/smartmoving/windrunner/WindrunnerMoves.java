@@ -45,6 +45,8 @@ public final class WindrunnerMoves {
     public static final double SLOW_FALL_BRAKE = 0.12;
     /** Observed sink above this per tick is a real fall, and the server keeps counting it as one. */
     public static final double SLOW_FALL_MAX_SINK = 0.35;
+    /** The boots' fastest fall, 30 blocks/s against vanilla's 78; reached after about 19 blocks of falling. */
+    public static final double FALL_CAP = 1.5;
     public static final int DASH_COOLDOWN = 10;
     /** Ticks the dash start's gust follows the dash, kicking up dust from the ground below it. */
     private static final int DASH_TRAIL_TICKS = 6;
@@ -85,6 +87,10 @@ public final class WindrunnerMoves {
     public static Vec3 groundDash(Vec3 velocity, Vec3 direction) {
         Vec3 dash = airDash(velocity, direction);
         return new Vec3(dash.x, GROUND_DASH_HOP, dash.z);
+    }
+
+    public static Vec3 capFall(Vec3 velocity) {
+        return velocity.y < -FALL_CAP ? new Vec3(velocity.x, -FALL_CAP, velocity.z) : velocity;
     }
 
     public static Vec3 slowFall(Vec3 velocity) {
@@ -135,6 +141,20 @@ public final class WindrunnerMoves {
      * The robes, not the boots: Aircraft's wingsuit also opens a parachute on Sneak, and sharing the chest
      * slot means the two can never be worn together. Worn-out robes still slow-fall; only gliding needs wear.
      */
+    /** Elytra, riptide and fluids keep their own speeds; the glide never reaches the travel hook at all. */
+    public boolean capsFall() {
+        return WindrunnerArmor.boots(player) && !player.isFallFlying() && !player.isAutoSpinAttack()
+                && !player.getAbilities().flying && !player.isInWater() && !player.isInLava();
+    }
+
+    /**
+     * Clamps once after travel rather than in each of SmartMoving's gravity paths. Client side only:
+     * the local player's movement is client-authoritative, and the server accepts a slower fall.
+     */
+    public void afterTravel() {
+        if (player.level().isClientSide() && capsFall()) player.setDeltaMovement(capFall(player.getDeltaMovement()));
+    }
+
     public boolean canSlowFall() { return WindrunnerArmor.robes(player) && airborne(); }
     public void spendJump() { jumpSpent = true; }
     public void spendDash() { dashSpent = true; dashCooldown = DASH_COOLDOWN; }

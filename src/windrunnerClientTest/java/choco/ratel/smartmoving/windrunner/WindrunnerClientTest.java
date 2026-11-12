@@ -197,6 +197,22 @@ public final class WindrunnerClientTest implements FabricClientGameTest {
                     .setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY));
             context.waitFor(client -> !WindrunnerGlide.of(client.player).active(), 100);
 
+            // Boots: a long fall tops out at the cap instead of vanilla's 78 blocks/s.
+            world.getServer().runOnServer(server -> {
+                var p = server.getPlayerList().getPlayers().getFirst();
+                p.setItemSlot(EquipmentSlot.FEET, new ItemStack(WindrunnerItems.WINDRUNNER_BOOTS));
+                int ground = p.level().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, 0, 0);
+                p.connection.teleport(0.5, ground + 90, 0.5, 0, 0);
+                p.setDeltaMovement(Vec3.ZERO);
+                p.resetFallDistance();
+                p.syncVelocity = true;
+            });
+            context.waitTicks(45);
+            double capped = context.computeOnClient(client -> -client.player.getDeltaMovement().y);
+            if (Math.abs(capped - WindrunnerMoves.FALL_CAP) > 1.0E-6) {
+                throw new AssertionError("A long fall in the boots must settle at the fall cap, not " + capped);
+            }
+
             // Robes: holding sneak in free air slows the fall; the boots alone do not.
             world.getServer().runOnServer(server -> {
                 var p = server.getPlayerList().getPlayers().getFirst();
@@ -228,8 +244,8 @@ public final class WindrunnerClientTest implements FabricClientGameTest {
                 var p = server.getPlayerList().getPlayers().getFirst();
                 if (p.getHealth() != p.getMaxHealth()) throw new AssertionError("A slow-fall landing must not trigger vanilla fall damage");
                 if (Math.abs(WindrunnerArmor.jumpScale(p) - 1.1) > 1.0E-6
-                        || Math.abs(p.getAttributeValue(Attributes.FALL_DAMAGE_MULTIPLIER) - 0.9) > 1.0E-6) {
-                    throw new AssertionError("The boots must add 10% jump strength and take 10% off fall damage");
+                        || Math.abs(p.getAttributeValue(Attributes.SAFE_FALL_DISTANCE) - 6) > 1.0E-6) {
+                    throw new AssertionError("The boots must add 10% jump strength and three blocks of safe fall");
                 }
                 int ground = p.level().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, 0, 0);
                 p.connection.teleport(0.5, ground + 20, 0.5, 0, 0);
@@ -386,7 +402,7 @@ public final class WindrunnerClientTest implements FabricClientGameTest {
                 var p = server.getPlayerList().getPlayers().getFirst();
                 return !WindrunnerGlide.of(p).active() && p.getAbilities().flying;
             });
-            Windrunner.LOGGER.info("Windrunner glide, camera, glide key, boosts, slow fall, boots attributes, double jump, dash jump, dash, equipment, authority, teleport, landing and creative double-tap scenarios passed.");
+            Windrunner.LOGGER.info("Windrunner glide, camera, glide key, boosts, slow fall, fall cap, boots attributes, double jump, dash jump, dash, equipment, authority, teleport, landing and creative double-tap scenarios passed.");
         }
     }
 }
