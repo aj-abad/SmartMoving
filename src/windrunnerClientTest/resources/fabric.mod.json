@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "name": "SmartMoving Windrunner Tests",
   "environment": "client",
-  "entrypoints": { "fabric-client-gametest": ["choco.ratel.smartmoving.windrunner.WindrunnerClientTest"] },
+  "entrypoints": { "fabric-client-gametest": ["choco.ratel.smartmoving.windrunner.WindrunnerClientTests"] },
   "depends": { "smartmoving": "*", "fabric-client-gametest-api-v1": "*" }
 }
