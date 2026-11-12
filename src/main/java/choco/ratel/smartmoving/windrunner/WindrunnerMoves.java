@@ -14,7 +14,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Boots and headband abilities outside the glide. Ordinary movement stays client-authoritative as in vanilla,
+ * Boots, headband and robe abilities outside the glide. Ordinary movement stays client-authoritative as in vanilla,
  * so the client applies each impulse; the server keeps the once-per-airtime charges, the fall-damage
  * bookkeeping, and the effects other players see.
  */
@@ -131,7 +131,11 @@ public final class WindrunnerMoves {
         return dashCooldown == 0 && WindrunnerArmor.headband(player) && player.onGround() && !player.isInWater()
                 && !player.isInLava() && !player.isPassenger() && !player.getAbilities().flying && able();
     }
-    public boolean canSlowFall() { return WindrunnerArmor.boots(player) && airborne(); }
+    /**
+     * The robes, not the boots: Aircraft's wingsuit also opens a parachute on Sneak, and sharing the chest
+     * slot means the two can never be worn together. Worn-out robes still slow-fall; only gliding needs wear.
+     */
+    public boolean canSlowFall() { return WindrunnerArmor.robes(player) && airborne(); }
     public void spendJump() { jumpSpent = true; }
     public void spendDash() { dashSpent = true; dashCooldown = DASH_COOLDOWN; }
     /** A ground dash leaves the air dash in hand: it spends only the shared cooldown. */

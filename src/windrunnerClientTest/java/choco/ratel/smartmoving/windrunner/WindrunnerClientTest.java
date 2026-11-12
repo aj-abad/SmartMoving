@@ -197,10 +197,10 @@ public final class WindrunnerClientTest implements FabricClientGameTest {
                     .setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY));
             context.waitFor(client -> !WindrunnerGlide.of(client.player).active(), 100);
 
-            // Boots: holding sneak in free air replaces the old parachute with a slow fall.
+            // Robes: holding sneak in free air slows the fall; the boots alone do not.
             world.getServer().runOnServer(server -> {
                 var p = server.getPlayerList().getPlayers().getFirst();
-                p.setItemSlot(EquipmentSlot.CHEST, new ItemStack(WindrunnerItems.WINDRUNNER_ROBES));
+                p.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
                 p.setItemSlot(EquipmentSlot.FEET, new ItemStack(WindrunnerItems.WINDRUNNER_BOOTS));
                 int ground = p.level().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, 0, 0);
                 p.connection.teleport(0.5, ground + 35, 0.5, 0, 0);
@@ -211,9 +211,15 @@ public final class WindrunnerClientTest implements FabricClientGameTest {
             });
             context.waitTicks(3);
             context.getInput().holdKey(options -> options.keyShift);
+            context.waitTicks(12);
+            if (context.computeOnClient(client -> -client.player.getDeltaMovement().y) < WindrunnerMoves.SLOW_FALL_MAX_SINK) {
+                throw new AssertionError("Sneaking with the boots alone must not slow the fall");
+            }
+            world.getServer().runOnServer(server -> server.getPlayerList().getPlayers().getFirst()
+                    .setItemSlot(EquipmentSlot.CHEST, new ItemStack(WindrunnerItems.WINDRUNNER_ROBES)));
             context.waitTicks(30);
             double sink = context.computeOnClient(client -> -client.player.getDeltaMovement().y);
-            if (sink > WindrunnerMoves.SLOW_FALL_MAX_SINK) throw new AssertionError("Sneaking with the boots must slow the fall");
+            if (sink > WindrunnerMoves.SLOW_FALL_MAX_SINK) throw new AssertionError("Sneaking with the robes must slow the fall");
             context.takeScreenshot("windrunner-slow-fall");
             context.waitFor(client -> client.player.onGround(), 600);
             context.getInput().releaseKey(options -> options.keyShift);

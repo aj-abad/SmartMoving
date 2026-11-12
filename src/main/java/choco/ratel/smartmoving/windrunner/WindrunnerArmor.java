@@ -72,5 +72,6 @@ public final class WindrunnerArmor {
     }
 
     public static boolean headband(Player player) { return player.getItemBySlot(EquipmentSlot.HEAD).is(WindrunnerItems.WINDRUNNER_HEADBAND); }
+    public static boolean robes(Player player) { return player.getItemBySlot(EquipmentSlot.CHEST).is(WindrunnerItems.WINDRUNNER_ROBES); }
     public static boolean boots(Player player) { return player.getItemBySlot(EquipmentSlot.FEET).is(WindrunnerItems.WINDRUNNER_BOOTS); }
 }
