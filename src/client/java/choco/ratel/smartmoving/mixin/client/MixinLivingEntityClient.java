@@ -94,13 +94,6 @@ public abstract class MixinLivingEntityClient {
             player.setDeltaMovement(vel.x, vel.y * 0.5999755859375D, vel.z);
         }
 
-        // Sprint vault (docs/research_movement_prototypes.md): sprint + Grab into a 1 to 1.5 block
-        // obstacle. Owns the motion during the scripted rise, then hands over to normal air physics.
-        if (choco.ratel.smartmoving.client.SmartMovingVaulter.tick(player, sm, movementInput)) {
-            ci.cancel();
-            return;
-        }
-
         // [10-1] Jump judgment — execute every tick before swimming check
         SmartMovingJumper.handleJumping(player, sm);
 

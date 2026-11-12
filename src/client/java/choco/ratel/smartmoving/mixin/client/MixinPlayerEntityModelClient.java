@@ -209,7 +209,7 @@ public abstract class MixinPlayerEntityModelClient {
                 || sm.isCeilingClimbing || sm.isClimbJumping || sm.isSwimming_sm
                 || sm.isDiving || sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.isFlying || sm.doFallingAnimation || isWeepingTwistingVines
-                || sm.isAngleJumping() || sm.isVaulting;
+                || sm.isAngleJumping();
         if (anySmState) {
             renderState.swimAmount = 0F;
         }
@@ -274,7 +274,7 @@ public abstract class MixinPlayerEntityModelClient {
         boolean anySmState = sm.isFlying || sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isRopeSliding || sm.isClimbJumping
-                || sm.doFallingAnimation || sm.isAngleJumping() || sm.isVaulting;
+                || sm.doFallingAnimation || sm.isAngleJumping();
 
         // animateWorkingBody (1.7.10 SR L298-304, 1.12.2 SR L401-406): only in isStandard.
         //   angle = sin(sqrt(swing) * 2π) * 0.2
@@ -382,7 +382,6 @@ public abstract class MixinPlayerEntityModelClient {
                 || sm.isCrawling || sm.isSliding || sm.isHeadJumping || flyingCreative
                 || isFallingForReset
                 || isWeepingTwistingVines
-                || sm.isVaulting
                 || sm.isAngleJumping();   // 🔴 (2026-04-27) activate reset infrastructure during angle jump —
                                           // reset head.pivotZ/body.yaw/head.roll/arm.pivot to 0 →
                                           // cancel previous SM branch linger + vanilla animateArms swing body.yaw wobble.
@@ -548,8 +547,6 @@ public abstract class MixinPlayerEntityModelClient {
             leftArm.xRot  = HALF + SIXTEENTH;
             rightArm.zRot  = -THIRTYTWOTH;
             leftArm.zRot   =  THIRTYTWOTH;
-        } else if (sm.isVaulting) {
-            sm_animateVaulting(sm, animationProgress);
         } else if (sm.isSwimming_sm) {
             sm_animateSwimming(sm, player, limbSwing, limbSwingAmount, animationProgress, renderState.swingAnimation);
         } else if (sm.isDiving) {
@@ -2016,25 +2013,6 @@ public abstract class MixinPlayerEntityModelClient {
         head.yRot = 0f;
         head.xRot = headPitch * DEG_TO_RAD - 0.25f;
         body.xRot = -0.12f;
-    }
-
-    /**
-     * Sprint vault (docs/research_movement_prototypes.md): one hand planted down on the obstacle,
-     * legs tucked and swung to the side, other arm back. Blends in over the first few ticks and
-     * holds until landing.
-     */
-    private void sm_animateVaulting(SmartMovingClientState sm, float animationProgress) {
-        float t = sm.vaultStartTick == Integer.MIN_VALUE ? 1f : animationProgress - sm.vaultStartTick;
-        float k = Mth.clamp(t / 3f, 0f, 1f);
-        k = k * k * (3f - 2f * k);   // smoothstep
-        // Right hand plants on the obstacle (arm straight down, slightly out), left arm swings back.
-        blendLimb(rightArm, 0.55f,  0.35f, k);
-        blendLimb(leftArm, -0.90f, -0.20f, k);
-        // Legs tuck and swing to the left of the planted hand.
-        blendLimb(leftLeg,  -1.15f, -0.45f, k);
-        blendLimb(rightLeg, -0.80f, -0.25f, k);
-        body.xRot += 0.30f * k;
-        head.xRot -= 0.20f * k;
     }
 
     /** Moves a limb's xRot/zRot from their current (vanilla) values toward the dodge pose by {@code weight}. */

@@ -681,22 +681,6 @@ public final class SmartMovingClientState {
     public int dodgeCooldown;
 
     // ── Movement prototypes (docs/research_movement_prototypes.md) ──────────
-    // Sprint vault.
-    /** Vault in progress (bit 39). */
-    public boolean isVaulting;
-    /** tickCount when the current vault started. Integer.MIN_VALUE when idle. */
-    public int vaultStartTick = Integer.MIN_VALUE;
-    /** World yaw (degrees) of the vault direction. */
-    public float vaultYaw;
-    /** Unit horizontal direction of the vault. */
-    public double vaultDirX, vaultDirZ;
-    /** Horizontal speed (blocks/tick) during the scripted rise. */
-    public double vaultSpeed;
-    /** Vertical lift per tick during the scripted rise. */
-    public double vaultLift;
-    /** Scripted rise ticks left, and how many there were (for the landing grace). */
-    public int vaultRiseTicks, vaultRiseTotal;
-
     // Chain climb.
     /** Vertical chain climb in progress (bit 40). Also sets isClimbing for the server. */
     public boolean isChainClimbing;
@@ -772,7 +756,7 @@ public final class SmartMovingClientState {
     public boolean canShowDodgePose() {
         return !(isRopeSliding || isClimbing || isCrawlClimbing || isCeilingClimbing || isClimbJumping
                 || isSwimming_sm || isDiving || isCrawling || isSliding || isHeadJumping || isFlying
-                || isVaulting || isChainClimbing);
+                || isChainClimbing);
     }
 
     /**
@@ -1444,8 +1428,7 @@ public final class SmartMovingClientState {
         //   self-side tickEssential L2144 sets on self-sliding fire / false on sliding phase entry.
         //   remote-side only updates from packet (= tickEssential not called).
         wasSelfSlideFire  = ((bits >> 35) & 1) != 0;
-        // Movement prototypes (bits 39-40).
-        isVaulting        = ((bits >> 39) & 1) != 0;
+        // Movement prototypes (bit 40).
         isChainClimbing   = ((bits >> 40) & 1) != 0;
     }
 
@@ -3366,9 +3349,6 @@ public final class SmartMovingClientState {
         isCrawlClimbing = false;
         isCeilingClimbing = false;
         isRopeSliding = false;
-        isVaulting = false;
-        vaultStartTick = Integer.MIN_VALUE;
-        vaultRiseTicks = 0;
         isChainClimbing = false;
         actualFeetClimbType = 0;
         actualHandsClimbType = 0;
@@ -4726,8 +4706,7 @@ public final class SmartMovingClientState {
         s.isSneakButtonPressed = player.isShiftKeyDown();
         s.isClimbCrawling      = isClimbCrawling;
         s.wasSelfSlideFire     = wasSelfSlideFire;  // fix #96 (remote 측 시각 fix #81/#94/#95 동기화)
-        // Movement prototypes (bits 39-40).
-        s.isVaulting           = isVaulting;
+        // Movement prototypes (bit 40).
         s.isChainClimbing      = isChainClimbing;
 
         long bits = SmartMovingState.encode(s);

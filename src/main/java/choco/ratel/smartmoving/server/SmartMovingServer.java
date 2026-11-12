@@ -106,9 +106,7 @@ public final class SmartMovingServer {
      */
     public boolean isClimbCrawling;
 
-    // Movement prototypes (docs/research_movement_prototypes.md), SmartMovingState bits 39-40.
-    /** bit 39: sprint vault in progress (relayed to other clients). */
-    public boolean isVaulting;
+    // Movement prototypes (docs/research_movement_prototypes.md), SmartMovingState bit 40.
     /** bit 40: vertical chain climb (relayed; isClimbing bit 14 carries the server behavior). */
     public boolean isChainClimbing;
 
@@ -184,8 +182,7 @@ public final class SmartMovingServer {
         isCrawlClimbing   = ((bits >> 12) & 1) != 0;
         isCeilingClimbing = ((bits >> 18) & 1) != 0;
         isWallJumping     = ((bits >> 31) & 1) != 0;
-        // Movement prototypes (bits 39-40; 37-38 are unused).
-        isVaulting        = ((bits >> 39) & 1) != 0;
+        // Movement prototypes (bit 40; 37-39 are unused).
         isChainClimbing   = ((bits >> 40) & 1) != 0;
         boolean _oldCrawl = isCrawling;
         setCrawling(((bits >> 13) & 1) != 0);

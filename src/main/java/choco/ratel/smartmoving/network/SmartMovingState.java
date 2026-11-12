@@ -33,8 +33,7 @@ package choco.ratel.smartmoving.network;
  * bit  34:    isClimbCrawling      (server-only read — box +1 mixin offset sync)
  * bit  35:    wasSelfSlideFire
  * bit  36:    angleJumpType upper bit (1-8 direction code extended with forward)
- * bit  37-38: unused (reserved so later bits keep their positions)
- * bit  39:    isVaulting       (sprint vault in progress — remote animation)
+ * bit  37-39: unused (reserved so later bits keep their positions)
  * bit  40:    isChainClimbing  (vertical chain climb — remote body yaw / pose)
  */
 public final class SmartMovingState {
@@ -76,8 +75,7 @@ public final class SmartMovingState {
     //   Solution: Add SmartMovingState bit 35 → server relay → remote-side packet lambda set.
     public boolean wasSelfSlideFire;
 
-    // Movement prototypes (docs/research_movement_prototypes.md): bits 39-40.
-    public boolean isVaulting;
+    // Movement prototypes (docs/research_movement_prototypes.md): bit 40.
     public boolean isChainClimbing;
 
     public static long encode(SmartMovingState s) {
@@ -111,8 +109,7 @@ public final class SmartMovingState {
         if (s.isClimbCrawling)      bits |= 1L << 34;
         if (s.wasSelfSlideFire)     bits |= 1L << 35;  // fix #96
         if ((s.angleJumpType & 0x8) != 0) bits |= 1L << 36;
-        // Bits 37-38 are unused and stay reserved.
-        if (s.isVaulting)           bits |= 1L << 39;
+        // Bits 37-39 are unused and stay reserved.
         if (s.isChainClimbing)      bits |= 1L << 40;
         return bits;
     }
@@ -148,7 +145,6 @@ public final class SmartMovingState {
         s.isSneakButtonPressed = ((bits >> 33) & 1) != 0;
         s.isClimbCrawling      = ((bits >> 34) & 1) != 0;
         s.wasSelfSlideFire     = ((bits >> 35) & 1) != 0;  // fix #96
-        s.isVaulting           = ((bits >> 39) & 1) != 0;
         s.isChainClimbing      = ((bits >> 40) & 1) != 0;
         return s;
     }

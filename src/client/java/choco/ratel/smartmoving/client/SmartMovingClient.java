@@ -171,19 +171,12 @@ public class SmartMovingClient implements ClientModInitializer {
                         // 🔴 (BUG D fix, 2026-05-13) bb just before flight end (= moment when mixin offset active) — for gap measurement.
                         if (wasFlying) flyBoxMinYBefore = bbMinY;
                     }
-                    boolean wasVaulting = target.isVaulting;
                     target.processStatePacket(payload.state());
                     // Dodge takeoff/landing ticks for the remote player's dodge animation.
                     if (entity instanceof AbstractClientPlayer remoteDodge
                             && !(entity instanceof LocalPlayer)) {
                         target.trackRemoteAngleJump(wasAngleJumpType, remoteDodge.tickCount,
                                 remoteDodge.getYRot());
-                        // Vault start tick for the timed pose (docs/research_movement_prototypes.md).
-                        if (target.isVaulting && !wasVaulting) {
-                            target.vaultStartTick = remoteDodge.tickCount;
-                        } else if (!target.isVaulting && wasVaulting) {
-                            target.vaultStartTick = Integer.MIN_VALUE;
-                        }
                     }
                     // 🔴 (Phase 2 multi BUG-12/14) Update dim immediately on packet arrival → determine dim based on sm.* bits
                     //   without waiting for vanilla pose sync. Remove boolean OR guard — avoid missing detection on

@@ -594,7 +594,7 @@ public final class SmartMovingJumper {
                 || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isSliding
                 || sm.isHeadJumping || sm.isFlying
-                || sm.isVaulting || sm.isChainClimbing) {
+                || sm.isChainClimbing) {
             return false;
         }
 

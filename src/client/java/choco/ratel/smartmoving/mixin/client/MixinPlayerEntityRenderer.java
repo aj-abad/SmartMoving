@@ -986,18 +986,6 @@ public class MixinPlayerEntityRenderer {
             sm.smOuterTiltX = sm.dodgePitch;
         }
 
-        // Sprint vault (docs/research_movement_prototypes.md): lean forward over the planted hand.
-        if (sm.isVaulting && sm.vaultStartTick != Integer.MIN_VALUE) {
-            float t = animationProgress - sm.vaultStartTick;
-            float k = Math.min(1f, Math.max(0f, t / 3f));
-            float pivotY = 1.5f - 12f / 16f;
-            matrices.translate(0f, pivotY, 0f);
-            matrices.rotate(Axis.XP.rotation(-0.55f * k));
-            matrices.rotate(Axis.ZP.rotation(0.20f * k));
-            matrices.translate(0f, -pivotY, 0f);
-            sm.smOuterTiltX = 0.55f * k;
-        }
-
         // 🔴 D-4 매트릭스 변환 시도 → 회전 중심 차이로 자세 잘못 (사용자 보고 5회차).
         //   원본 bipedTorso 회전 중심 = bipedTorso pivot (0,0,-6) = 허리/머리 위치 (작은 visual 효과).
         //   1.21.1 matrices 회전 중심 = vanilla setupTransforms 후 위치 = entity 발 부근 (큰 효과).
