@@ -98,7 +98,8 @@ The client game tests (`src/windrunnerClientTest`) are removed; the plain-Java s
 (`windrunnerPhysicsTest`) stays and still runs with `check`.
 
 - Kept: the `windrunnerClientTest` source set, the `smartmoving_windrunner_tests` Loom mod, the
-  `runWindrunnerClientTest` run and the test mod's `fabric.mod.json`, with an empty
-  `fabric-client-gametest` entrypoint list.
+  `runWindrunnerClientTest` run and the test mod's `fabric.mod.json`.
+- Fabric's runner crashes with "No tests found" on an empty entrypoint list, so one no-op
+  `WindrunnerClientTests` entrypoint stays as the template.
 - To add a test, implement `FabricClientGameTest` under `src/windrunnerClientTest/java` and list the
-  class in that entrypoint list.
+  class in the test mod's `fabric-client-gametest` entrypoints.
