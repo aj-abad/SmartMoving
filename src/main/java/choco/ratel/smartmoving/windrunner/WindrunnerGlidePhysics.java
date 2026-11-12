@@ -11,7 +11,8 @@ public final class WindrunnerGlidePhysics {
     /** A fresh glide opens no steeper than this nose-down (or nose-up), whatever the entry. */
     private static final float DEPLOY_PITCH_DOWN = 15, DEPLOY_PITCH_UP = -10;
     /** Share of the entry speed the opening keeps, and the least it leaves for control authority. */
-    private static final double DEPLOY_KEEP = 0.85, DEPLOY_MIN_SPEED = 0.65;
+    private static final double DEPLOY_KEEP = 0.85;
+    public static final double DEPLOY_MIN_SPEED = 0.65;
 
     private WindrunnerGlidePhysics() {}
 
@@ -35,12 +36,15 @@ public final class WindrunnerGlidePhysics {
         public float yaw, pitch, roll, yawRate, pitchRate, rollRate;
         public float recovery;
         public int boostTicks, boostCooldown;
+        /** Ticks left of the opening brake. */
+        public int brakeTicks;
 
         public State copy() {
             State s = new State();
             s.yaw = yaw; s.pitch = pitch; s.roll = roll;
             s.yawRate = yawRate; s.pitchRate = pitchRate; s.rollRate = rollRate;
             s.recovery = recovery; s.boostTicks = boostTicks; s.boostCooldown = boostCooldown;
+            s.brakeTicks = brakeTicks;
             return s;
         }
 
@@ -52,6 +56,8 @@ public final class WindrunnerGlidePhysics {
                     ? (float) Math.toDegrees(Math.atan2(-velocity.x, velocity.z)) : lookYaw;
             s.pitch = Mth.clamp((float) Math.toDegrees(
                     Math.atan2(DEPLOY_REFERENCE_SINK, horizontal)) - WindrunnerGlideModel.TRIM, DEPLOY_PITCH_UP, DEPLOY_PITCH_DOWN);
+            // Only a fall faster than the opening speed is braked; slower entries already open at it.
+            if (velocity.length() * DEPLOY_KEEP > DEPLOY_MIN_SPEED) s.brakeTicks = WindrunnerGlideModel.BRAKE_TICKS;
             return s;
         }
 

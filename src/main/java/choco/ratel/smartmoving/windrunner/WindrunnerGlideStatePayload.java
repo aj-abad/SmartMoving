@@ -18,6 +18,7 @@ public record WindrunnerGlideStatePayload(int playerId, int epoch, int mode, int
                 buf.writeFloat(s.yaw); buf.writeFloat(s.pitch); buf.writeFloat(s.roll);
                 buf.writeFloat(s.yawRate); buf.writeFloat(s.pitchRate); buf.writeFloat(s.rollRate);
                 buf.writeFloat(s.recovery); buf.writeVarInt(s.boostTicks); buf.writeVarInt(s.boostCooldown);
+                buf.writeVarInt(s.brakeTicks);
             }, buf -> {
                 int player = buf.readVarInt(), epoch = buf.readVarInt(), mode = buf.readUnsignedByte(), ack = buf.readVarInt();
                 long tick = buf.readLong();
@@ -26,6 +27,7 @@ public record WindrunnerGlideStatePayload(int playerId, int epoch, int mode, int
                 s.yaw = buf.readFloat(); s.pitch = buf.readFloat(); s.roll = buf.readFloat();
                 s.yawRate = buf.readFloat(); s.pitchRate = buf.readFloat(); s.rollRate = buf.readFloat();
                 s.recovery = buf.readFloat(); s.boostTicks = buf.readVarInt(); s.boostCooldown = buf.readVarInt();
+                s.brakeTicks = buf.readVarInt();
                 return new WindrunnerGlideStatePayload(player, epoch, mode, ack, tick, position, velocity, s);
             });
     private static void writeVector(RegistryFriendlyByteBuf buf, Vec3 v) { buf.writeDouble(v.x); buf.writeDouble(v.y); buf.writeDouble(v.z); }

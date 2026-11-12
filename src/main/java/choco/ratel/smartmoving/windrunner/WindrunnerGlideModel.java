@@ -20,6 +20,12 @@ public final class WindrunnerGlideModel {
     // A boost is a one-off kick along the nose on each fresh press of the dash key, then a short
     // cooldown; holding the key adds nothing, so speed comes from timing presses, not holding one.
     public static final double BOOST = 0.4;
+    /**
+     * The opening brake: for this many ticks after the robes open, airspeed above the opening speed
+     * keeps only {@link #BRAKE_KEEP} of itself each tick, so a fast fall is caught within half a second.
+     */
+    public static final int BRAKE_TICKS = 10;
+    public static final double BRAKE_KEEP = 0.75;
     public static final int BOOST_COOLDOWN = 15;
 
     public record Flow(double attack, double forward, float authority, float stall, double lift, double drag) {}
@@ -45,6 +51,7 @@ public final class WindrunnerGlideModel {
 
     public static Vec3 tick(Vec3 velocity, State s, Input input, Environment air) {
         if (air.density() <= 0) return velocity.add(0, -WindrunnerGlidePhysics.GRAVITY, 0);
+        velocity = brake(velocity, s, air);
         Flow flow = sample(velocity, s, air);
         if (flow.stall >= 0.6) s.recovery = 1;
         else if (flow.stall < 0.05 && flow.authority > 0.5 && Math.abs(flow.attack) < 15) {
@@ -64,6 +71,16 @@ public final class WindrunnerGlideModel {
         flow = sample(velocity, s, air);
         return WindrunnerGlidePhysics.forces(velocity, WindrunnerGlidePhysics.up(s.pitch, s.yaw, s.roll),
                 air, AREA, flow.lift, flow.drag, WindrunnerGlidePhysics.GRAVITY * 4.5);
+    }
+
+    /** Sheds airspeed along the airflow, so the attitude the opening set up is left as it was. */
+    static Vec3 brake(Vec3 velocity, State s, Environment air) {
+        if (s.brakeTicks <= 0) return velocity;
+        s.brakeTicks--;
+        Vec3 relative = velocity.subtract(air.wind());
+        double speed = relative.length(), target = WindrunnerGlidePhysics.DEPLOY_MIN_SPEED;
+        if (speed <= target) return velocity;
+        return relative.scale((target + (speed - target) * BRAKE_KEEP) / speed).add(air.wind());
     }
 
     static Vec3 boost(Vec3 velocity, State s, Input input) {
