@@ -17,7 +17,7 @@
 ## Follow-up: slow fall on the robes
 
 - [x] Research note (`docs/research_windrunner_set.md`, "slow fall moves to the robes")
-- [ ] Gate `canSlowFall` on the robes; add `WindrunnerArmor.robes`
-- [ ] Client test: slow fall with the robes alone, none with the boots alone
-- [ ] README (English and Korean)
-- [ ] Build, run both test suites, deploy
+- [x] Gate `canSlowFall` on the robes; add `WindrunnerArmor.robes`
+- [x] Client test: slow fall with the robes, none with the boots alone
+- [x] README (English and Korean)
+- [x] Build, run both test suites, deploy
