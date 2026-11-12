@@ -13,3 +13,11 @@
 - [x] README (English and Korean)
 - [x] Aircraft: restore the firework wingsuit state from `6005762` (Aircraft commit `52cea9e`, version 0.42.0)
 - [x] Interop: note Jump and Sneak presses at `KeyMapping.click` so both mods see them
+
+## Follow-up: slow fall on the robes
+
+- [x] Research note (`docs/research_windrunner_set.md`, "slow fall moves to the robes")
+- [ ] Gate `canSlowFall` on the robes; add `WindrunnerArmor.robes`
+- [ ] Client test: slow fall with the robes alone, none with the boots alone
+- [ ] README (English and Korean)
+- [ ] Build, run both test suites, deploy

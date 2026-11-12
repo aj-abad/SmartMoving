@@ -11,9 +11,9 @@ returns to its firework-powered wingsuit (commit `6005762`).
 | Piece | Ability |
 |---|---|
 | Windrunner Headband | Dash key: a ground dash (low hop, 24 blocks/s) or, once per airtime, an air dash |
-| Windrunner Robes | Glide (the wingsuit flight model); each fresh dash press while gliding is a boost |
+| Windrunner Robes | Glide (the wingsuit flight model); each fresh dash press while gliding is a boost; sneak slow fall |
 | Windrunner Pants | +15% movement speed |
-| Windrunner Boots | +10% jump strength, -10% fall damage, double jump, sneak slow fall |
+| Windrunner Boots | +10% jump strength, -10% fall damage, double jump |
 
 Rules carried over unchanged:
 
@@ -62,3 +62,17 @@ Rules carried over unchanged:
 
 Aircraft verifies the glide with a plain-Java simulation (`flightPhysicsTest`) and Fabric client game
 tests. Both move with the set, minus the aircraft-only scenarios (helicopter bailout).
+
+## Follow-up: slow fall moves to the robes
+
+Aircraft's firework wingsuit is also chest armor and opens its parachute on a Sneak press in free air.
+With the slow fall on the boots, a player in the wingsuit and Windrunner Boots got both from one press.
+Moving the slow fall to the Windrunner Robes puts both behaviours in the chest slot, so only one can
+ever be worn.
+
+- `WindrunnerMoves.canSlowFall` checks the robes (`WindrunnerArmor.robes`) instead of the boots. It
+  checks the item alone, not `WindrunnerGlide.equipped`, because the slow fall costs no durability and
+  should work on robes too worn to open.
+- The glide already blocks moves while it is open (`able()`), so Sneak still folds an open glide first;
+  holding Sneak on after the fold brakes into the slow fall.
+- The boots keep the double jump, jump strength, fall damage reduction and the faster charged jump.
