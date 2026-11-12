@@ -51,3 +51,27 @@ Tuned by simulation (cap 30/20/15 degrees, floor 0.5/0.6/0.65/0.7); 15 degrees a
 In game (temporary client test): with the pants, the first air jump double-jumped and the second
 opened the robes, holding 15.9 degrees and about 18 blocks/s forward half a second later; without
 the pants the first air jump opened them.
+
+## Follow-up: stall versus an opening brake
+
+A stall on deploy while falling (nose level or 15 degrees up, entry velocity untouched) was simulated
+against the catch, hands off:
+
+| Entry | Catch: nose / lost in 2 s / settled | Stall, nose level | Stall, nose 15 up |
+|---|---|---|---|
+| Sprint jump, falling | 15 / 11.7 / 1.8 s | 24 / 15.4 / 2.8 s | 22 / 15.9 / 2.8 s |
+| 2-block drop | 15 / 11.7 / 1.8 s | 28 / 19.6 / 2.6 s | 28 / 20.8 / 2.8 s |
+| Falling 24 b/s | 15 / 7.7 / 0.7 s | 28 / 22.9 / 2.4 s | 38 / 28.1 / 3.3 s |
+| Falling 40 b/s | 15 / 4.5 / 0.5 s | 26 / 23.2 / 2.1 s | 39 / 30.3 / 3.3 s |
+
+A stalled wing has no lift and recovers by diving for airspeed, so a stall reintroduces the nosedive,
+and half a second in the player still sinks at 7 to 16 blocks/s: it does not read as a brake either.
+
+Instead, the opening brakes: for the first `BRAKE_TICKS` of a glide, airspeed above the opening speed
+(`DEPLOY_MIN_SPEED`) is cut by a fixed share each tick, along the velocity, so the direction (and the
+trim angle of attack the catch set up) is untouched. A fast fall snaps down to a slow glide, then the
+glide builds speed on its own.
+
+- `State.brakeTicks` counts the brake down inside `WindrunnerGlideModel.tick`, the step both the server
+  and client prediction run, and goes in the state payload so a correction replays it the same way.
+- Entries already at the opening speed (a jump, a short drop) are not braked.
