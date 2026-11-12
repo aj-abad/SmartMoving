@@ -171,7 +171,6 @@ public class SmartMovingClient implements ClientModInitializer {
                         // 🔴 (BUG D fix, 2026-05-13) bb just before flight end (= moment when mixin offset active) — for gap measurement.
                         if (wasFlying) flyBoxMinYBefore = bbMinY;
                     }
-                    boolean wasRolling = target.isRolling;
                     boolean wasVaulting = target.isVaulting;
                     target.processStatePacket(payload.state());
                     // Dodge takeoff/landing ticks for the remote player's dodge animation.
@@ -179,20 +178,7 @@ public class SmartMovingClient implements ClientModInitializer {
                             && !(entity instanceof LocalPlayer)) {
                         target.trackRemoteAngleJump(wasAngleJumpType, remoteDodge.tickCount,
                                 remoteDodge.getYRot());
-                        // Roll / vault start ticks for the timed poses (docs/research_movement_prototypes.md).
-                        if (target.isRolling && !wasRolling) {
-                            target.rollStartTick = remoteDodge.tickCount;
-                            target.rollDuration = Math.max(2,
-                                    (int) Math.ceil(SmartMovingConfig.Config.rollDurationTicks));
-                            // Remote velocity is not synced; use the last position step instead.
-                            double mx = remoteDodge.getX() - remoteDodge.xo;
-                            double mz = remoteDodge.getZ() - remoteDodge.zo;
-                            target.rollYaw = mx * mx + mz * mz > 1.0E-4
-                                    ? (float) Math.toDegrees(Math.atan2(-mx, mz))
-                                    : remoteDodge.getYRot();
-                        } else if (!target.isRolling && wasRolling) {
-                            target.rollStartTick = Integer.MIN_VALUE;
-                        }
+                        // Vault start tick for the timed pose (docs/research_movement_prototypes.md).
                         if (target.isVaulting && !wasVaulting) {
                             target.vaultStartTick = remoteDodge.tickCount;
                         } else if (!target.isVaulting && wasVaulting) {

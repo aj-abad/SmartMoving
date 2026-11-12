@@ -680,33 +680,6 @@ public final class SmartMovingClientState {
     public int dodgeCooldown;
 
     // ── Movement prototypes (docs/research_movement_prototypes.md) ──────────
-    // Landing roll: an airborne dodge press arms a roll for the next landing.
-    /** Roll in progress (state packet bit 37). */
-    public boolean isRolling;
-    /** Ticks the airborne dodge press stays armed (bit 38 while > 0). */
-    public int rollArmedTicks;
-    /** World yaw (degrees) the armed / running roll travels toward. */
-    public float rollYaw;
-    /** Largest fallDistance seen while armed (vanilla resets it on landing before we look). */
-    public double rollPeakFall;
-    /** Ticks left in the current roll. */
-    public int rollTicks;
-    /** tickCount when the current roll started. Integer.MIN_VALUE when idle. */
-    public int rollStartTick = Integer.MIN_VALUE;
-    /** Roll length in ticks (copied from config at start so remote players animate the same). */
-    public int rollDuration = 10;
-    /** WASD state captured with the airborne press, replayed as a dodge when the fall was too short. */
-    public int rollArmForward, rollArmRight;
-    /** Vertical speed tracked by the roll itself (vanilla travel is cancelled while rolling). */
-    public double rollVy;
-
-    /** 0..1 progress of the current roll for rendering; 1 once it is over. */
-    public float rollProgress(float ageInTicks) {
-        if (rollStartTick == Integer.MIN_VALUE) return 1f;
-        float t = (ageInTicks - rollStartTick) / Math.max(1, rollDuration);
-        return t < 0f ? 0f : (t > 1f ? 1f : t);
-    }
-
     // Sprint vault.
     /** Vault in progress (bit 39). */
     public boolean isVaulting;
@@ -798,7 +771,7 @@ public final class SmartMovingClientState {
     public boolean canShowDodgePose() {
         return !(isRopeSliding || isClimbing || isCrawlClimbing || isCeilingClimbing || isClimbJumping
                 || isSwimming_sm || isDiving || isCrawling || isSliding || isHeadJumping || isFlying
-                || isRolling || isVaulting || isChainClimbing);
+                || isVaulting || isChainClimbing);
     }
 
     /**
@@ -1470,8 +1443,7 @@ public final class SmartMovingClientState {
         //   self-side tickEssential L2144 sets on self-sliding fire / false on sliding phase entry.
         //   remote-side only updates from packet (= tickEssential not called).
         wasSelfSlideFire  = ((bits >> 35) & 1) != 0;
-        // Movement prototypes (bits 37-40). rollArmed (38) is server-only.
-        isRolling         = ((bits >> 37) & 1) != 0;
+        // Movement prototypes (bits 39-40).
         isVaulting        = ((bits >> 39) & 1) != 0;
         isChainClimbing   = ((bits >> 40) & 1) != 0;
     }
@@ -2788,8 +2760,6 @@ public final class SmartMovingClientState {
             if (dodgeCooldown > 0 && player.onGround() && !isAngleJumping()) {
                 dodgeCooldown--;
             }
-            // Landing roll: buffered airborne dodge press → roll (or plain dodge) on landing.
-            SmartMovingRoller.tickArmed(player, this, SmartMovingConfig.Config);
 
             // R-04: isSmall 갱신.
             // 원본 SmartMovingSelf L3110 `boolean isSmall = sp.height < 1;` —
@@ -3393,10 +3363,6 @@ public final class SmartMovingClientState {
         isCrawlClimbing = false;
         isCeilingClimbing = false;
         isRopeSliding = false;
-        isRolling = false;
-        rollArmedTicks = 0;
-        rollTicks = 0;
-        rollStartTick = Integer.MIN_VALUE;
         isVaulting = false;
         vaultStartTick = Integer.MIN_VALUE;
         vaultRiseTicks = 0;
@@ -4757,9 +4723,7 @@ public final class SmartMovingClientState {
         s.isSneakButtonPressed = player.isShiftKeyDown();
         s.isClimbCrawling      = isClimbCrawling;
         s.wasSelfSlideFire     = wasSelfSlideFire;  // fix #96 (remote 측 시각 fix #81/#94/#95 동기화)
-        // Movement prototypes (bits 37-40).
-        s.isRolling            = isRolling;
-        s.rollArmed            = rollArmedTicks > 0;
+        // Movement prototypes (bits 39-40).
         s.isVaulting           = isVaulting;
         s.isChainClimbing      = isChainClimbing;
 

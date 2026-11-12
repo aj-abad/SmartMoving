@@ -77,7 +77,7 @@ public final class SmartMovingVaulter {
             return false;
         }
         if (movementInput.z <= 0D) return false;   // must be pushing forward
-        if (sm.isRolling || sm.isCrawling || sm.isSliding || sm.isHeadJumping
+        if (sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.isClimbing || sm.isChainClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isFlying
                 || player.getAbilities().flying || player.isFallFlying()
@@ -149,7 +149,6 @@ public final class SmartMovingVaulter {
         sm.vaultRiseTicks = riseTicks;
         sm.vaultRiseTotal = riseTicks;
         sm.isJumping = true;
-        sm.rollArmedTicks = 0;
 
         return rise(player, sm, cfg);
     }

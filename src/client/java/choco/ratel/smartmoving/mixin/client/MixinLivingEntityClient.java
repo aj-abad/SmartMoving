@@ -94,13 +94,6 @@ public abstract class MixinLivingEntityClient {
             player.setDeltaMovement(vel.x, vel.y * 0.5999755859375D, vel.z);
         }
 
-        // Landing roll owns the motion while it plays; jump/dodge input is ignored until it ends
-        // (docs/research_movement_prototypes.md).
-        if (choco.ratel.smartmoving.client.SmartMovingRoller.handleRolling(player, sm)) {
-            ci.cancel();
-            return;
-        }
-
         // Sprint vault (docs/research_movement_prototypes.md): sprint + Grab into a 1 to 1.5 block
         // obstacle. Owns the motion during the scripted rise, then hands over to normal air physics.
         if (choco.ratel.smartmoving.client.SmartMovingVaulter.tick(player, sm, movementInput)) {

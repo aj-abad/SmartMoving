@@ -177,16 +177,7 @@ public class MixinPlayerEntityRenderer {
         boolean smActive = sm.isClimbing || sm.isClimbCrawling || sm.isCrawlClimbing
                 || sm.isFlying || sm.isSwimming_sm || sm.isDiving
                 || sm.isCeilingClimbing || sm.isHeadJumping
-                || sm.isSliding || sm.isRolling;
-
-        // Landing roll (docs/research_movement_prototypes.md): the body faces the roll direction for
-        // the whole tumble; mouse yaw does not turn it. Same head handling as sliding.
-        if (sm.isRolling) {
-            sm.smBodyYawActive = true;
-            sm.smBodyYawOverride = sm.rollYaw;
-            sm.smCrawlMode = true;
-            return;
-        }
+                || sm.isSliding;
 
         // Chain climb (docs/research_movement_prototypes.md): the body faces the chain. The local player
         // stores the yaw while climbing; remote players recompute it from the same chain scan.
@@ -993,18 +984,6 @@ public class MixinPlayerEntityRenderer {
             if (sm.dodgePitch != 0f) matrices.rotate(Axis.XP.rotation(-sm.dodgePitch));
             matrices.translate(0f, -pivotY, 0f);
             sm.smOuterTiltX = sm.dodgePitch;
-        }
-
-        // Landing roll (docs/research_movement_prototypes.md): one full forward tumble about the hips
-        // over the roll, dropped toward the ground in the middle so the ball stays near the feet.
-        if (sm.isRolling && sm.rollStartTick != Integer.MIN_VALUE) {
-            float p = sm.rollProgress(animationProgress);
-            float k = (float) Math.sin(p * Math.PI);
-            float pivotY = 1.5f - 12f / 16f;   // hips, same pivot as the dodge lean
-            matrices.translate(0f, -0.35f * k, 0f);
-            matrices.translate(0f, pivotY, 0f);
-            matrices.rotate(Axis.XP.rotation(-(float) (2.0 * Math.PI * p)));
-            matrices.translate(0f, -pivotY, 0f);
         }
 
         // Sprint vault (docs/research_movement_prototypes.md): lean forward over the planted hand.

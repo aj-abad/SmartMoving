@@ -698,21 +698,6 @@ public class SmartMovingConfig {
     public float angleJumpCooldownTicks = 10F;
 
     // === Movement prototypes (docs/research_movement_prototypes.md) — not in the original ===
-    // Landing roll: dodge key pressed while airborne arms a roll for the next landing.
-    public boolean roll = true;
-    /** Ticks an airborne dodge press stays armed. */
-    public float rollBufferTicks = 8F;
-    /** Minimum fall distance for the landing to become a roll. */
-    public float rollMinFallDistance = 3F;
-    /** Above this fall distance the roll no longer reduces damage. */
-    public float rollMaxFallDistance = 12F;
-    /** Multiplier on vanilla fall damage when rolling (0 = none, 1 = unchanged). */
-    public float rollFallDamageFactor = 0.25F;
-    /** Initial roll speed in blocks per tick (before the speed factor). */
-    public float rollSpeedFactor = 0.45F;
-    /** Roll length in ticks. */
-    public float rollDurationTicks = 10F;
-
     // Sprint vault: sprinting into a 1 to 1.5 block obstacle while holding Grab carries the player over it.
     public boolean vault = true;
     /** Scales the upward momentum handed over once the player is above the obstacle (base 0.25). */
@@ -1640,13 +1625,6 @@ public class SmartMovingConfig {
         angleJumpVerticalFactor  = getFloat(p,  "move.jump.angle.vertical.factor", angleJumpVerticalFactor);
         angleJumpCooldownTicks   = getFloat(p,  "move.jump.angle.cooldown.ticks", angleJumpCooldownTicks);
         // Movement prototypes.
-        roll                     = getBool(p,   "move.roll",                      roll);
-        rollBufferTicks          = getFloat(p,  "move.roll.buffer.ticks",         rollBufferTicks);
-        rollMinFallDistance      = getFloat(p,  "move.roll.fall.min",             rollMinFallDistance);
-        rollMaxFallDistance      = getFloat(p,  "move.roll.fall.max",             rollMaxFallDistance);
-        rollFallDamageFactor     = getFloat(p,  "move.roll.fall.damage.factor",   rollFallDamageFactor);
-        rollSpeedFactor          = getFloat(p,  "move.roll.speed.factor",         rollSpeedFactor);
-        rollDurationTicks        = getFloat(p,  "move.roll.duration.ticks",       rollDurationTicks);
         vault                    = getBool(p,   "move.vault",                     vault);
         vaultVerticalFactor      = getFloat(p,  "move.vault.vertical.factor",     vaultVerticalFactor);
         vaultHorizontalFactor    = getFloat(p,  "move.vault.horizontal.factor",   vaultHorizontalFactor);
@@ -1822,13 +1800,6 @@ public class SmartMovingConfig {
         p.setProperty("move.jump.angle.vertical.factor", String.valueOf(angleJumpVerticalFactor));
         p.setProperty("move.jump.angle.cooldown.ticks",  String.valueOf(angleJumpCooldownTicks));
         // Movement prototypes.
-        p.setProperty("move.roll",                       String.valueOf(roll));
-        p.setProperty("move.roll.buffer.ticks",          String.valueOf(rollBufferTicks));
-        p.setProperty("move.roll.fall.min",              String.valueOf(rollMinFallDistance));
-        p.setProperty("move.roll.fall.max",              String.valueOf(rollMaxFallDistance));
-        p.setProperty("move.roll.fall.damage.factor",    String.valueOf(rollFallDamageFactor));
-        p.setProperty("move.roll.speed.factor",          String.valueOf(rollSpeedFactor));
-        p.setProperty("move.roll.duration.ticks",        String.valueOf(rollDurationTicks));
         p.setProperty("move.vault",                      String.valueOf(vault));
         p.setProperty("move.vault.vertical.factor",      String.valueOf(vaultVerticalFactor));
         p.setProperty("move.vault.horizontal.factor",    String.valueOf(vaultHorizontalFactor));

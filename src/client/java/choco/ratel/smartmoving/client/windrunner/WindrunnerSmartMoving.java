@@ -19,12 +19,12 @@ public final class WindrunnerSmartMoving {
                 || sm.isSwimming_sm || sm.isDiving || sm.isFlying;
     }
 
-    /** The states SmartMoving's dodge also refuses: crawling, sliding, climbing, swimming, flying, rolling, vaulting. */
+    /** The states SmartMoving's dodge also refuses: crawling, sliding, climbing, swimming, flying, vaulting. */
     public static boolean claimsGroundDash(LocalPlayer player) {
         if (!SmartMovingConfig.Config.enabled) return false;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         return sm.isCrawling || sm.isSliding || sm.isClimbing || sm.isClimbCrawling || sm.isCrawlClimbing
-                || sm.isCeilingClimbing || sm.isSwimming_sm || sm.isDiving || sm.isFlying || sm.isRolling
+                || sm.isCeilingClimbing || sm.isSwimming_sm || sm.isDiving || sm.isFlying
                 || sm.isVaulting || sm.isChainClimbing;
     }
 }

@@ -209,7 +209,7 @@ public abstract class MixinPlayerEntityModelClient {
                 || sm.isCeilingClimbing || sm.isClimbJumping || sm.isSwimming_sm
                 || sm.isDiving || sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.isFlying || sm.doFallingAnimation || isWeepingTwistingVines
-                || sm.isAngleJumping() || sm.isRolling || sm.isVaulting;
+                || sm.isAngleJumping() || sm.isVaulting;
         if (anySmState) {
             renderState.swimAmount = 0F;
         }
@@ -274,7 +274,7 @@ public abstract class MixinPlayerEntityModelClient {
         boolean anySmState = sm.isFlying || sm.isCrawling || sm.isSliding || sm.isHeadJumping
                 || sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isRopeSliding || sm.isClimbJumping
-                || sm.doFallingAnimation || sm.isAngleJumping() || sm.isRolling || sm.isVaulting;
+                || sm.doFallingAnimation || sm.isAngleJumping() || sm.isVaulting;
 
         // animateWorkingBody (1.7.10 SR L298-304, 1.12.2 SR L401-406): only in isStandard.
         //   angle = sin(sqrt(swing) * 2π) * 0.2
@@ -382,7 +382,7 @@ public abstract class MixinPlayerEntityModelClient {
                 || sm.isCrawling || sm.isSliding || sm.isHeadJumping || flyingCreative
                 || isFallingForReset
                 || isWeepingTwistingVines
-                || sm.isRolling || sm.isVaulting
+                || sm.isVaulting
                 || sm.isAngleJumping();   // 🔴 (2026-04-27) activate reset infrastructure during angle jump —
                                           // reset head.pivotZ/body.yaw/head.roll/arm.pivot to 0 →
                                           // cancel previous SM branch linger + vanilla animateArms swing body.yaw wobble.
@@ -548,8 +548,6 @@ public abstract class MixinPlayerEntityModelClient {
             leftArm.xRot  = HALF + SIXTEENTH;
             rightArm.zRot  = -THIRTYTWOTH;
             leftArm.zRot   =  THIRTYTWOTH;
-        } else if (sm.isRolling) {
-            sm_animateRolling(sm, animationProgress);
         } else if (sm.isVaulting) {
             sm_animateVaulting(sm, animationProgress);
         } else if (sm.isSwimming_sm) {
@@ -2018,26 +2016,6 @@ public abstract class MixinPlayerEntityModelClient {
         head.yRot = 0f;
         head.xRot = headPitch * DEG_TO_RAD - 0.25f;
         body.xRot = -0.12f;
-    }
-
-    /**
-     * Landing roll (docs/research_movement_prototypes.md): tuck into a ball while the renderer
-     * tumbles the whole body about the hips. The tuck fades in and out with sin(π·p) so the pose
-     * leaves the standing stance smoothly at both ends.
-     */
-    private void sm_animateRolling(SmartMovingClientState sm, float animationProgress) {
-        float p = sm.rollProgress(animationProgress);
-        float k = Mth.sin(p * (float) Math.PI);
-        // Knees to the chest, feet slightly apart.
-        blendLimb(leftLeg,  -1.6f, -0.12f, k);
-        blendLimb(rightLeg, -1.6f,  0.12f, k);
-        // Arms wrapped in front of the body.
-        blendLimb(leftArm,  -1.25f, -0.25f, k);
-        blendLimb(rightArm, -1.25f,  0.25f, k);
-        // Chin down, back rounded.
-        head.xRot += (0.75f - head.xRot) * k;
-        head.yRot *= 1f - k;
-        body.xRot += 0.45f * k;
     }
 
     /**
