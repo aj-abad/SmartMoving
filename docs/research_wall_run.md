@@ -28,9 +28,25 @@ or up it (head-on hit). Step one is keeping the sprint alive through the collisi
 | Slide | Grab + Sneak + sprint | not apply while sneaking |
 | Climbing / ledge grab | Grab near holds or a wall top in reach | hand over at the top of a vertical run |
 
-## Open design questions
+## Design (agreed)
 
-- Angle split between vertical and horizontal runs (head-on vs glancing).
-- Duration, speed and gravity during each run; what ends it (time, releasing Grab, wall ends).
-- Jump during a run: wall jump away, and whether it interacts with the pants' double jump.
-- Once per airtime, or chained between walls.
+- Trigger: boots, Grab held, sprinting with forward held, not sneaking, hitting a wall at least two
+  blocks tall. The angle is the move direction against the wall's face:
+  - 70 degrees or steeper (near head-on): run up. Allowed from the ground or the air.
+  - 40 degrees or shallower: run along. Airborne only (on the ground it is ordinary sprinting).
+  - In between, including 45 plus or minus several degrees: nothing.
+- Run up: starts at 0.4 blocks/tick and decelerates by 0.02 per tick, so it tops out about four
+  blocks up after a second. Reaching the wall's top early pops the player up and onto it.
+- Run along: at least 0.32 blocks/tick along the wall (more if already faster), sinking at a steady
+  0.06 blocks/tick from the start, for up to 1.5 seconds.
+- Ends: timer, releasing Grab or forward, sneaking, the wall ending, landing, a dash, or SmartMoving
+  taking over (climbing, ledge grab, swimming, flying, vaulting, sliding, crawling, head jump).
+- Jump during a run: kick away from the wall (0.4 out, 0.5 up, scaled by jump strength), keeping the
+  along-wall momentum, and the pants' double jump comes back.
+- Once per wall: a wall (its side and plane) cannot be run twice in a row before landing; chaining to
+  a different wall is unlimited.
+- Server: client-authoritative movement as for the dashes. Actions WALL_RUN_START/STOP keep fall
+  distance reset while running; WALL_KICK, valid only during a run, refreshes the double jump charge.
+- SmartMoving: its wall jump (`SmartMovingJumper.handleWallJumping`) stands down during a run, so the
+  Jump press is the kick alone. The Grab + sprint + Jump head jump on the ground is unchanged, so an
+  along-the-wall run is entered by pressing Grab after takeoff.
