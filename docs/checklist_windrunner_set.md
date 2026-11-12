@@ -11,4 +11,5 @@
 - [x] Tests: physics simulation source set and client game tests
 - [x] Build, run both test suites
 - [x] README (English and Korean)
-- [ ] Aircraft: restore the firework wingsuit state from `6005762`
+- [x] Aircraft: restore the firework wingsuit state from `6005762` (Aircraft commit `52cea9e`, version 0.42.0)
+- [x] Interop: note Jump and Sneak presses at `KeyMapping.click` so both mods see them
