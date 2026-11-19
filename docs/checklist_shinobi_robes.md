@@ -6,4 +6,4 @@
 - [x] Short obi knot in place of the sash tails
 - [x] Item icons
 - [x] Screenshots on a mannequin and the player, README
-- [ ] Build, test, deploy
+- [x] Build, test, deploy
