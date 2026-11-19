@@ -85,6 +85,11 @@ public final class WindrunnerGlide {
     public int epoch() { return epoch; }
     public State state() { return state; }
     public Vec3 forward() { return WindrunnerGlidePhysics.nose(state.pitch, state.yaw); }
+    /** Where the player is actually travelling; the nose sits a few degrees above a descending path. */
+    private Vec3 path() {
+        Vec3 velocity = player.getDeltaMovement();
+        return velocity.lengthSqr() > 1.0E-4 ? velocity.normalize() : forward();
+    }
     public float yaw(float partial) { return visuals.yaw(state, partial); }
     public float pitch(float partial) { return visuals.pitch(state, partial); }
     public float roll(float partial) { return visuals.roll(state, partial); }
@@ -126,7 +131,7 @@ public final class WindrunnerGlide {
         underStallStress = stallStress;
         if (WindrunnerGlideModel.boosted(state)) {
             wear += WindrunnerGlideWear.BOOST;
-            WindrunnerMoves.boostEffects(serverPlayer, forward());
+            WindrunnerMoves.boostEffects(serverPlayer, path());
         }
         if (!damageEquipment(wear)) { stop(); return; }
         if (flightTicks % 2 == 0) broadcast();
@@ -236,7 +241,7 @@ public final class WindrunnerGlide {
         move(input, environment);
         // Live prediction only: replays after a correction re-run old frames and must not redraw them.
         if (player.level().isClientSide() && WindrunnerGlideModel.boosted(state)) {
-            WindrunnerMoves.localSonicBoom(player, forward());
+            WindrunnerMoves.localSonicBoom(player, path());
         }
         if (player instanceof ServerPlayer server && (player.onGround() || player.horizontalCollision || player.isInWater())) {
             Vec3 intended = lastIntended;

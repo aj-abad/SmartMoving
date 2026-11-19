@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
@@ -297,16 +298,16 @@ public final class WindrunnerMoves {
     /** A glide boost cracks like a wind charge and leaves a gust behind. */
     private static final int SONIC_BOOM_RINGS = 3;
 
-    /** One ring at the player and two ahead, so the booster bursts through them. */
-    static Vec3 sonicBoomRing(Vec3 position, Vec3 forward, int ring) {
-        return position.add(0, 0.9, 0).add(forward.scale(ring * 2.5));
+    /** One ring at the middle of the player's body and two ahead along its path, so the booster bursts through them. */
+    static Vec3 sonicBoomRing(Entity entity, Vec3 forward, int ring) {
+        return entity.position().add(0, entity.getBbHeight() * 0.5, 0).add(forward.scale(ring * 2.5));
     }
 
     /** The booster's own rings, drawn locally: server particles would arrive after the player had passed them. */
     public static void localSonicBoom(Player player, Vec3 forward) {
         for (int ring = 0; ring < SONIC_BOOM_RINGS; ring++) {
-            Vec3 at = sonicBoomRing(player.position(), forward, ring);
-            player.level().addParticle(ParticleTypes.SONIC_BOOM, at.x, at.y, at.z, 0, 0, 0);
+            Vec3 at = sonicBoomRing(player, forward, ring);
+            player.level().addParticle(WindrunnerParticles.BOOM, at.x, at.y, at.z, 0, 0, 0);
         }
     }
 
@@ -314,9 +315,9 @@ public final class WindrunnerMoves {
         Vec3 behind = server.position().add(0, 0.4, 0).subtract(forward.scale(0.8));
         // Watchers get the shockwave from here; the booster's own client draws it the tick it predicts the boost.
         for (int ring = 0; ring < SONIC_BOOM_RINGS; ring++) {
-            Vec3 at = sonicBoomRing(server.position(), forward, ring);
+            Vec3 at = sonicBoomRing(server, forward, ring);
             for (ServerPlayer watcher : PlayerLookup.tracking(server)) {
-                server.level().sendParticles(watcher, ParticleTypes.SONIC_BOOM, true, false, at.x, at.y, at.z, 1, 0, 0, 0, 0);
+                server.level().sendParticles(watcher, WindrunnerParticles.BOOM, true, false, at.x, at.y, at.z, 1, 0, 0, 0, 0);
             }
         }
         puff(server, ParticleTypes.SMALL_GUST, behind.subtract(forward.scale(0.6)), 2, 0.15);
