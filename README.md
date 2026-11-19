@@ -100,7 +100,7 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   open, turning your fall straight into a shallow glide at about 20 blocks/s that builds to cruise
   over a couple of seconds; a faster fall is braked to about 20 blocks/s within half a second. W/S pitch, A/D bank; wind, storms and lava updrafts still push it
   about, with server-authoritative flight and client prediction, and a fan of phantom-membrane leaves
-  on breeze-rod ribs. Boosts add about 18 blocks/s each, leaving a trail of sonic booms, on a
+  on breeze-rod ribs. Boosts add about 18 blocks/s each, leaving a trail of white shockwave rings, on a
   three-quarter-second cooldown. Wall crashes hurt like an elytra's. The robes have 240
   durability: opening costs one point, loaded fabric wears every five seconds, and overspeed, deep stalls
   and boosts add wear.
