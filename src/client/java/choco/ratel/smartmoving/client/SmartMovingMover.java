@@ -154,7 +154,6 @@ public final class SmartMovingMover {
     // ── Constants (original SmartMovingContext.java) ──────────────────────
     private static final float HORIZONTAL_GROUND_DAMPING       = 0.546F;
     private static final float HORIZONTAL_AIR_DAMPING          = 0.91F;
-    private static final float HORIZONTAL_AIRODYNAMIC_DAMPING  = 0.999F;
 
     // ── isRunning (original SmartMovingSelf.isRunning) ───────────────────
     /**
@@ -215,16 +214,6 @@ public final class SmartMovingMover {
             if (jumpKeyPressed && sm.isFast) {
                 speedFactor *= cfg.sprintJumpVerticalFactor;
             }
-        } else if (sm.isAerodynamic) {
-            // 🔴 fix #46 (2026-05-09, user report "original continuous until landing with jump-boosted fox, ours cuts off"):
-            //   Original SmartMovingSelf.landMotion L752-753:
-            //     else if (isAerodynamic) horizontalDamping = HorizontalAirodynamicDamping;  // 0.999F
-            //     else                    horizontalDamping = HorizontalAirDamping;          // 0.91F
-            //   Our mapping always uses 0.91 in air branch → after fox movement auto-switch (SlideToHeadJumping) triggers,
-            //   isAerodynamic=true but our mapping stays at 0.91 → multiply by 0.91 each tick → ~24 ticks (1.2s)
-            //   motion nearly 0 → user perceives "cuts off without hitting anything".
-            //   Original 0.999F → maintains 99.9% each tick → almost no slowdown → "continues until landing".
-            horizontalDamping = HORIZONTAL_AIRODYNAMIC_DAMPING;
         } else {
             horizontalDamping = HORIZONTAL_AIR_DAMPING;
         }
@@ -232,9 +221,7 @@ public final class SmartMovingMover {
         // Original landMotion L703-706: jump control factor.
         // Phase F 1:1 correction: explicitly added original L705 `Config.enabled && ...` guard (cosmetic — function start
         //   already has `if (!cfg.enabled) return false` guard at function level, same behavior).
-        if (sm.isHeadJumping) {
-            speedFactor *= cfg.headJumpControlFactor;
-        } else if (cfg.enabled && !player.onGround()
+        if (cfg.enabled && !player.onGround()
                 && !player.getAbilities().flying && !sm.isFlying) {
             speedFactor *= cfg.jumpControlFactor;
         }
@@ -270,7 +257,7 @@ public final class SmartMovingMover {
             //   vanilla 1.7.10 EntityPlayer.onLivingUpdate sets jumpMovementFactor to
             //   0.02 + 0.02×0.3 = 0.026 on sprint → SM normalizes by dividing by 1.3 → always results 0.02.
             //   vanilla 1.21.1 has no jumpMovementFactor field, so we hardcoded 0.02 then
-            //   divide by 1.3 on sprint yielding 0.01538 (= 23% less) → insufficient air acceleration → shorter headjump/fox distance.
+            //   divide by 1.3 on sprint yielding 0.01538 (= 23% less) → insufficient air acceleration → shorter jump distance.
             //   Solution: always 0.02 same as 1.7.10 result formula. Sprint bonus replaced by SM's own sprintFactor.
             rawSpeed = 0.02F;
         }
@@ -288,7 +275,7 @@ public final class SmartMovingMover {
         //   User measurement environment = 1.7.10 + 1.12.2 Forge SmartMoving = 1.12.2 SMReboot formula.
         //   → Remove branch. (= the 1.7.10 sm_original our mapping followed is incorrect reference).
         //
-        //   Impact: SPEED multiplier applies to air acceleration during headjump/fox movement.
+        //   Impact: SPEED multiplier applies to air acceleration while airborne.
         //   - SPEED LV3 (= 1.6 multiplier): air ADD increases 1.62x.
         //   - SPEED LV5 (= 2.0 multiplier): air ADD increases 2.0x.
         //   - SPEED LV10 (= 3.0 multiplier): air ADD increases 3.0x.

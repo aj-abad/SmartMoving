@@ -40,7 +40,6 @@ public abstract class MixinPlayerEntityClient {
      * SM active states (original setHeightOffset(-1F) set):
      *   - isCrawling        (original L2829 crawl entry / L2798 climbCrawl entry etc.)
      *   - isClimbCrawling   (original L2798)
-     *   - isHeadJumping     (original L2129 tryJump head)
      *   - isSliding         (original L2555 slide direct entry)
      *   - isSwimming_sm     (original L511 handleSwimming)
      *   - isDiving          (original L511)
@@ -132,39 +131,7 @@ public abstract class MixinPlayerEntityClient {
         //   dim entry → bb 0.8h. user perceives "STANDING → crouch" transition.
         //   Solution: remove v26.5 guard. restore memory *project_isCrawlClimbing_complete* Fix 7 intent
         //   (= add isCrawlClimbing to smSmall → always guarantee 0.8/0.62) 1:1.
-        // 🔴 isHeadJumping separate branch (2026-05-08, settled after multi-stage fix):
-        //   Original setHeightOffset(-1F) = boundingBox.minY +=1m + height -=1m + **posY unchanged**.
-        //   camera = posY + 1.62F (STANDING eyeHeight). no camera change on entry (smooth).
-        //
-        //   1st attempt: dim (0.6, 0.8, 1.62F) → MixinEntity.sm_offsetBoundingBoxForFlying
-        //     guard (height<1 && eyeHeight>1) match → box +1m offset auto-applied → box bottom =
-        //     player.y +1m → onGround check wrong → infinite loop BUG (user report "hover 1 block in air" +
-        //     "no sliding after landing").
-        //
-        //   2nd fix (current): dim (0.6, **1.8**, 1.62F) — height same as STANDING.
-        //     - offset guard no match (height>=1 → early return) → box +1m offset not applied.
-        //     - box = (player.y, player.y+1.8) = STANDING box same.
-        //     - camera = player.y + 1.62F = STANDING camera same (no viewpoint change on entry/exit).
-        //     - POSE = SLIDING (only model pose flat), dim height=1.8 (only box STANDING).
-        //     - toSlidingOrCrawling works normally → headjump → grab+sneak hold → sliding OK.
-        //
-        //   Note: box bottom = player.y (same as STANDING) — no +1m effect from original box.
-        //         narrow space passage scenarios may need separate fix later.
-        if (sm.isHeadJumping) {
-            // 🔴 fix #26 revert (user report "stuck in ground can't get out"):
-            //   `isHeadJumping || justEndedHeadJump` branch forced dim eye=1.62 but cached bb not updated
-            //   → toSlidingOrCrawling calculates gap=1.0 (mixin match cached bb minY=ground+1)
-            //   → player.move(-1, 0) → box -1m → cycle. revert.
-            // 🔴 fix #13 (2026-05-08, user report "collision STANDING unchanged"):
-            //   fix #12 (height 1.8) prevented infinite loop by mixin offset guard no match effect but
-            //   box collision = STANDING (1.8) contradicts user intent (headjump small box).
-            //   real fix: revert dim to small box (0.8) + eyeHeight 1.62, add POSE=SLIDING exception
-            //   to MixinEntity's offset guard → block mixin offset → no infinite loop +
-            //   box small + camera STANDING.
-            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
-            return;
-        }
-        // 🔴 fix #59 (2026-05-10, dump analysis — user report "eye height below collision during fox movement"):
+        // 🔴 fix #59 (2026-05-10, dump analysis — user report "eye height below collision while sliding"):
         //   during isSliding fix #56's POSE.SLIDING guard activates mixin offset → box +1m up.
         //   however dim eyeHeight=0.62 remains → camera = entity.y + 0.62 → 0.38m below box.
         //   1.7.10/1.12.2's setHeightOffset(-1) = boundingBox +1m up + position unchanged.
@@ -177,7 +144,7 @@ public abstract class MixinPlayerEntityClient {
         // 🔵 (2026-05-20, Phase 0 verification fix #102) swim/dive separate branch — adopt isSliding pattern 1:1.
         //   Original 1.7.10 `setHeightOffset(-1F)` (L510-511 `if(isDiving||isSwimming)`) effect =
         //     boundingBox.minY -= 1 (box +1m up) + height 0.8 + eyeHeight unchanged (STANDING 1.62
-        //     remains, position unchanged). same intent as isSliding/isHeadJumping mapping.
+        //     remains, position unchanged). same intent as isSliding mapping.
         //   Existing mapping BUG: swim/dive enters smSmall (eye=0.62) blocks box +1m up (mixin offset
         //     guard `eyeHeight>1 || pose==SLIDING` doesn't pass) + camera 1m below STANDING.
         //   Solution: like isSliding force eye=1.62 → pass mixin offset guard (eye>1) → box +1m up auto-applied
@@ -202,7 +169,7 @@ public abstract class MixinPlayerEntityClient {
         //   collision smaller than normal crouch + animation STANDING"):
         //   Root cause: server→client pose sync lag (1~4 frames) between sliding → standing 1 frame
         //              pose=SWIMMING remains. all SM smSmall branches (isCrawling/isCrawlClimbing/
-        //              isHeadJumping/isSliding/isSwimming_sm/isDiving) false → above branch no match
+        //              isSliding/isSwimming_sm/isDiving) false → above branch no match
         //              → vanilla SWIMMING dim (0.6×0.6) passes → box smaller than 0.6×0.8.
         //              animation all SM branches false so vanilla setAngles → STANDING pose.
         //   Solution: pose=SWIMMING + smSmall no match = orphan → force STANDING dim (sync releases
@@ -262,7 +229,7 @@ public abstract class MixinPlayerEntityClient {
      *
      * Priority mapping (original heightOffset=-1F active state transmitted):
      *   isCrawling / isClimbCrawling             → SWIMMING (crouch anim)
-     *   isHeadJumping / isSliding                 → SLIDING  (flat pose)
+     *   isSliding                                 → SLIDING  (flat pose)
      *   isSwimming_sm / isDiving                  → SWIMMING (swim anim)
      *   isFlying (SM) / isLevitating              → SLIDING  (maintain bbox 0.8 during flight)
      *   isDipping                                 → STANDING (heightOffset=0, standing on water)
@@ -290,7 +257,7 @@ public abstract class MixinPlayerEntityClient {
             //   user report "body animation periodic wobble". during climbing keep STANDING pose.
             player.setPose(Pose.SWIMMING);
             ci.cancel();
-        } else if (sm.isHeadJumping || sm.isSliding) {
+        } else if (sm.isSliding) {
             // Flat pose — SLIDING POSE
             player.setPose(Pose.SLIDING);
             ci.cancel();
@@ -396,27 +363,6 @@ public abstract class MixinPlayerEntityClient {
         if (!Float.isNaN(sm.smRemoteStatsHorizontalAngle_fromPacket)) {
             sm.stats.currentHorizontalAngle = sm.smRemoteStatsHorizontalAngle_fromPacket;
             sm.stats.prevHorizontalAngle = sm.smRemoteStatsHorizontalAngle_fromPacket;
-        }
-
-        // 🔵 (2026-05-14, fix #98 v4) REMOTE headjump pose visual hold release position-based (correct locked cause).
-        //   set location: SmartMovingClient.java packet process detects airborne state (= prevY > groundY+0.005).
-        //   v4 release condition: REMOTE.y >= smRemoteHJExitGroundY-0.005 (= reached ground = recovery complete).
-        //
-        //   v3 (= getY <= groundY+0.005) incorrect: also matches locked state (= REMOTE.y < ground) → release immediately active.
-        //     dump validation cycle 1-5: prevY > groundY (airborne) + getY < groundY (locked lerp in progress) →
-        //     hold active + release immediately → no effect.
-        //
-        //   v4 release formula analysis:
-        //     - server.y trajectory: locked moment (71) → push +1m reach (72=ground) → residual (= after self standUp).
-        //     - REMOTE.y lerp pursues srvY: initial locked attempt (71 reach progress) → srvY updates (72) → recovery pursuit (72).
-        //     - release moment = REMOTE.y >= groundY-0.005 (= at or above ground) → recovery complete.
-        //     - locked in progress (= getY < groundY): no release → maintain hold → maintain pose visual.
-        //
-        //   user principle "tick-based no answer" matches — position-based only.
-        if (sm.smRemoteHJVisualHold) {
-            if (remote.getY() >= sm.smRemoteHJExitGroundY - 0.005) {
-                sm.smRemoteHJVisualHold = false;
-            }
         }
 
     }

@@ -62,7 +62,7 @@ public class SmartStatistics {
      * Solution: if dist getter result per frame is less than previous call result (= backward) keep previous value.
      *   → only tick boundary frame stays stationary 1 frame (≈ 50ms). visually natural.
      *
-     * Regression guard: in all branches (swim/dive/flying/sliding/crawling/headjumping/ceilingclimbing)
+     * Regression guard: in all branches (swim/dive/flying/sliding/crawling/ceilingclimbing)
      *   dist accumulates monotonically (SmartStatistics.reset() not called). guard effect = block backward only.
      */
     private float lastDistResult = 0f;

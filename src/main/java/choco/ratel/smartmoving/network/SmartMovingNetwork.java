@@ -148,7 +148,6 @@ public final class SmartMovingNetwork {
      * Fix (2026-05-14, Option F): self stats angle sent per-tick packet →
      *   REMOTE overwrites own stats.calculate result with packet value → 100% identical to self trajectory.
      * Packet overhead: per tick 8 bytes * tracker count = ~3.2 kbps/tracker (= acceptable overhead).
-     * Fix #96 wasSelfSlideFire bit 35 pattern extended.
      */
     public record StatsPayload(int entityId, float verticalAngle, float horizontalAngle) implements CustomPacketPayload {
         public static final Type<StatsPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("smartmoving", "stats"));

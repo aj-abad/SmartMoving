@@ -33,23 +33,18 @@ public class SmartMovingConfig {
 
     // === Jump Type constants (original SmartMovingClientConfig L178-L192, B-2.5) ===
     //   tryJump / isJumpingEnabled / getJumpHorizontalFactor / getJumpVerticalFactor /
-    //   getMaxHorizontalMotion / getHeadJumpFactor type parameter domain (15 types).
+    //   getMaxHorizontalMotion type parameter domain. Ids 3, 9, 10, 12 and 14 are unused, so the rest keep the original values.
     //   Note: Mapping alignment with 1.21.1 SmartMovingJumper existing jumpType constants is handled in Phase E.
     public static final int JUMP_TYPE_UP                     = 0;
     public static final int JUMP_TYPE_CHARGE_UP              = 1;
     public static final int JUMP_TYPE_ANGLE                  = 2;
-    public static final int JUMP_TYPE_HEAD_UP                = 3;
     public static final int JUMP_TYPE_SLIDE_DOWN             = 4;
     public static final int JUMP_TYPE_CLIMB_UP               = 5;
     public static final int JUMP_TYPE_CLIMB_UP_HANDS_ONLY    = 6;
     public static final int JUMP_TYPE_CLIMB_BACK_UP          = 7;
     public static final int JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY = 8;
-    public static final int JUMP_TYPE_CLIMB_BACK_HEAD        = 9;
-    public static final int JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY = 10;
     public static final int JUMP_TYPE_WALL_UP                = 11;
-    public static final int JUMP_TYPE_WALL_HEAD              = 12;
     public static final int JUMP_TYPE_WALL_UP_SLIDE          = 13;
-    public static final int JUMP_TYPE_WALL_HEAD_SLIDE        = 14;
 
     /**
      * Phase B-1 — getJumpSpeed helper.
@@ -97,15 +92,13 @@ public class SmartMovingConfig {
      *     if (type == SlideDown)                         return _slide.value;
      *     if (type == ClimbUp || type == ClimbUpHandsOnly)             return _climbUpJump.value;
      *     if (type == ClimbBackUp || type == ClimbBackUpHandsOnly)     return _climbBackUpJump.value;
-     *     if (type == ClimbBackHead || type == ClimbBackHeadHandsOnly) return _climbBackHeadJump.value;
      *     if (type == WallUp)                            return _wallUpJump.value;
-     *     if (type == WallHead)                          return _wallHeadJump.value;
      *     if (speed == Sprinting)                        return _sprintJump.value;
      *     else if (speed == Running)                     return _runJump.value;
      *     else if (speed == Walking)                     return _walkJump.value;
      *     else if (speed == Sneaking)                    return _sneakJump.value;
      *     else if (speed == Standing)                    return _standJump.value;
-     *     return true;   // type=Up/HeadUp/Angle/WallUpSlide/WallHeadSlide & speed branch not matched
+     *     return true;   // type=Up/Angle/WallUpSlide & speed branch not matched
      * }
      * </pre>
      *
@@ -126,13 +119,9 @@ public class SmartMovingConfig {
             return climbUpJump;
         if (type == JUMP_TYPE_CLIMB_BACK_UP || type == JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY)
             return climbBackUpJump;
-        if (type == JUMP_TYPE_CLIMB_BACK_HEAD || type == JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY)
-            return climbBackHeadJump;
 
         if (type == JUMP_TYPE_WALL_UP)
             return wallUpJump;
-        if (type == JUMP_TYPE_WALL_HEAD)
-            return wallHeadJump;
 
         if (speed == SPEED_SPRINTING)
             return sprintJump;
@@ -212,33 +201,6 @@ public class SmartMovingConfig {
     }
 
     /**
-     * Phase B-8 — getHeadJumpFactor(headJumpCharge).
-     *
-     * Original `SmartMovingClientConfig.java` L410-L416 (1:1 translation):
-     * <pre>
-     * public float getHeadJumpFactor(float headJumpCharge) {
-     *     if (!enabled || !_headJump.value) return 1F;
-     *     headJumpCharge = Math.min(headJumpCharge, _headJumpChargeMaximum.value);
-     *     return (headJumpCharge - 1) / (_headJumpChargeMaximum.value - 1);
-     * }
-     * </pre>
-     *
-     * Formula: charge=1 → 0, charge=max → 1. Head jump normalAngle rotation ratio (Phase D-10).
-     *
-     * Caution: When charge=0 result is -1 / (max-1) (negative). Call site (Phase D-10) assumes
-     * charge >= 1 is already guaranteed before entering head branch (as original).
-     *
-     * Call site: tryJump head recalculation (Phase D-10) — `double newAngle = cfg.getHeadJumpFactor(sm.headJumpCharge) * normalAngle;`
-     */
-    public float getHeadJumpFactor(float headJumpCharge) {
-        if (!enabled || !this.headJump)
-            return 1F;
-
-        headJumpCharge = Math.min(headJumpCharge, headJumpChargeMaximum);
-        return (headJumpCharge - 1) / (headJumpChargeMaximum - 1);
-    }
-
-    /**
      * Phase B-5 — getJumpVerticalFactor(speed, type).
      *
      * Original `SmartMovingClientConfig.java` L418-L463 (1:1 translation):
@@ -251,11 +213,8 @@ public class SmartMovingConfig {
      *     if (type == ClimbUpHandsOnly)                                   result *= _climbUpJumpHandsOnlyVerticalFactor.value;
      *     if (type == ClimbBackUp || type == ClimbBackUpHandsOnly)        result *= _climbBackUpJumpVerticalFactor.value;
      *     if (type == ClimbBackUpHandsOnly)                               result *= _climbBackUpJumpHandsOnlyVerticalFactor.value;
-     *     if (type == ClimbBackHead || type == ClimbBackHeadHandsOnly)    result *= _climbBackHeadJumpVerticalFactor.value;
-     *     if (type == ClimbBackHeadHandsOnly)                             result *= _climbBackHeadJumpHandsOnlyVerticalFactor.value;
-     *     if (type == WallUp || type == WallHead)                         result *= _wallUpJumpVerticalFactor.value;        // ※ both use wallUp
-     *     if (type == WallHead)                                           result *= _wallHeadJumpVerticalFactor.value;       // ※ WallHead = base × wallUp × wallHead accumulated
-     *     if (type == Angle || type == ClimbUp || ... || type == WallHead) return result;   // type match skip speed branch
+     *     if (type == WallUp)                                             result *= _wallUpJumpVerticalFactor.value;
+     *     if (type == Angle || type == ClimbUp || ... || type == WallUp)  return result;   // type match skip speed branch
      *     if (speed == Sprinting)  result *= _sprintJumpVerticalFactor.value;
      *     else if (speed == Running)  result *= _runJumpVerticalFactor.value;
      *     else if (speed == Walking)  result *= _walkJumpVerticalFactor.value;
@@ -286,21 +245,13 @@ public class SmartMovingConfig {
         if (type == JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY)
             result *= climbBackUpJumpHandsOnlyVerticalFactor;
 
-        if (type == JUMP_TYPE_CLIMB_BACK_HEAD || type == JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY)
-            result *= climbBackHeadJumpVerticalFactor;
-        if (type == JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY)
-            result *= climbBackHeadJumpHandsOnlyVerticalFactor;
-
-        if (type == JUMP_TYPE_WALL_UP || type == JUMP_TYPE_WALL_HEAD)
+        if (type == JUMP_TYPE_WALL_UP)
             result *= wallUpJumpVerticalFactor;
-        if (type == JUMP_TYPE_WALL_HEAD)
-            result *= wallHeadJumpVerticalFactor;
 
         if (type == JUMP_TYPE_ANGLE
             || type == JUMP_TYPE_CLIMB_UP || type == JUMP_TYPE_CLIMB_UP_HANDS_ONLY
             || type == JUMP_TYPE_CLIMB_BACK_UP || type == JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY
-            || type == JUMP_TYPE_CLIMB_BACK_HEAD || type == JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY
-            || type == JUMP_TYPE_WALL_UP || type == JUMP_TYPE_WALL_HEAD)
+            || type == JUMP_TYPE_WALL_UP)
             return result;
 
         if (speed == SPEED_SPRINTING)
@@ -332,25 +283,19 @@ public class SmartMovingConfig {
      *     if (type == ClimbBackUp || type == ClimbBackUpHandsOnly)           result *= _climbBackUpJumpHorizontalFactor.value;
      *     if (type == ClimbBackUpHandsOnly)                                  result *= _climbBackUpJumpHandsOnlyHorizontalFactor.value;
      *
-     *     if (type == ClimbBackHead || type == ClimbBackHeadHandsOnly)       result *= _climbBackHeadJumpHorizontalFactor.value;
-     *     if (type == ClimbBackHeadHandsOnly)                                result *= _climbBackHeadJumpHandsOnlyHorizontalFactor.value;
-     *
      *     if (type == WallUp)                                                result *= _wallUpJumpHorizontalFactor.value;
-     *     if (type == WallHead)                                              result *= _wallHeadJumpHorizontalFactor.value;
      *
      *     if (type == Angle || type == ClimbUp || type == ClimbUpHandsOnly
      *         || type == ClimbBackUp || type == ClimbBackUpHandsOnly
-     *         || type == ClimbBackHead || type == ClimbBackHeadHandsOnly
-     *         || type == WallUp || type == WallHead)
+     *         || type == WallUp)
      *         return result;   // type match skip speed branch (early return)
      *
      *     if (speed == Sprinting)                                            result *= _sprintJumpHorizontalFactor.value;
      *     else if (speed == Running)                                         result *= _runJumpHorizontalFactor.value;
      *     else if (speed == Walking)                                         result *= _walkJumpHorizontalFactor.value;
      *     else if (speed == Sneaking)                                        result *= _sneakJumpHorizontalFactor.value;
-     *     else if (speed == Standing && type != ClimbBackUp && type != ClimbBackUpHandsOnly
-     *                                && type != ClimbBackHead && type != ClimbBackHeadHandsOnly)
-     *         result *= 0F;   // L501 — Standing jump horizontal 0 (Climb 4 types early return above)
+     *     else if (speed == Standing && type != ClimbBackUp && type != ClimbBackUpHandsOnly)
+     *         result *= 0F;   // L501 — Standing jump horizontal 0 (Climb types early return above)
      *     return result;
      * }
      * </pre>
@@ -371,21 +316,13 @@ public class SmartMovingConfig {
         if (type == JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY)
             result *= climbBackUpJumpHandsOnlyHorizontalFactor;
 
-        if (type == JUMP_TYPE_CLIMB_BACK_HEAD || type == JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY)
-            result *= climbBackHeadJumpHorizontalFactor;
-        if (type == JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY)
-            result *= climbBackHeadJumpHandsOnlyHorizontalFactor;
-
         if (type == JUMP_TYPE_WALL_UP)
             result *= wallUpJumpHorizontalFactor;
-        if (type == JUMP_TYPE_WALL_HEAD)
-            result *= wallHeadJumpHorizontalFactor;
 
         if (type == JUMP_TYPE_ANGLE
             || type == JUMP_TYPE_CLIMB_UP || type == JUMP_TYPE_CLIMB_UP_HANDS_ONLY
             || type == JUMP_TYPE_CLIMB_BACK_UP || type == JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY
-            || type == JUMP_TYPE_CLIMB_BACK_HEAD || type == JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY
-            || type == JUMP_TYPE_WALL_UP || type == JUMP_TYPE_WALL_HEAD)
+            || type == JUMP_TYPE_WALL_UP)
             return result;
 
         if (speed == SPEED_SPRINTING)
@@ -397,8 +334,7 @@ public class SmartMovingConfig {
         else if (speed == SPEED_SNEAKING)
             result *= sneakJumpHorizontalFactor;
         else if (speed == SPEED_STANDING
-                 && type != JUMP_TYPE_CLIMB_BACK_UP && type != JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY
-                 && type != JUMP_TYPE_CLIMB_BACK_HEAD && type != JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY)
+                 && type != JUMP_TYPE_CLIMB_BACK_UP && type != JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY)
             result *= 0F;
 
         return result;
@@ -515,8 +451,6 @@ public class SmartMovingConfig {
     // Original: Config._freeClimbFallDamageStartDistance = 2F, _freeClimbFallDamageFactor = 2F
     public float freeClimbFallDamageStartDistance = 2.0F;
     public float freeClimbFallDamageFactor        = 2.0F;
-    // Original: Options._climbJumpBackHeadOnGrab — false=headJump when grabNotPressed, true=headJump when grabbed
-    public boolean climbJumpBackHead = false;
     public boolean climbExhaustion = false;
     public float climbExhaustionStart = 60F;
     public float climbExhaustionStop = 100F;
@@ -648,24 +582,15 @@ public class SmartMovingConfig {
 
     // Original: _wallUpJump = Unmodified("move.jump.wall") → default true
     public boolean wallUpJump = true;
-    // Original: _wallHeadJump = Unmodified("move.jump.wall.head") → default true
-    public boolean wallHeadJump = true;
     // Original: _wallUpJumpFallMaximumDistance = Positive(...).defaults(2F)
     public float wallUpJumpFallMaximumDistance = 2F;
-    // Original: _wallHeadJumpFallMaximumDistance = Positive(...).defaults(3F)
-    public float wallHeadJumpFallMaximumDistance = 3F;
     // Original: _wallUpJumpOrthogonalTolerance = Positive(...).defaults(5F)
     public float wallUpJumpOrthogonalTolerance = 5F;
     // Original: _wallUpJumpVerticalFactor = DecreasingFactor(...).defaults(0.4F)
     // tryJump(WallUp, angle!=null): verticalMotion = -0.078 + 0.498 * wallUpJumpVerticalFactor
     public float wallUpJumpVerticalFactor = 0.4F;
-    // Original: _wallHeadJumpVerticalFactor = DecreasingFactor(...).defaults(0.3F)
-    // tryJump(WallHead): verticalMotion = -0.078 + 0.498 * (wallUpJumpVerticalFactor + wallHeadJumpVerticalFactor)
-    public float wallHeadJumpVerticalFactor = 0.3F;
     // Original: _wallUpJumpHorizontalFactor = DecreasingFactor(...).defaults(0.15F)
     public float wallUpJumpHorizontalFactor = 0.15F;
-    // Original: _wallHeadJumpHorizontalFactor = DecreasingFactor(...).defaults(0.15F)
-    public float wallHeadJumpHorizontalFactor = 0.15F;
     // === ChargeUp fields (original SmartMovingConfig L254-L257) ===
     // Original L254: _jumpCharge = Unmodified("move.jump.charge") → default true
     public boolean jumpCharge = true;
@@ -678,9 +603,6 @@ public class SmartMovingConfig {
     // Original L257: _jumpChargeCancelOnSneakRelease = Modified("move.jump.charge.sneak.release.cancel") → default false (Modified)
     //   true=execute charge jump when releasing sneak key, false=cancel charge when releasing sneak key.
     public boolean jumpChargeCancelOnSneakRelease = false;
-    public boolean headJump = true;
-    public float headJumpControlFactor = 0.2F;
-    public float headJumpChargeMaximum = 10F;
     // === Angle (Forward/Side/Back) jumps (original SmartMovingConfig L268-L271 + forward extension) ===
     // Forward input for dedicated dodge key. Not in original config, extension option default true.
     public boolean angleJumpForward = true;
@@ -729,22 +651,6 @@ public class SmartMovingConfig {
     // Original L283: _climbBackUpJumpHandsOnlyHorizontalFactor = DecreasingFactor("move.jump.climb.back.up.hands.only.horizontal.factor")
     //   ClimbBackUp Hands-only additional horizontal factor (>= 0, <= 1). DecreasingFactor default 1F.
     public float climbBackUpJumpHandsOnlyHorizontalFactor = 1F;
-
-    // === ClimbBackHead jumps (original SmartMovingConfig L285-L290) — structure identical to ClimbBackUp ===
-    // Original L286: _climbBackHeadJump = Unmodified("move.jump.climb.back.head") → default true
-    public boolean climbBackHeadJump = true;
-    // Original L287: _climbBackHeadJumpVerticalFactor = DecreasingFactor(...).defaults(0.2F).defaults(1F, _pre_sm_3_1) ★
-    //   ClimbBackHead vertical factor (>= 0, <= 1). 0.2F (sm_3_1 and later). Only _pre_sm_3_1 is 1F.
-    public float climbBackHeadJumpVerticalFactor = 0.2F;
-    // Original L288: _climbBackHeadJumpHorizontalFactor = DecreasingFactor(...).defaults(0.3F).defaults(1F, _pre_sm_3_1) ★
-    //   ClimbBackHead horizontal factor (>= 0, <= 1). 0.3F (sm_3_1 and later). Only _pre_sm_3_1 is 1F.
-    public float climbBackHeadJumpHorizontalFactor = 0.3F;
-    // Original L289: _climbBackHeadJumpHandsOnlyVerticalFactor = DecreasingFactor(...).defaults(0.8F) ★
-    //   ClimbBackHead Hands-only additional vertical factor (>= 0, <= 1). Default 0.8F.
-    public float climbBackHeadJumpHandsOnlyVerticalFactor = 0.8F;
-    // Original L290: _climbBackHeadJumpHandsOnlyHorizontalFactor = DecreasingFactor("move.jump.climb.back.head.hands.only.horizontal.factor")
-    //   ClimbBackHead Hands-only additional horizontal factor (>= 0, <= 1). DecreasingFactor default 1F.
-    public float climbBackHeadJumpHandsOnlyHorizontalFactor = 1F;
 
     /**
      * Original: _wallJumpDoubleClick = Unmodified("move.jump.wall.double.click").singular()
@@ -1185,23 +1091,6 @@ public class SmartMovingConfig {
         return sprintExhaustion && enabled;
     }
 
-    // ── B-24 (session 53) — isHeadJumping release edge handleCrash Config fields ───────────
-
-    /**
-     * Original `SmartMovingConfig.java` L264 (focus #2.5 A-5d porting complete):
-     *   `_headFallDamageStartDistance = Positive("move.fall.head.damage.start.distance").values(2F, 1F, 3F);`
-     * default 2F (values: default=2F, min=1F, max=3F). Usage: `handleCrash(startDistance, factor)`
-     * (original L2538) — head jump release edge + free climbing fall damage start distance.
-     */
-    public float headFallDamageStartDistance = 2F;
-
-    /**
-     * Original `SmartMovingConfig.java` L265 (focus #2.5 A-5e porting complete):
-     *   `_headFallDamageFactor = IncreasingFactor("move.fall.head.damage.factor").defaults(2F);` ★ override
-     * default 2F (IncreasingFactor default 1F → defaults(2F) override). Usage: handleCrash fall damage multiplier.
-     */
-    public float headFallDamageFactor = 2F;
-
     // ── Activation flag ──────────────────────────────────────────
     /**
      * SM enabled state. Original SmartMovingProperties.enabled (L33).
@@ -1552,7 +1441,6 @@ public class SmartMovingConfig {
         ceilingClimbingSpeedFactor = getFloat(p, "move.climb.ceiling.speed.factor", ceilingClimbingSpeedFactor);
         freeClimbFallDamageStartDistance = getFloat(p, "move.climb.free.fall.damage.start", freeClimbFallDamageStartDistance);
         freeClimbFallDamageFactor        = getFloat(p, "move.climb.free.fall.damage.factor", freeClimbFallDamageFactor);
-        climbJumpBackHead        = getBool(p,   "move.climb.jump.back.head",      climbJumpBackHead);
         climbExhaustion          = getBool(p,   "move.climb.exhaustion",          climbExhaustion);
         climbExhaustionStart     = getFloat(p,  "move.climb.exhaustion.start",    climbExhaustionStart);
         climbExhaustionStop      = getFloat(p,  "move.climb.exhaustion.stop",     climbExhaustionStop);
@@ -1588,23 +1476,14 @@ public class SmartMovingConfig {
         sprintJumpHorizontalFactor     = getFloat(p, "move.jump.sprint.horizontal.factor", sprintJumpHorizontalFactor);
         sprintJumpVerticalFactor       = getFloat(p, "move.jump.sprint.vertical.factor",  sprintJumpVerticalFactor);
         wallUpJump                     = getBool(p,  "move.jump.wall",                     wallUpJump);
-        wallHeadJump                   = getBool(p,  "move.jump.wall.head",                wallHeadJump);
         wallUpJumpFallMaximumDistance  = getFloat(p, "move.jump.wall.fall.maximum.distance", wallUpJumpFallMaximumDistance);
-        wallHeadJumpFallMaximumDistance = getFloat(p, "move.jump.wall.head.fall.maximum.distance", wallHeadJumpFallMaximumDistance);
         wallUpJumpOrthogonalTolerance   = getFloat(p, "move.jump.wall.orthogonal.tolerance", wallUpJumpOrthogonalTolerance);
         wallUpJumpVerticalFactor       = getFloat(p, "move.jump.wall.vertical.factor",     wallUpJumpVerticalFactor);
-        wallHeadJumpVerticalFactor     = getFloat(p, "move.jump.wall.head.vertical.factor", wallHeadJumpVerticalFactor);
         wallUpJumpHorizontalFactor     = getFloat(p, "move.jump.wall.horizontal.factor",   wallUpJumpHorizontalFactor);
-        wallHeadJumpHorizontalFactor   = getFloat(p, "move.jump.wall.head.horizontal.factor", wallHeadJumpHorizontalFactor);
         jumpCharge               = getBool(p,   "move.jump.charge",               jumpCharge);
         jumpChargeMaximum        = getFloat(p,  "move.jump.charge.maximum",       jumpChargeMaximum);
         jumpChargeFactor         = getFloat(p,  "move.jump.charge.factor",        jumpChargeFactor);
         jumpChargeCancelOnSneakRelease = getBool(p, "move.jump.charge.sneak.release.cancel", jumpChargeCancelOnSneakRelease);
-        headJump                 = getBool(p,   "move.jump.head.charge",          headJump);
-        headJumpControlFactor    = getFloat(p,  "move.forward.jump.control.factor", headJumpControlFactor);
-        headJumpChargeMaximum    = getFloat(p,  "move.forward.jump.charge.maximum", headJumpChargeMaximum);
-        headFallDamageStartDistance = getFloat(p, "move.fall.head.damage.start.distance", headFallDamageStartDistance);
-        headFallDamageFactor     = getFloat(p,  "move.fall.head.damage.factor",   headFallDamageFactor);
         angleJumpForward         = getBool(p,   "move.jump.angle.forward",        angleJumpForward);
         angleJumpSide            = getBool(p,   "move.jump.angle.side",           angleJumpSide);
         angleJumpBack            = getBool(p,   "move.jump.angle.back",           angleJumpBack);
@@ -1622,11 +1501,6 @@ public class SmartMovingConfig {
         climbBackUpJumpHorizontalFactor = getFloat(p, "move.jump.climb.back.up.horizontal.factor", climbBackUpJumpHorizontalFactor);
         climbBackUpJumpHandsOnlyVerticalFactor = getFloat(p, "move.jump.climb.back.up.hands.only.vertical.factor", climbBackUpJumpHandsOnlyVerticalFactor);
         climbBackUpJumpHandsOnlyHorizontalFactor = getFloat(p, "move.jump.climb.back.up.hands.only.horizontal.factor", climbBackUpJumpHandsOnlyHorizontalFactor);
-        climbBackHeadJump        = getBool(p,   "move.jump.climb.back.head",      climbBackHeadJump);
-        climbBackHeadJumpVerticalFactor = getFloat(p, "move.jump.climb.back.head.vertical.factor", climbBackHeadJumpVerticalFactor);
-        climbBackHeadJumpHorizontalFactor = getFloat(p, "move.jump.climb.back.head.horizontal.factor", climbBackHeadJumpHorizontalFactor);
-        climbBackHeadJumpHandsOnlyVerticalFactor = getFloat(p, "move.jump.climb.back.head.hands.only.vertical.factor", climbBackHeadJumpHandsOnlyVerticalFactor);
-        climbBackHeadJumpHandsOnlyHorizontalFactor = getFloat(p, "move.jump.climb.back.head.hands.only.horizontal.factor", climbBackHeadJumpHandsOnlyHorizontalFactor);
         wallJumpDoubleClick      = getBool(p,   "move.jump.wall.double.click",    wallJumpDoubleClick);
         wallJumpDoubleClickTicks = getFloat(p,  "move.jump.wall.double.click.ticks", wallJumpDoubleClickTicks);
         slideSlipperinessFactor  = getFloat(p,  "move.slide.slipperiness.factor", slideSlipperinessFactor);
@@ -1721,7 +1595,6 @@ public class SmartMovingConfig {
         p.setProperty("move.climb.ceiling.speed.factor", String.valueOf(ceilingClimbingSpeedFactor));
         p.setProperty("move.climb.free.fall.damage.start", String.valueOf(freeClimbFallDamageStartDistance));
         p.setProperty("move.climb.free.fall.damage.factor", String.valueOf(freeClimbFallDamageFactor));
-        p.setProperty("move.climb.jump.back.head",       String.valueOf(climbJumpBackHead));
         p.setProperty("move.climb.exhaustion",           String.valueOf(climbExhaustion));
         p.setProperty("move.climb.exhaustion.start",     String.valueOf(climbExhaustionStart));
         p.setProperty("move.climb.exhaustion.stop",      String.valueOf(climbExhaustionStop));
@@ -1757,23 +1630,14 @@ public class SmartMovingConfig {
         p.setProperty("move.jump.sprint.horizontal.factor",  String.valueOf(sprintJumpHorizontalFactor));
         p.setProperty("move.jump.sprint.vertical.factor",    String.valueOf(sprintJumpVerticalFactor));
         p.setProperty("move.jump.wall",                      String.valueOf(wallUpJump));
-        p.setProperty("move.jump.wall.head",                 String.valueOf(wallHeadJump));
         p.setProperty("move.jump.wall.fall.maximum.distance", String.valueOf(wallUpJumpFallMaximumDistance));
-        p.setProperty("move.jump.wall.head.fall.maximum.distance", String.valueOf(wallHeadJumpFallMaximumDistance));
         p.setProperty("move.jump.wall.orthogonal.tolerance", String.valueOf(wallUpJumpOrthogonalTolerance));
         p.setProperty("move.jump.wall.vertical.factor",      String.valueOf(wallUpJumpVerticalFactor));
-        p.setProperty("move.jump.wall.head.vertical.factor", String.valueOf(wallHeadJumpVerticalFactor));
         p.setProperty("move.jump.wall.horizontal.factor",    String.valueOf(wallUpJumpHorizontalFactor));
-        p.setProperty("move.jump.wall.head.horizontal.factor", String.valueOf(wallHeadJumpHorizontalFactor));
         p.setProperty("move.jump.charge",                String.valueOf(jumpCharge));
         p.setProperty("move.jump.charge.maximum",        String.valueOf(jumpChargeMaximum));
         p.setProperty("move.jump.charge.factor",         String.valueOf(jumpChargeFactor));
         p.setProperty("move.jump.charge.sneak.release.cancel", String.valueOf(jumpChargeCancelOnSneakRelease));
-        p.setProperty("move.jump.head.charge",           String.valueOf(headJump));
-        p.setProperty("move.forward.jump.control.factor", String.valueOf(headJumpControlFactor));
-        p.setProperty("move.forward.jump.charge.maximum", String.valueOf(headJumpChargeMaximum));
-        p.setProperty("move.fall.head.damage.start.distance", String.valueOf(headFallDamageStartDistance));
-        p.setProperty("move.fall.head.damage.factor",    String.valueOf(headFallDamageFactor));
         p.setProperty("move.jump.angle.forward",         String.valueOf(angleJumpForward));
         p.setProperty("move.jump.angle.side",            String.valueOf(angleJumpSide));
         p.setProperty("move.jump.angle.back",            String.valueOf(angleJumpBack));
@@ -1791,11 +1655,6 @@ public class SmartMovingConfig {
         p.setProperty("move.jump.climb.back.up.horizontal.factor", String.valueOf(climbBackUpJumpHorizontalFactor));
         p.setProperty("move.jump.climb.back.up.hands.only.vertical.factor", String.valueOf(climbBackUpJumpHandsOnlyVerticalFactor));
         p.setProperty("move.jump.climb.back.up.hands.only.horizontal.factor", String.valueOf(climbBackUpJumpHandsOnlyHorizontalFactor));
-        p.setProperty("move.jump.climb.back.head",       String.valueOf(climbBackHeadJump));
-        p.setProperty("move.jump.climb.back.head.vertical.factor", String.valueOf(climbBackHeadJumpVerticalFactor));
-        p.setProperty("move.jump.climb.back.head.horizontal.factor", String.valueOf(climbBackHeadJumpHorizontalFactor));
-        p.setProperty("move.jump.climb.back.head.hands.only.vertical.factor", String.valueOf(climbBackHeadJumpHandsOnlyVerticalFactor));
-        p.setProperty("move.jump.climb.back.head.hands.only.horizontal.factor", String.valueOf(climbBackHeadJumpHandsOnlyHorizontalFactor));
         p.setProperty("move.jump.wall.double.click",     String.valueOf(wallJumpDoubleClick));
         p.setProperty("move.jump.wall.double.click.ticks", String.valueOf(wallJumpDoubleClickTicks));
         p.setProperty("move.slide.slipperiness.factor",  String.valueOf(slideSlipperinessFactor));

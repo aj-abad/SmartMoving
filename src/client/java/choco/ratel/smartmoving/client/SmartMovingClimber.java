@@ -1135,8 +1135,7 @@ public final class SmartMovingClimber {
      * Original: SmartMovingSelf.handleClimbing() isClimbHolding && jumpButton.StartPressed branch.
      *
      * jumpAngle = rotationYaw + 180F (opposite of front direction).
-     * cfg.climbJumpBackHead=false(default): grab not pressed → HEAD jump, grab pressed → normal backward jump.
-     * continueWallJumping = !isHeadJumping — allow continuous wall jump after backward jump.
+     * continueWallJumping = true — allow continuous wall jump after backward jump.
      */
     private static void handleClimbBackJump(LocalPlayer player, SmartMovingClientState sm) {
         // Phase H BUG-4 1:1 fix: original L1060 `jumpButton.StartPressed` (jump key rising-edge).
@@ -1144,39 +1143,29 @@ public final class SmartMovingClimber {
         //   1.21.1 side sm.jumpKeyStartPressed (L1176 set: curJumpPressed && !prevJumpKeyPressed) is exact mapping.
         if (!sm.isClimbHolding || !sm.jumpKeyStartPressed) return;
 
-        SmartMovingConfig cfg = SmartMovingConfig.Config;
-        boolean grabPressed = SmartMovingKeys.grab.isDown();
-
         // Phase H BUG-2 1:1 fix: original L1062 `handsOnly = feetClimbing != FeetClimbing.None`.
-        //   ★ Variable name trap (preserve as original): handsOnly==true means feet also climbing → general ClimbBackHead/Up.
-        //                                                 handsOnly==false means feet not climbing → ClimbBackHead/UpHandsOnly.
+        //   ★ Variable name trap (preserve as original): handsOnly==true means feet also climbing → general ClimbBackUp.
+        //                                                 handsOnly==false means feet not climbing → ClimbBackUpHandsOnly.
         boolean handsOnly = sm.actualFeetClimbType != FeetClimbing.NONE.ordinal();
 
-        // Phase H BUG-1 1:1 fix: original L1064-L1066 triple ternary type decision.
+        // Phase H BUG-1 1:1 fix: original L1064-L1066 type decision.
         //   Previous: all branches same inline formula (vanilla 0.42 + 0.3 push). Missing type-specific vertical/horizontal
-        //            factor application (climbBackUp/HeadJumpVerticalFactor etc). Fixed by tryJump call.
-        boolean useHead = cfg.climbJumpBackHead ? grabPressed : !grabPressed;
-        int type;
-        if (useHead) {
-            type = handsOnly ? SmartMovingJumper.CLIMB_BACK_HEAD
-                             : SmartMovingJumper.CLIMB_BACK_HEAD_HANDS_ONLY;
-        } else {
-            type = handsOnly ? SmartMovingJumper.CLIMB_BACK
+        //            factor application (climbBackUpJumpVerticalFactor etc). Fixed by tryJump call.
+        int type = handsOnly ? SmartMovingJumper.CLIMB_BACK
                              : SmartMovingJumper.CLIMB_BACK_HANDS_ONLY;
-        }
 
         float jumpAngle = player.getYRot() + 180F;
 
         // Phase H BUG-3 1:1 fix: original L1069 `if (tryJump(type, null, null, jumpAngle))` + post-processing.
-        //   tryJump handles D-15 head branch isHeadJumping/setPoseSmall/heightOffset + D-11 angle
-        //   branch motion calculation (factor + getJumpMoving). Remove all inline motion formulas on caller side.
+        //   tryJump handles the D-11 angle branch motion calculation (factor + getJumpMoving).
+        //   Remove all inline motion formulas on caller side.
         if (SmartMovingJumper.tryJump(player, sm, type, null, null, jumpAngle)) {
-            sm.continueWallJumping = !sm.isHeadJumping;     // Original L1071
+            sm.continueWallJumping = true;                    // Original L1071
             sm.isClimbing = false;                            // Original L1072
             player.setYRot(jumpAngle);                         // Original L1073
             player.yBodyRot = jumpAngle;                       // 1.21.1 addition — rotation sync (Phase G pattern)
             // Original L1074 onStartClimbBackJump():
-            //   - prev rotateAngleY += isHeadJumping ? Half : Quarter  ← Pending (animation cycle / waiting for user original check)
+            //   - prev rotateAngleY += Quarter  ← Pending (animation cycle / waiting for user original check)
             //   - isClimbBackJumping = true  (SmartMoving.java L147)
             sm.isClimbBackJumping = true;
         }

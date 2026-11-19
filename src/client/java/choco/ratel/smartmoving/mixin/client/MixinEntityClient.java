@@ -60,17 +60,6 @@ public abstract class MixinEntityClient {
             sm.distanceClimbedModified += movement.length() * (sm.isClimbing ? 1.2 : 0.9);
         }
 
-        // Red circle fix #14 revert (2026-05-08): attempted mixin offset + sm_afterMove setPos correction mapping →
-        //   incompatible with vanilla `Entity.move` collision processing (box feet = player.y +1m collision check basis →
-        //   when ground reached player.y = bb.minY - 1m = ground -1m → push out → vibration).
-        //   To 1:1 map original (box feet +1m + posY unchanged) to 1.21.1 requires complex mapping with
-        //   calculateBoundingBox interception + setPos/prevY/lastRenderY/Camera baseline sync etc. — separate
-        //   cycle. Current setPos correction is inactive + MixinEntity's POSE=SLIDING guard blocks mixin offset
-        //   → box feet = player.y (same as STANDING), box head = player.y +0.8 (1m lower = less height).
-        // if (sm.heightOffset != 0F && sm.isHeadJumping) {
-        //     player.setPos(player.getX(), player.getY() + sm.heightOffset, player.getZ());
-        // }
-
         // Accumulate swimming sound (8-6)
         // isSwimming_sm: SM swimming state (field name separated to distinguish from vanilla isSwimming())
         if (sm.isSwimming_sm) {

@@ -138,8 +138,7 @@ public final class WindrunnerWallRun {
         if (!SmartMovingConfig.Config.enabled) return false;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         return sm.isClimbing || sm.isClimbHolding || sm.isCeilingClimbing || sm.isChainClimbing || sm.isCrawlClimbing
-                || sm.isSwimming_sm || sm.isDiving || sm.isFlying || sm.isSliding || sm.isCrawling
-                || sm.isHeadJumping;
+                || sm.isSwimming_sm || sm.isDiving || sm.isFlying || sm.isSliding || sm.isCrawling;
     }
 
     private static boolean touching(LocalPlayer player, Direction side) {

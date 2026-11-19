@@ -12,14 +12,11 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
-import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -39,7 +36,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * State priority (if-else chain order):
  *   isClimbing/isCrawlClimbing → isClimbJumping → isCeilingClimbing →
  *   isSwimming_sm → isDiving → isCrawling → isSliding →
- *   isFlying → isHeadJumping → isFalling → else(standard)
+ *   isFlying → isFalling → else(standard)
  *
  * Angle constants (radian based on SmartRenderContext):
  *   Half=π, Quarter=π/2, Eighth=π/4, Sixteenth=π/8,
@@ -207,7 +204,7 @@ public abstract class MixinPlayerEntityModelClient {
 
         boolean anySmState = sm.isRopeSliding || sm.isClimbing || sm.isCrawlClimbing
                 || sm.isCeilingClimbing || sm.isClimbJumping || sm.isSwimming_sm
-                || sm.isDiving || sm.isCrawling || sm.isSliding || sm.isHeadJumping
+                || sm.isDiving || sm.isCrawling || sm.isSliding
                 || sm.isFlying || sm.doFallingAnimation || isWeepingTwistingVines
                 || sm.isAngleJumping();
         if (anySmState) {
@@ -217,7 +214,7 @@ public abstract class MixinPlayerEntityModelClient {
 
     // ── animateArms Override (left-click hand swing) — fix #187 (2026-05-28) ─────────
     //
-    // User report: "overall swing motion feels fast. Fox/HJ movement pronounced".
+    // User report: "overall swing motion feels fast".
     //
     // ROOT CAUSE (= dump analysis + vanilla 1.21.1 disassembly + original 1.7.10/1.12.2 verbatim comparison):
     //   - vanilla 1.21.1 `BipedEntityModel.animateArms` = quartic ease (`f *= f; f *= f`).
@@ -271,7 +268,7 @@ public abstract class MixinPlayerEntityModelClient {
         // animateWorkingArms has separate guard `isStandard || isWorking()` → call attempted in SM phase + swing
         //   (= preferredArm.pitch/yaw/roll formulas applied as-is).
         SmartMovingClientState sm = SmartMovingClientState.get(player);
-        boolean anySmState = sm.isFlying || sm.isCrawling || sm.isSliding || sm.isHeadJumping
+        boolean anySmState = sm.isFlying || sm.isCrawling || sm.isSliding
                 || sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isRopeSliding || sm.isClimbJumping
                 || sm.doFallingAnimation || sm.isAngleJumping();
@@ -379,7 +376,7 @@ public abstract class MixinPlayerEntityModelClient {
 
         boolean anySmState = sm.isRopeSliding || sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isClimbJumping || sm.isSwimming_sm || sm.isDiving
-                || sm.isCrawling || sm.isSliding || sm.isHeadJumping || flyingCreative
+                || sm.isCrawling || sm.isSliding || flyingCreative
                 || isFallingForReset
                 || isWeepingTwistingVines
                 || sm.isAngleJumping();   // 🔴 (2026-04-27) activate reset infrastructure during angle jump —
@@ -499,8 +496,8 @@ public abstract class MixinPlayerEntityModelClient {
 
         // ── [12-7] smallOverGroundHeight calculation ─────────────────────────────────
         // Original: SmartMovingRender.rotatePlayer() → moving.getOverGroundHeight(5D)
-        // Calculate distance from feet to ground only in isCrawlClimbing/isHeadJumping states.
-        if (sm.isCrawlClimbing || sm.isHeadJumping) {
+        // Calculate distance from feet to ground only in isCrawlClimbing state.
+        if (sm.isCrawlClimbing) {
             // 🔴 (Phase 2 multi BUG-6) Remove ClientPlayerEntity guard — compute for all players.
             //   computeSmallOverGroundHeight = entity position + world block scan → can calculate
             //   accurately for remote using server-sync entity.y + client-side world.
@@ -557,8 +554,6 @@ public abstract class MixinPlayerEntityModelClient {
             sm_animateSliding(sm, player, headYaw);
         } else if (flyingCreative) {
             sm_animateFlying(sm, player, limbSwing, limbSwingAmount, animationProgress);
-        } else if (sm.isHeadJumping) {
-            sm_animateHeadJumping(sm, player);
         } else {
             standardPose = true;
             // 🔴 (Phase 2 multi BUG-1) Direct fallDistance check → sm.doFallingAnimation (server-relay sync).
@@ -1206,7 +1201,7 @@ public abstract class MixinPlayerEntityModelClient {
         setArmScales(rightArm, leftArm, rightArmSc, leftArmSc);
 
         // 🔴 fix #192 (2026-05-28): preCancelParentX 추가 — setupTransforms swim 분기의
-        //   R_x(67.5°~90°) 부모 회전 cancel. CR/SLD/HJ/FLY 와 같은 fix #186 패턴.
+        //   R_x(67.5°~90°) 부모 회전 cancel. CR/SLD/FLY 와 같은 fix #186 패턴.
         //
         // 사용자 보고 (fix #191 후): "수영 시 팔 휘두르는게 이상하다".
         // dump fact: rArm preserve 작동 (= vanilla cubic 결과 보존). 단 부모 R_x(67.5°) 회전
@@ -1713,125 +1708,6 @@ public abstract class MixinPlayerEntityModelClient {
                 leftArm.z  =  0f;
             }
         }
-    }
-
-    /**
-     * isHeadJumping: 헤드점프 (낮은 천장 아래 점프).
-     * 원본: SmartMovingModel.setRotationAngles() 10번 분기 (isHeadJump).
-     * bipedOuter X/Y 기울기는 setupTransforms에서 처리.
-     * smallOverGroundHeight로 팔 Z 각도 클램프.
-     */
-    private void sm_animateHeadJumping(SmartMovingClientState sm, AbstractClientPlayer player) {
-        float angle = sm.stats.currentVerticalAngle;
-
-        // bendFactor: Factor(angle, Quarter, 0) ∩ Factor(angle, -Quarter, 0)
-        // 수직 각도 0°(수평)일 때 최대 1, ±Quarter(수직)일 때 0. (SmartMovingModel.md 10번 분기)
-        float bendFactor = Math.min(smFactor(angle, QUARTER, 0f), smFactor(angle, -QUARTER, 0f));
-        // 🔴 fix #186 (2026-05-28): fix #183 revert — fix #182 패러다임 복원 (메모리 검증).
-        //   preserve 가드 + preCancelParentX 복원. HJ setupTransforms R_x(QUARTER - angle) 부모 회전 있음.
-        float swingHJ = player.getSwingAnimation(1.0F);
-        HumanoidArm preferredArmHJ = player.getMainArm();
-        boolean preserveRightHJ = swingHJ > 0F && preferredArmHJ == HumanoidArm.RIGHT;
-        boolean preserveLeftHJ  = swingHJ > 0F && preferredArmHJ == HumanoidArm.LEFT;
-        if (!preserveRightHJ) rightArm.xRot = bendFactor * -EIGHTH;
-        if (!preserveLeftHJ)  leftArm.xRot  = bendFactor * -EIGHTH;
-        rightLeg.xRot = bendFactor * -EIGHTH;
-        leftLeg.xRot  = bendFactor * -EIGHTH;
-
-        // 머리 X 보정: setupTransforms에서 θ=Quarter-angle이 전역 적용됨.
-        // 원본 head world-X = θ/2 → head.pitch = -θ/2 (C-09-2 등가 증명)
-        head.xRot = -(QUARTER - angle) / 2f;
-
-        // 🔴 head.yaw=0 강제 (2026-05-11, 사용자 보고 "헤드점프 시 머리가 마우스 따라 움직임"):
-        //   feedback_smbody_yaw_force_head_yaw_zero.md 패턴 1:1 적용.
-        //   setupTransforms 에서 smBodyYawOverride 가 ModifyArg 인자만 force (entity.bodyYaw
-        //   필드는 자유 값) → vanilla setAngles netHeadYaw = (headYaw - 자유 bodyYaw lerp)
-        //   잔존 → head.yaw 가 마우스 따라 회전.
-        //   원본 1.7.10 은 entity.renderYawOffset 필드 자체 force → netHeadYaw = (마우스 -
-        //   force 된 이동 방향) → 이동 방향 기준 회전 (사용자 시각 "거의 고정").
-        //   head.yaw=0 강제로 vanilla netHeadYaw 효과 cancel → head world yaw = force bodyYaw
-        //   (= 이동 방향) → 마우스 무관 고정. 다른 SM 분기 (sliding/flying/crawling/angleJump)
-        //   와 동일 패턴.
-        head.yRot = 0f;
-
-        // 팔 Z: Factor(angle, Quarter, -Quarter). 원본 SmartMovingModel L520-522:
-        //   armFactorZ = Factor(currentVerticalAngle, Quarter, -Quarter);
-        //   if (overGroundBlock != null && overGroundBlock.getMaterial().isSolid())
-        //       armFactorZ = Math.min(armFactorZ, smallOverGroundHeight / 5F);
-        //
-        // 원본 getOverGroundBlockId 는 박스 발 위치 (= floor(bb.minY)) 의 블록 1회 검사 후
-        //   즉시 반환 (= 1.7.10 air 도 non-null 이라 for 첫 iteration 에서 반환).
-        //   박스 발 = 헤드점프 진행 중 일반적으로 공중 → air block → isSolid=false →
-        //   원본 clamp 미적용 (= armFactorZ = factorZraw 그대로).
-        //   feedback_headjump_overground_air_is_solid.md.
-        float armFactorZ = smFactor(angle, QUARTER, -QUARTER);
-        if (sm.smallOverGroundHeight < 5f && isOverGroundBlockSolid(player)) {
-            armFactorZ = Math.min(armFactorZ, sm.smallOverGroundHeight / 5f);
-        }
-        if (!preserveRightHJ) rightArm.zRot =  HALF - SIXTEENTH + armFactorZ * EIGHTH;
-        if (!preserveLeftHJ)  leftArm.zRot  = -(HALF - SIXTEENTH) - armFactorZ * EIGHTH;
-
-        // 다리 Z: Factor(angle, -Quarter, Quarter)
-        float legFactorZ = smFactor(angle, -QUARTER, QUARTER);
-        rightLeg.zRot =  SIXTYFOURTH * legFactorZ;
-        leftLeg.zRot  = -SIXTYFOURTH * legFactorZ;
-
-        // 🔴 fix #187 (2026-05-28): preCancelParentX θ 를 setupTransforms 의 fade lerped 값으로 변경.
-        //   기존: thetaCancelHJ = QUARTER - angle (= raw target). setupTransforms 는 fade lerp 결과
-        //   사용 → 두 식 mismatch → swing 진행 동안 cancel 부정확 → 사용자 verbatim
-        //   "HJ + 여우무빙 빠른 느낌".
-        //   해결: setupTransforms HJ 분기 (MixinPlayerEntityRenderer L914) 가 갱신한 마지막
-        //   thetaLerped 값 (= sm.smHeadJumpTiltX_prev) 사용. setupTransforms 가 setAngles 보다
-        //   먼저 호출되므로 이 시점에 이번 frame 적용 값.
-        //   여우무빙 (wasSelfSlideFire=true) 시도 setupTransforms 의 thetaTarget = π/2 고정 +
-        //   prev = π/2 강제 → smHeadJumpTiltX_prev = π/2 → preCancelParentX 정확 매치.
-        if (swingHJ > 0F) {
-            float thetaCancelHJ = sm.smHeadJumpTiltX_prev;
-            if (preserveRightHJ) {
-                preCancelParentXPivot(rightArm, thetaCancelHJ);
-                preCancelParentXRotation(rightArm, thetaCancelHJ);
-            }
-            if (preserveLeftHJ) {
-                preCancelParentXPivot(leftArm, thetaCancelHJ);
-                preCancelParentXRotation(leftArm, thetaCancelHJ);
-            }
-        }
-    }
-
-    /**
-     * 원본 SmartMovingBase.getOverGroundBlockId(distance).getMaterial().isSolid() 1:1 매핑.
-     *
-     * 원본 식 (L862-882):
-     *   int y = floor(bb.minY);
-     *   for(; y >= minY; y--) {
-     *       Block block = world.getBlock(x, y, z);   // 1.7.10 air 도 non-null
-     *       if(block != null) return block;            // 항상 true → 첫 iteration 즉시 반환
-     *   }
-     *   → 박스 발 위치 (= floor(bb.minY)) 의 블록 1회 검사 후 반환.
-     *
-     * 1.21.1 등가:
-     *   - getBlockState(BlockPos) 항상 BlockState 반환 (null 안 됨).
-     *   - isSolid() 등가 = collision shape 비어있지 않음 (air → false, solid → true).
-     *
-     * 헤드점프 진행 동안 박스 발 = 일반적으로 공중 → air → false → clamp 미적용.
-     *
-     * 멀티 친화: AbstractClientPlayerEntity (self + remote 공통).
-     *   박스 발 위치 self/remote 모두 entity.y + 1m (mixin offset 활성, POSE=SLIDING).
-     *   원본 1.7.10 의 esp==null 보정 (y++) 은 우리 매핑에서 박스 발 위치 동일이라 불필요.
-     */
-    private static boolean isOverGroundBlockSolid(AbstractClientPlayer player) {
-        Level world = player.level();
-        if (world == null) return false;
-        AABB bb = player.getBoundingBox();
-        int x = Mth.floor(player.getX());
-        int z = Mth.floor(player.getZ());
-        int y = Mth.floor(bb.minY);
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        pos.set(x, y, z);
-        BlockState state = world.getBlockState(pos);
-        // 1.21.1 isSolid 등가 (feedback_isFullCube_partial_solid_pattern.md):
-        //   collision shape 비어있지 않음. air → 비어있음 → false. solid → 비어있지 않음 → true.
-        return !state.getCollisionShape(world, pos).isEmpty();
     }
 
     /**

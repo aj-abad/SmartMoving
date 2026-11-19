@@ -32,10 +32,10 @@ public abstract class MixinPlayerEntity {
      * **Focus #2.7 Phase C rewrite (session 4, 2026-04-25)**: Completely symmetric with client (option 3).
      *   Original `setHeightOffset(-1F)` (SmartMovingSelf L1694-L1704) → `sp.height = 1.8F + (-1F)
      *   = 0.8F` + `getEyeHeight() = height - 0.18F = 0.62F` (ServerPlayerBase L142-L145).
-     *   → All small states (isCrawling/isCrawlClimbing/isHeadJumping/isSliding/isSwimming/
+     *   → All small states (isCrawling/isCrawlClimbing/isSliding/isSwimming/
      *   isDiving/isFlying/isLevitating) unified 0.6×0.8 + 0.62F.
      *
-     * Same 8 SM OR branches as client (MixinPlayerEntityClient.sm_getBaseDimensions_client).
+     * Same SM OR branches as client (MixinPlayerEntityClient.sm_getBaseDimensions_client).
      * isFlying is vanilla `abilities.flying + cfg.fly + !isSwimming + !isDiving` original formula
      * (SmartMovingSelf L2509-L2515) 1:1.
      */
@@ -66,17 +66,7 @@ public abstract class MixinPlayerEntity {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;
         }
-        // 🔴 Separate isHeadJumping branch (2026-05-08, settled after multi-step fix) — 1:1 symmetric with client:
-        //   Phase 1 dim (0.6, 0.8, 1.62F) → MixinEntity offset guard match → box +1m → infinite loop BUG.
-        //   Phase 2 dim (0.6, **1.8**, 1.62F) → height STANDING → offset guard mismatch → box STANDING.
-        //   Same mapping as client (MixinPlayerEntityClient) — block server reconcile.
-        if (sm.isHeadJumping) {
-            // 🔴 fix #13 (2026-05-08): Same mapping as client side — dim 0.6×0.8 + eyeHeight 1.62F.
-            //   MixinEntity.sm_offsetBoundingBoxForFlying's POSE=SLIDING guard blocks mixin offset.
-            cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
-            return;
-        }
-        // 🔴 fix #59 (2026-05-10, dump analysis result — user report "during fox movement EYEHEIGHT set
+        // 🔴 fix #59 (2026-05-10, dump analysis result — user report "while sliding EYEHEIGHT set
         //   below collision"):
         //   During isSliding, fix #56's POSE.SLIDING guard activates mixin offset → box +1m up
         //   (= bb.minY = entity.y + 1m). However, dim eyeHeight=0.62 remains → camera = entity.y +
@@ -142,7 +132,7 @@ public abstract class MixinPlayerEntity {
      * **Focus #2.7 Phase D-1 (session 4, 2026-04-25)**: Completely symmetric with client (option 3).
      *   Same 4 branch mapping as client (MixinPlayerEntityClient.sm_updatePose_client):
      *     isCrawling || isCrawlClimbing            → SWIMMING (lying down)
-     *     isHeadJumping || isSliding               → SLIDING  (flat)
+     *     isSliding                                → SLIDING  (flat)
      *     isSwimming || isDiving                   → SWIMMING (swimming)
      *     isFlying (original formula) || isLevitating     → SLIDING  (flying)
      *     others                                   → vanilla pass through
@@ -157,7 +147,7 @@ public abstract class MixinPlayerEntity {
         if (sm.isCrawling || sm.isCrawlClimbing) {
             player.setPose(Pose.SWIMMING);
             ci.cancel();
-        } else if (sm.isHeadJumping || sm.isSliding) {
+        } else if (sm.isSliding) {
             player.setPose(Pose.SLIDING);
             ci.cancel();
         } else if (sm.isSwimming || sm.isDiving) {
@@ -193,7 +183,7 @@ public abstract class MixinPlayerEntity {
      *     → auto skip sneak branch in BipedEntityModel.setAngles.
      *   - Server: pose=STANDING → client/server hitbox sync → avoid position reject like passing narrow ceiling.
      *
-     * SM states (Crawling/CrawlClimbing/HeadJumping/Sliding/Swimming/Diving) are already handled by sm_updatePose_*
+     * SM states (Crawling/CrawlClimbing/Sliding/Swimming/Diving) are already handled by sm_updatePose_*
      * after ci.cancel() with setPose() → vanilla body not executed → this redirect unaffected.
      */
     @Redirect(method = "getDesiredPose",

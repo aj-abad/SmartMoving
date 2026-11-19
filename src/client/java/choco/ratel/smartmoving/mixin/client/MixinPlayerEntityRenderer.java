@@ -26,7 +26,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 9-6: getPositionOffset() — crawling/head jump render Y offset.
+ * 9-6: getPositionOffset() — crawling render Y offset.
  * 12-3: setupTransforms() — SM movement state body X tilt + bodyYaw stub.
  * 12-6: getPositionOffset() — apply heightOffset rendering.
  * renderName(): other players' name tag — hide crawl + heightOffset Y correction.
@@ -48,7 +48,6 @@ public class MixinPlayerEntityRenderer {
      *
      * SM crawling (self): SWIMMING pose offset (setupTransforms translate(0,-1,0.3) removed)
      *                     return vanilla sneak offset instead (-scale × 0.125).
-     * SM head jump (self): apply heightOffset(-1F) rendering.
      * SM other players sneak+crawl (B-14 / §16-22): correct render Y position +0.125 (prevent ground clipping).
      *
      * Original: SmartMovingRender.renderPlayerAt() → d1 += heightOffset
@@ -67,16 +66,6 @@ public class MixinPlayerEntityRenderer {
         //             user report "sliding floating 1 block above" + crawling/CC also same BUG.
         //   Change: process all players. Previous remote +0.125 (= prevent ground clipping) is separate case.
         SmartMovingClientState sm = SmartMovingClientState.get(entity);
-
-        // Head jump: model origin = entity.y. Box handling (mixin offset active + POSE=SLIDING)
-        //   box.minY = entity.y +1m. When applying additional -1m offset model head is 0.5m below box feet
-        //   = below box (user report "1 block lower", 2026-05-11).
-        //   Same pattern as isSliding (= entity.y origin) → model root = entity.y +1.501m = inside box.
-        //   See feedback_sliding_entity_y_push_offset_zero.md.
-        if (sm.isHeadJumping && sm.heightOffset != 0f) {
-            cir.setReturnValue(Vec3.ZERO);
-            return;
-        }
 
         // Crawling: SM crawling offset instead of SWIMMING pose offset
         // Original SmartMovingRender L156-L161: apply heightOffset (= both self + remote).
@@ -124,7 +113,7 @@ public class MixinPlayerEntityRenderer {
      * [12-3] setupTransforms() HEAD injection — SM bodyYaw override calculation.
      *
      * In isClimbing/isCrawlClimbing/isCeilingClimbing/isSwimming_sm/isDiving/isSliding/
-     * isHeadJumping/isCrawling states, force bodyYaw with forwardRotation (movement direction angle).
+     * isCrawling states, force bodyYaw with forwardRotation (movement direction angle).
      * Calculation results stored in smBodyYawActive/smBodyYawOverride for @ModifyArg to read.
      *
      * Original: SmartMovingRender.rotatePlayer() → forwardRotation = Math.atan2(-vel.x, vel.z)
@@ -176,7 +165,7 @@ public class MixinPlayerEntityRenderer {
         // snapping to the camera on takeoff, and the dodge pose is computed relative to that yaw.
         boolean smActive = sm.isClimbing || sm.isClimbCrawling || sm.isCrawlClimbing
                 || sm.isFlying || sm.isSwimming_sm || sm.isDiving
-                || sm.isCeilingClimbing || sm.isHeadJumping
+                || sm.isCeilingClimbing
                 || sm.isSliding;
 
         // Chain climb (docs/research_movement_prototypes.md): the body faces the chain. The local player
@@ -281,7 +270,6 @@ public class MixinPlayerEntityRenderer {
         //   6. isDive (L553/L564) — horizontalAngle (based on totalDistance)
         //   7. isCrawl (L668) — currentHorizontalAngle
         //   9. isFlying (L704/L713) — horizontalAngle (threshold 0.05)
-        //  10. isHeadJumping (L740) — currentHorizontalAngle
 
         // isCeilingClimb (original L463 + L475-L476):
         //   distance = totalHorizontalDistance * 0.7F
@@ -416,37 +404,18 @@ public class MixinPlayerEntityRenderer {
 
         // (2026-05-03 정리) 이전 isCrawling 단독 가드는 위 !smActive 분기에서 이미 처리됨 → 도달 X.
         //   진짜 fix 는 sm_captureBodyYaw 의 !smActive 분기 위 isCrawl && !isClimbing 가드 (위 참조).
-        // isHeadJumping/isRopeSliding (원본 L740/L279) — threshold 없이 currentHorizontalAngle
-        // 🔴 fix #91 (2026-05-13, 사용자 보고 "헤드점프 중 벽 박을 때 몸 회전 중간 이어짐 없음"):
+        // isRopeSliding (원본 L279) — threshold 없이 currentHorizontalAngle
+        // 🔴 fix #91 (2026-05-13):
         //   원본 SmartRenderModel L208-209: bipedOuter.fadeRotateAngleY = true (기본).
         //   ModelRotationRenderer.fadeIntermediate → 0.2 * deltaTime lerp. 벽 박은 후
         //   vx 반전 시 currentHorizontalAngle 점진 변화 → 모델 자연 회전 추적.
         //   isCeilingClimbing 동일 패턴 (= L250-256) 차용. 외 분기 prev 갱신은 아래 (= 비행 prev 갱신 패턴).
-        // 🔵 (2026-05-14, fix #98 위치 기반) smRemoteHJVisualHold OR 추가 — REMOTE 공중 자세 hold.
-        //   사용자 보고 3번 BUG (= 콜리전 땅 닿기 전 헤드점프 끝남) fix. SmartMovingClient packet
-        //   처리 안 공중 상태 (= curY > groundY+0.005) 검출 시 hold=true.
-        //   sm_tickStatsForRemote TAIL 의 위치 비교 (= REMOTE.y <= groundY+0.005) 시 hold=false.
-        if (sm.isHeadJumping || sm.isRopeSliding || sm.smRemoteHJVisualHold) {
+        if (sm.isRopeSliding) {
             float targetYawRad = sm.stats.currentHorizontalAngle;
-            // 🔴 fix #94/#95 (2026-05-13, 사용자 보고 "여우무빙 시 원래 몸 방향 → 바라보는 방향 보간"):
-            //   fix #94: wasSelfSlideFire 가드 추가. fix #95: 발사 frame 만 snap.
-            //   원인: fix #91 의 fade lerp 가 wasSelfSlideFire 가드 누락 → 여우무빙 발사 시
-            //     prev=직전 vanilla bodyYaw → 5 tick lerp.
-            //   fix #94 (= 매 frame prev=target): 발사 즉시 도달 ✓. 그러나 wasSelfSlideFire 잔존
-            //     동안 매 frame instant → 벽 박을 때 currentHorizontalAngle 변화 시 fade 사라짐.
-            //   fix #95 (= 발사 frame 만 snap + flag): 발사 frame 만 prev=target. 그 후 자연 fade
-            //     (= fix #91 효과). 벽 박을 때 자연 보간 유지.
-            //   X 회전 (fix #81 v2) 은 target=π/2 고정이라 매 frame snap 무관. Y 회전 target=
-            //     currentHorizontalAngle 동적이라 snap 1회 한정 필요.
-            if (sm.wasSelfSlideFire && !sm.smHeadJumpYawSnapDone) {
-                sm.smHeadJumpYaw_prev = targetYawRad;
-                sm.smHeadJumpYawFade_prevTime = animationProgress;
-                sm.smHeadJumpYawSnapDone = true;
-            }
-            float laggedYawRad = lerpFadeAngle(sm.smHeadJumpYaw_prev, targetYawRad,
-                                                sm.smHeadJumpYawFade_prevTime, animationProgress);
-            sm.smHeadJumpYaw_prev = laggedYawRad;
-            sm.smHeadJumpYawFade_prevTime = animationProgress;
+            float laggedYawRad = lerpFadeAngle(sm.smRopeSlideYaw_prev, targetYawRad,
+                                                sm.smRopeSlideYawFade_prevTime, animationProgress);
+            sm.smRopeSlideYaw_prev = laggedYawRad;
+            sm.smRopeSlideYawFade_prevTime = animationProgress;
             sm.smBodyYawActive = true;
             sm.smBodyYawOverride = (float) Math.toDegrees(laggedYawRad);
             return;
@@ -464,7 +433,7 @@ public class MixinPlayerEntityRenderer {
         //   이전 1.21.1 매핑은 fallthrough (smBodyYawOverride = forwardRotation = 마우스 yaw lerp)
         //   라 마우스 따라 모델 같이 회전 → 사용자 보고 BUG.
         //   fix: smBodyYawOverride = currentHorizontalAngle (도) — 원본 1:1.
-        //   fade 비활성 (원본 L446) → isHeadJumping/isRopeSliding 패턴 동일 (단순 적용).
+        //   fade 비활성 (원본 L446) → isRopeSliding 패턴 동일 (단순 적용).
         // 🔴 BUG-Slide-Anim-A fix (2026-05-04 사용자 보고 — "마우스 회전 시 머리 좌우 흔들림"):
         //   원본 1.7.10: SR 의 renderYawOffset = forwardRotation 강제 → entity.bodyYaw 자체
         //     force → vanilla netHeadYaw = headYaw - bodyYaw = 마우스 - 마우스 ≈ 0 → head.rotateAngleZ
@@ -633,7 +602,7 @@ public class MixinPlayerEntityRenderer {
         //     (target - prev) * deltaTime * 0.2F` 점진 lerp. 진입/전환 시 부드러운 자세 변화.
         //   기존 매핑 = 즉시 R_x(tilt) 적용 → vAngle / sSF 동적 변화 시 즉시 자세 변화 → 사용자
         //     "이상한 흔들림" + "1자 변환" 인지.
-        //   해결: lerpFadeAngle 헬퍼 (= 비행/헤드점프 분기 검증 패턴) 차용. swim/dive 통합 분기 +
+        //   해결: lerpFadeAngle 헬퍼 (= 비행 분기 검증 패턴) 차용. swim/dive 통합 분기 +
         //     별도 prev field (smSwimDiveTiltX_prev) 사용.
         //
         //   isJumping 매핑 정정:
@@ -748,29 +717,6 @@ public class MixinPlayerEntityRenderer {
             //   feedback_setupTransforms_translate_axis.md). 사용자 의도 = 모델 살짝 내림.
             //   시도 이력: -1/16 → -2/16 → -3/16 (= 더 내림).
             matrices.translate(0f, 0f, -3f / 16f);
-
-            // 🔴 여우무빙 (= 슬라이딩 ↔ 헤드점프 직접 cycle, standing 안 거침) 헤드점프 prev
-            //   자연 시작점 매핑 (2026-05-11, 사용자 보고 "여우무빙 시 몸 거의 회전 안 함,
-            //   바로 수평 세팅"):
-            //   원본 SmartMovingModel L449 (1.7.10) / L486 (1.12.2) isSlide 분기 식
-            //     = `bipedOuter.rotateAngleX = Quarter` (= π/2 = 90° 고정).
-            //   원본 ModelRotationRenderer prev 매 frame 자동 갱신 → 슬라이딩 phase 동안
-            //     prev = Quarter 유지 → 다음 헤드점프 phase 진입 시 lerp = prev + (target -
-            //     prev) * 0.2 ≈ Quarter (target 도 Quarter 부근, 큰 hDist 라 angle 작음) →
-            //     모델 90° 수평 유지.
-            //   우리 매핑은 비행/헤드점프와 분리된 smHeadJumpTiltX_prev 사용 → 슬라이딩
-            //     분기에서 매 frame 직접 갱신 필요. 갱신 안 하면 prev reset 가드로 0 → 헤드점프
-            //     phase 매번 0° 시작 → 큰 회전 변화.
-            //   일반 슬라이딩 → standing → 헤드점프 시나리오 = standing 분기에서 prev=0 reset
-            //     으로 자연 시작 (= 영향 X).
-            sm.smHeadJumpTiltX_prev = (float) (Math.PI / 2f);
-            sm.smHeadJumpFade_prevTime = animationProgress;
-            // 🔴 fix #85 (2026-05-12, 사용자 보고 "슬라이딩 후 절벽 떨어짐 자동 cycle 시 여우무빙 시각"):
-            //   슬라이딩 phase 진입 시 wasSelfSlideFire 무조건 false reset. 그 후 자동 cycle 매치 시
-            //   wasSelfSlideFire=false 잔존 → 일반 헤드점프 시각.
-            //   자체 발사 frame: tickEssential 안 L2271 자동 cycle 매치 *후* isSliding=false →
-            //   setupTransforms 호출 시 슬라이딩 분기 매치 X → reset 안 됨 → wasSelfSlideFire=true 유지.
-            sm.wasSelfSlideFire = false;
         }
 
         // 🔴 SM 엎드리기(isCrawling) — Phase 3 자식 효과 매핑 (2026-05-03):
@@ -933,40 +879,6 @@ public class MixinPlayerEntityRenderer {
             sm.smStandardFadeTimePrev = animationProgress;
         }
 
-        // isHeadJumping body X 기울기: θ = Quarter - currentVerticalAngle (원본 SmartMovingModel L508).
-        // 비행 분기와 동일 패턴: head pivot 기준 회전 (translate ±1.5) + scale(-1,-1,1) 부호 반전 (-theta).
-        //   feedback_rotation_pivot_pattern.md / feedback_render_scale_negation.md.
-        // 🔴 fade lerp (2026-05-11, 사용자 보고 "하강 시 몸 너무 수직, 원본 더 수평적"):
-        //   원본 SmartMovingModel L507 `bipedOuter.fadeRotateAngleX = true` (= 5-tick lerp) 1:1.
-        //   ModelRotationRenderer.GetIntermediateAngle = prev + (target - prev) * deltaT * 0.2F.
-        //   누락 시 빠른 각도 변화 (10°/tick) → 모델 거의 거꾸로 (164°). fade 적용 시 130°.
-        //   비행 prev 인프라와 분리 (= smHeadJumpTiltX_prev) — 비행 ↔ 헤드점프 전환 시 leak 차단.
-        // 🔵 (2026-05-14, fix #98 위치 기반) smRemoteHJVisualHold OR 추가 — REMOTE 공중 자세 hold.
-        if (sm.isHeadJumping || sm.smRemoteHJVisualHold) {
-            // 🔴 fix #81 (2026-05-12, 사용자 보고 "여우무빙 진입 시 몸 수평 안 됨"):
-            //   자체 슬라이딩 발사 → 같은 tick L2271 자동 cycle 매치 → isHeadJumping=true 진입 시
-            //   thetaTarget = Quarter 고정 강제 → 원본 isSlide 분기 (= rotateAngleX = Quarter)
-            //   시각 1:1. 일반 헤드점프 (wasSelfSlideFire=false) 는 기존 식 그대로.
-            // 🔴 fix #81 v2 (2026-05-12): prev 도 π/2 강제 set — fade lerp 즉시 도달.
-            //   prev=0 시작 시 점진 lerp 12 tick 후도 도달 못 함 (= 사용자 시각 절반 회전 잔존).
-            //   prev=π/2 강제 set 시 lerp = π/2 즉시 (= 발사 frame 부터 완전 수평).
-            float thetaTarget = sm.wasSelfSlideFire
-                    ? (float) Math.PI / 2f
-                    : (float) Math.PI / 2f - sm.stats.currentVerticalAngle;
-            if (sm.wasSelfSlideFire) {
-                sm.smHeadJumpTiltX_prev = (float) Math.PI / 2f;
-                sm.smHeadJumpFade_prevTime = animationProgress;
-            }
-            float thetaLerped = lerpFadeAngle(sm.smHeadJumpTiltX_prev, thetaTarget,
-                                               sm.smHeadJumpFade_prevTime, animationProgress);
-            matrices.translate(0f, 1.5f, 0f);
-            matrices.rotate(Axis.XP.rotation(-thetaLerped));
-            matrices.translate(0f, -1.5f, 0f);
-            sm.smHeadJumpTiltX_prev = thetaLerped;
-            sm.smHeadJumpFade_prevTime = animationProgress;
-            sm.smOuterTiltX = thetaLerped;   // cape 클램프 (B-17) 도 보간된 값 사용
-        }
-
         // Dodge (angle jump, in the air and through the landing recovery): whole-body lean along the dodge,
         //   about the hips, plus the landing crouch's model drop.
         //   Axis conventions in this pre-scale space (see swim/slide/fly branches above):
@@ -1012,22 +924,6 @@ public class MixinPlayerEntityRenderer {
             sm.smOuterFade_prevTime = animationProgress;
         }
 
-        // 🔴 Head jump fade prev updated every frame (= flying prev update pattern identical).
-        //   Outside head jump/sliding branches prev=0 reset → next head jump entry natural start point
-        //   (= standing).
-        //   Sliding branch has prev=Quarter directly set above (smooth natural cycle).
-        // 🔴 fix #81 v3 (2026-05-12, user report "sliding→flying transition animation distortion"):
-        //   Existing wasSelfSlideFire reset = SmartMovingClientState L2222 head jump end branch.
-        //   Flying transition onGround=false no match → flag persists → next head jump fire
-        //   thetaTarget=π/2 incorrectly forced or flying phase visual effect.
-        //   Solution: Enter outside head jump/sliding branches (= flying/standing/falling etc) flag reset.
-        // 🔵 (2026-05-14, fix #98 position-based) smRemoteHJVisualHold !hold AND added — block reset during hold.
-        if (!sm.isHeadJumping && !sm.isSliding && !sm.smRemoteHJVisualHold) {
-            sm.smHeadJumpTiltX_prev = 0f;
-            sm.smHeadJumpFade_prevTime = animationProgress;
-            sm.wasSelfSlideFire = false;
-        }
-
         // 🔴 Ceiling climb fade prev updated every frame (flying prev update pattern identical).
         //   Outside ceiling climb branches prev = previous vanilla or SM bodyYaw (radian).
         //   Entry first frame fade natural start (previous value → target lerp).
@@ -1036,17 +932,13 @@ public class MixinPlayerEntityRenderer {
             sm.smCeilingFade_prevTime = animationProgress;
         }
 
-        // 🔴 fix #91 (2026-05-13): Head jump fade prev updated every frame (= flying prev update pattern identical).
-        //   Outside head jump/rope sliding branches prev = previous vanilla or SM bodyYaw (radian).
+        // 🔴 fix #91 (2026-05-13): Rope slide fade prev updated every frame (= flying prev update pattern identical).
+        //   Outside rope sliding branch prev = previous vanilla or SM bodyYaw (radian).
         //   Entry first frame fade natural start (= previous pose → currentHorizontalAngle target lerp).
         //   See feedback_fade_prev_pre_entry_pose.md.
-        // 🔴 fix #95 (2026-05-13): smHeadJumpYawSnapDone reset — reset on entering other branches.
-        //   Next head jump entry (= wasSelfSlideFire matrix check) first frame snap active.
-        // 🔵 (2026-05-14, fix #98 position-based) smRemoteHJVisualHold !hold AND added — block reset during hold.
-        if (!sm.isHeadJumping && !sm.isRopeSliding && !sm.smRemoteHJVisualHold) {
-            sm.smHeadJumpYaw_prev = (float) Math.toRadians(sm.smCachedBodyYawLaggedDeg);
-            sm.smHeadJumpYawFade_prevTime = animationProgress;
-            sm.smHeadJumpYawSnapDone = false;
+        if (!sm.isRopeSliding) {
+            sm.smRopeSlideYaw_prev = (float) Math.toRadians(sm.smCachedBodyYawLaggedDeg);
+            sm.smRopeSlideYawFade_prevTime = animationProgress;
         }
 
     }
@@ -1081,7 +973,7 @@ public class MixinPlayerEntityRenderer {
             return;
         }
 
-        // heightOffset == -1: head jump state name tag y -0.2F correction
+        // heightOffset == -1: small-box state name tag y -0.2F correction
         if (sm.heightOffset == -1f) {
             matrices.translate(0.0, -0.2, 0.0);
         }

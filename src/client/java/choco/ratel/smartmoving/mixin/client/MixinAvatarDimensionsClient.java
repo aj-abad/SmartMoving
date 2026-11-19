@@ -24,7 +24,7 @@ public abstract class MixinAvatarDimensionsClient {
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
         if (sm.isClimbCrawling || (sm.isCrawling && sm.isClimbing && sm.wasClimbCrawling)
-                || sm.isFlying || sm.isLevitating || sm.isHeadJumping || sm.isSliding
+                || sm.isFlying || sm.isLevitating || sm.isSliding
                 || sm.isSwimming_sm || sm.isDiving) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;

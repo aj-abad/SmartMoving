@@ -18,7 +18,7 @@ package choco.ratel.smartmoving.network;
  * bit  17:    doFlyingAnimation
  * bit  18:    isCeilingClimbing
  * bit  19:    isLevitating
- * bit  20:    isHeadJumping
+ * bit  20:    unused (reserved so later bits keep their positions)
  * bit  21:    isSliding
  * bits 22-24: angleJumpType lower 3 bits
  * bit  25:    isFeetVineClimbing
@@ -31,7 +31,7 @@ package choco.ratel.smartmoving.network;
  * bit  32:    isRopeSliding
  * bit  33:    isSneakButtonPressed (server-only read)
  * bit  34:    isClimbCrawling      (server-only read — box +1 mixin offset sync)
- * bit  35:    wasSelfSlideFire
+ * bit  35:    unused (reserved so later bits keep their positions)
  * bit  36:    angleJumpType upper bit (1-8 direction code extended with forward)
  * bit  37-39: unused (reserved so later bits keep their positions)
  * bit  40:    isChainClimbing  (vertical chain climb — remote body yaw / pose)
@@ -53,7 +53,6 @@ public final class SmartMovingState {
     public boolean doFlyingAnimation;
     public boolean isCeilingClimbing;
     public boolean isLevitating;
-    public boolean isHeadJumping;
     public boolean isSliding;
 
     public int angleJumpType;
@@ -68,12 +67,6 @@ public final class SmartMovingState {
     public boolean isRopeSliding;
     public boolean isSneakButtonPressed;
     public boolean isClimbCrawling;
-
-    // 🔴 fix #96 (2026-05-13, user report "remote fox sliding no immediate horizontal"):
-    //   Visual flag set when self-side fire slide is triggered. Remote-side visual fix #81/#94/#95 apply
-    //   condition. SmartMovingClientState.tickEssential called self-only → remote-side sync missing.
-    //   Solution: Add SmartMovingState bit 35 → server relay → remote-side packet lambda set.
-    public boolean wasSelfSlideFire;
 
     // Movement prototypes (docs/research_movement_prototypes.md): bit 40.
     public boolean isChainClimbing;
@@ -94,7 +87,7 @@ public final class SmartMovingState {
         if (s.doFlyingAnimation)   bits |= 1L << 17;
         if (s.isCeilingClimbing)   bits |= 1L << 18;
         if (s.isLevitating)        bits |= 1L << 19;
-        if (s.isHeadJumping)       bits |= 1L << 20;
+        // Bit 20 is unused and stays reserved.
         if (s.isSliding)           bits |= 1L << 21;
         bits |= (long) (s.angleJumpType & 0x7) << 22;
         if (s.isFeetVineClimbing)   bits |= 1L << 25;
@@ -107,7 +100,7 @@ public final class SmartMovingState {
         if (s.isRopeSliding)        bits |= 1L << 32;
         if (s.isSneakButtonPressed) bits |= 1L << 33;
         if (s.isClimbCrawling)      bits |= 1L << 34;
-        if (s.wasSelfSlideFire)     bits |= 1L << 35;  // fix #96
+        // Bit 35 is unused and stays reserved.
         if ((s.angleJumpType & 0x8) != 0) bits |= 1L << 36;
         // Bits 37-39 are unused and stay reserved.
         if (s.isChainClimbing)      bits |= 1L << 40;
@@ -130,7 +123,6 @@ public final class SmartMovingState {
         s.doFlyingAnimation   = ((bits >> 17) & 1) != 0;
         s.isCeilingClimbing   = ((bits >> 18) & 1) != 0;
         s.isLevitating        = ((bits >> 19) & 1) != 0;
-        s.isHeadJumping       = ((bits >> 20) & 1) != 0;
         s.isSliding           = ((bits >> 21) & 1) != 0;
         s.angleJumpType       = (int) ((bits >> 22) & 0x7)
                               | (int) (((bits >> 36) & 1) << 3);
@@ -144,7 +136,6 @@ public final class SmartMovingState {
         s.isRopeSliding       = ((bits >> 32) & 1) != 0;
         s.isSneakButtonPressed = ((bits >> 33) & 1) != 0;
         s.isClimbCrawling      = ((bits >> 34) & 1) != 0;
-        s.wasSelfSlideFire     = ((bits >> 35) & 1) != 0;  // fix #96
         s.isChainClimbing      = ((bits >> 40) & 1) != 0;
         return s;
     }

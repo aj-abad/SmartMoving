@@ -116,7 +116,6 @@ public abstract class MixinClientPlayerEntity {
      *
      * Original SmartMovingSelf L2366-L2370 `setIsJumpingField(...)` guard:
      *   movementInput.jump && !isCrawling && !isSliding
-     *   && !(headJumpEnabled && grab && sprint)
      *   && !(jumpChargeEnabled && wouldIsSneaking && onGround && isStanding)
      *   && !blockJumpTillButtonRelease
      *
@@ -135,21 +134,18 @@ public abstract class MixinClientPlayerEntity {
         if (!cfg.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
 
-        // Phase E BUG-3 1:1 correction: Negation of original L2367-L2370 setIsJumpingField 5-AND expression (= setJumping(false) condition).
+        // Phase E BUG-3 1:1 correction: Negation of original L2367-L2370 setIsJumpingField expression (= setJumping(false) condition).
         //   Original expression (positive): movementInput.jump && !isCrawling && !isSliding
-        //                && !(headJumpEnabled && grab && sprint)
         //                && !(jumpChargeEnabled && wouldIsSneaking && onGround && isStanding)
         //                && !blockJumpTillButtonRelease
         //   Negation (= force jumping false): isCrawling || isSliding
-        //                || (headJumpEnabled && grab && sprint)         ★ Block from charge start possible time
-        //                || (jumpChargeEnabled && wouldIsSneaking && onGround && isStanding)  ★ Same
+        //                || (jumpChargeEnabled && wouldIsSneaking && onGround && isStanding)  ★ Block from charge start possible time
         //                || blockJumpTillButtonRelease
-        //   Existing simplification (isHeadJumping / jumpCharge>0) only guards "already fired/charging" state → on start frame
+        //   Existing simplification (jumpCharge>0) only guards "already charging" state → on start frame
         //   vanilla jump fire potentially possible. 1:1 restore.
         boolean shouldBlock =
                 sm.isCrawling
              || sm.isSliding
-             || (cfg.headJump && SmartMovingKeys.grab.isDown() && player.isSprinting())
              || (cfg.jumpCharge && sm.wouldIsSneaking && player.onGround() && sm.isStanding)
              || sm.blockJumpTillButtonRelease;
         if (shouldBlock) {

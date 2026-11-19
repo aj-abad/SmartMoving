@@ -85,8 +85,8 @@ public final class SmartMovingServer {
     // Original uses PacketStream 7-bit sync only, server dimensions determined by isSmall alone.
     // However, 1.21.1 vanilla POSE system requires identical branch mapping on both sides (prevent datatracker sync oscillation).
     // Phase 1 client already maps 8 SM states → 4 branches (SWIMMING/SLIDING),
-    // so server needs additional bit decoding for identical branch handling. SmartMovingState already encodes 21 bits
-    // (bit 9 isDiving / 11 isSwimming / 19 isLevitating / 20 isHeadJumping / 21 isSliding) —
+    // so server needs additional bit decoding for identical branch handling. SmartMovingState already encodes these bits
+    // (bit 9 isDiving / 11 isSwimming / 19 isLevitating / 21 isSliding) —
     // server only needs to add decoding.
 
     /** SmartMovingState bit 9. SM diving state. Maps to POSE.SWIMMING. */
@@ -95,8 +95,6 @@ public final class SmartMovingServer {
     public boolean isSwimming;
     /** SmartMovingState bit 19. Levitate potion state. Maps to POSE.SLIDING. */
     public boolean isLevitating;
-    /** SmartMovingState bit 20. SM head jump state. Maps to POSE.SLIDING. */
-    public boolean isHeadJumping;
     /** SmartMovingState bit 21. SM sliding state. Maps to POSE.SLIDING. */
     public boolean isSliding;
     /**
@@ -153,7 +151,6 @@ public final class SmartMovingServer {
      *   bit  9: isDiving        ★ New (Phase D-1, maps to POSE.SWIMMING)
      *   bit 11: isSwimming      ★ New (Phase D-1, maps to POSE.SWIMMING)
      *   bit 19: isLevitating    ★ New (Phase D-1, maps to POSE.SLIDING)
-     *   bit 20: isHeadJumping   ★ New (Phase D-1, maps to POSE.SLIDING)
      *   bit 21: isSliding       ★ New (Phase D-1, maps to POSE.SLIDING)
      */
     public void processStatePacket(ServerPlayer player, long bits) {
@@ -161,17 +158,6 @@ public final class SmartMovingServer {
         //   Save wasSL/wasCR at start of processStatePacket — used to check auto slide→crawl transition match at end.
         boolean _wasSL_fix90 = this.isSliding;
         boolean _wasCR_fix90 = this.isCrawling;
-        // 🔵 fix #98-v2 (2026-05-14, BUG 3: REMOTE collision ground touch before head jump ends + lock on landing):
-        //   User instruction — verify 3-way sync server/self/remote + memory review results.
-        //   Memory key: feedback_server_side_state_push_mirror — "when self side setPos call detected,
-        //     must add mirror call in identical match branch in server side processStatePacket".
-        //   self side standupIfPossible standUp branch (= L3760, setPos(getY()+1) when gap=0) +
-        //     toSlidingOrCrawling branch + fix #88 resetHO branch all do entity.y +1m push.
-        //   Existing server side: only mirrors fix #90 (slide→crawl). Missing isHJ=true→false mirror →
-        //     server.y broadcast = self.y c2s sync timing difference causes lerp → REMOTE.y < ground
-        //     (= lock moment) or REMOTE.y > ground (= standing in air) BUG occurs.
-        //   fix: Identical mapping of +1m push from self side standUp to server side.
-        boolean _wasHJ_fix98 = this.isHeadJumping;
         // 🔵 fix #153 v2 (2026-05-22 restored): swim → crawl transition server mirror push.
         //   log measurement: SERVER-CR tick=616 server.y=70 persists (= state packet processed before c2s movement).
         //   self.y c2s = 71 (= setPos+1). When processing state packet, server.y = prev (= 70). Mirror push needed.
@@ -193,7 +179,7 @@ public final class SmartMovingServer {
         //     client box normal → server reconcile → user verbatim "crouch sometimes" / "standing upward" /
         //     "ground lock" all same cause.
         //   fix: Explicit calculateDimensions call when bit 13 (isCrawling) changes — same pattern as other bits
-        //     (= isClimbCrawling L246 / isHeadJumping L213 / isSliding L235).
+        //     (= isClimbCrawling / isSliding below).
         //   memory: feedback_processStatePacket_calculateDimensions, feedback_server_reconcile_box_sync.
         if (_oldCrawl != isCrawling) {
             player.refreshDimensions();
@@ -208,7 +194,7 @@ public final class SmartMovingServer {
         isSwimming     = ((bits >> 11) & 1) != 0;
         isLevitating   = ((bits >> 19) & 1) != 0;
         // 🔴 fix #42 (2026-05-09, user-reported "collision locked 1 block up"):
-        //   isHeadJumping/isSliding change detection + calculateDimensions() call added.
+        //   isSliding change detection + calculateDimensions() call added.
         //   Why: When only decoding without refresh, server dim cache (= STANDING 1.8) persists → mixin offset
         //     (= height<1 && eyeHeight>1) not applied → server box (entity.y, entity.y+1.8) →
         //     perceives collision ground lock → sends server position correction packet → client position reset
@@ -217,52 +203,16 @@ public final class SmartMovingServer {
         //     dim updates immediately → mixin offset activates immediately → server box = client box same position →
         //     no server reconcile.
         //   memory: feedback_server_reconcile_box_sync + project_isclimbcrawling_complete pattern.
-        // 🔴 fix #55 (2026-05-10, user-reported "after fix #53 bounces like stuck against wall"):
-        //   client uses fix #29 headJumpCharge==0 guard to skip calculateDimensions in case A (=headJumpCharge>0)
-        //   → dim cache (=eye 1.62) persists → mixin offset active →
-        //   box foot = entity.y+1m = ground (correct).
-        //   server unconditionally calls calculateDimensions with fix #42 → dim updated (=eye 0.62,
-        //   smSmall match with isHeadJumping=false+isSliding=true) → mixin offset blocked → box foot
-        //   = entity.y = original ground -1m → perceives ground lock → server position correction
-        //   packet → client position reset → user reported "bounces like stuck against wall".
-        //   fix: server also dim cache persists like client (= call only at enter, skip at exit).
-        //     - isHeadJumping=false→true (enter): call (maintains fix #42 intent, prevents collision 1-block lock regression).
-        //     - isHeadJumping=true→false (exit): skip (= fix #53 scenario + normal head jump exit).
-        //     - isSliding=false→true (enter): skip (= fix #53 scenario + normal slide enter).
-        //     - isSliding=true→false (exit): call (= box SLIDING→STANDING normal restore).
-        //   1-tick lag scenario (= skip at enter) vanilla updatePose auto-call refreshes dim →
-        //   persists equivalent to client → no reconcile.
-        boolean newHeadJumping = ((bits >> 20) & 1) != 0;
-        if (newHeadJumping != isHeadJumping) {
-            isHeadJumping = newHeadJumping;
-            if (newHeadJumping) player.refreshDimensions();   // Call only on enter.
-        }
         // 🔴 fix #63 (2026-05-10, user-reported "sliding model box 1m below + exit box lock"):
-        //   fix #55 isSliding branch guard (= skip on enter) causes server reconcile during *normal self slide enter*.
-        //   Normal enter flow:
-        //     - Before enter: isHeadJumping=false, isSliding=false → server dim = STANDING (1.8).
-        //     - After enter: isSliding=true. fix #55 → skip calculateDimensions → server dim
-        //       STANDING persists → mixin offset guard mismatch (height>=1) → blocks → server box foot =
-        //       entity.y = ground - 1m (= sync with fix #60 result) → server box lock 1m below ground.
-        //     - server reconcile or model position handling mismatch.
-        //   fix: Call calculateDimensions on isSliding=false→true enter when isHeadJumping=false
-        //         (= server dim updates → fix #59 match → eye=1.62 → mixin offset active → box +1m
-        //         up = ground aligned). Skip when isHeadJumping=true (= fix #53 scenario = maintain
-        //         server dim cache effect during concurrent head jump + self slide enter).
-        //   fix #42 history BUG (= "collision locked 1 block up") also exactly mapped recover via fix #63.
+        //   Skipping the refresh on slide enter leaves the server dim at STANDING → mixin offset guard mismatch
+        //   (height>=1) → server box foot = entity.y = ground - 1m (= sync with fix #60 result) → server
+        //   box lock 1m below ground → server reconcile.
+        //   fix: refresh on both enter (= fix #59 match → eye=1.62 → mixin offset active → box +1m up =
+        //   ground aligned) and exit (= STANDING restore).
         boolean newSliding = ((bits >> 21) & 1) != 0;
         if (newSliding != isSliding) {
             isSliding = newSliding;
-            if (newSliding) {
-                // On enter: call only when isHeadJumping=false (= normal slide enter).
-                //   Skip when isHeadJumping=true (= fix #53 scenario: concurrent head jump + self slide).
-                if (!isHeadJumping) {
-                    player.refreshDimensions();
-                }
-            } else {
-                // On exit: always call (= STANDING restore).
-                player.refreshDimensions();
-            }
+            player.refreshDimensions();
         }
         // ── X/Z Pull Fix: Client/Server Box Sync (bit 34, bit 22 uses angleJumpType) ──
         boolean newClimbCrawling = ((bits >> 34) & 1) != 0;
@@ -301,24 +251,6 @@ public final class SmartMovingServer {
             player.setPosRaw(player.getX(), player.getY() + 1.0, player.getZ());
         }
 
-        // 🔵 fix #99 v3 (2026-05-14): Direct HJ → CR transition server-side mirror.
-        //   User-reported: head jump + wall collision + GRAB+SNEAK → auto crouch REMOTE locked visual.
-        //   Actual path: HJ:true→false + CR:false→true simultaneous (= self side toSlidingOrCrawling
-        //     else branch → toCrawling). Self side `toCrawling` doesn't push entity.y →
-        //     c2s position packet also persists ground-1m → server.y no auto push → broadcast srvY
-        //     = ground - 1m → REMOTE locked visual.
-        //   fix: Adopt fix #90 (= SL→CR) pattern — direct setPos(y+1) push at end of server side processStatePacket.
-        //     server.y immediately ground → broadcast srvY=ground →
-        //     [feedback_server_side_state_push_mirror] pattern.
-        //   client side: fix #99 v4 aligns immediately with setPos(srvY + 1) after broadcast arrival.
-        if (_wasHJ_fix98 && !this.isHeadJumping
-                && !_wasSL_fix90 && !this.isSliding
-                && !_wasCR_fix90 && this.isCrawling
-                && !this.isClimbCrawling && !this.isClimbing && !this.isCeilingClimbing
-                && !this.isSwimming && !this.isDiving && !this.isLevitating) {
-            player.setPosRaw(player.getX(), player.getY() + 1.0, player.getZ());
-        }
-
         // 🔵 fix #153 v3 (2026-05-22 history flag): swim/dive → crawl mirror push.
         //   log measurement: Server side also capable of multi-step state changes (= cause of 2 packets received from REMOTE).
         //   fix: history flag — set on swim/dive end detection, detect + push within 5 ticks on crawl enter.
@@ -331,28 +263,11 @@ public final class SmartMovingServer {
                 && (player.tickCount - this.smRecentSwimDiveEndTick_fix153) <= 10;
         if (_recentSwimEndedFix153
                 && !_wasCR_fix90 && this.isCrawling
-                && !_wasHJ_fix98 && !this.isHeadJumping
                 && !_wasSL_fix90 && !this.isSliding
                 && !this.isClimbCrawling && !this.isClimbing && !this.isCeilingClimbing
                 && !this.isLevitating) {
             player.setPosRaw(player.getX(), player.getY() + 1.0, player.getZ());
             this.smRecentSwimDiveEndTick_fix153 = -9999;
-        }
-
-        // 🔵 fix #98-v2 (2026-05-14): isHeadJumping=true → false + all other SM phases false match
-        //   Apply identical +1m push as self side standUp branch. Matches exactly self side L3926-L3930 standUp condition
-        //   "force POSE=STANDING when all SM states false".
-        //   Guard conditions (match self side L3926):
-        //     - wasHJ=true → newHJ=false (= head jump end edge).
-        //     - All other SM phases false (= simple end, not auto transition to self slide/fly).
-        //   Regression check:
-        //     - Other phase transitions (= head jump → auto slide transition etc): guard doesn't match → skip setPos.
-        //     - Normal end: only apply +1m. Vanilla auto push (requires *box collision* condition) doesn't trigger.
-        if (_wasHJ_fix98 && !this.isHeadJumping
-                && !this.isSliding && !this.isCrawling && !this.isCrawlClimbing
-                && !this.isClimbing && !this.isCeilingClimbing
-                && !this.isSwimming && !this.isDiving && !this.isLevitating) {
-            player.setPosRaw(player.getX(), player.getY() + 1.0, player.getZ());
         }
     }
 

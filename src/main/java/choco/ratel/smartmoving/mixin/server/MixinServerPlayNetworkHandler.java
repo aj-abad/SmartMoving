@@ -63,15 +63,11 @@ public abstract class MixinServerPlayNetworkHandler {
         //   sent) triggers → client entity.y +1m forced correction → subsequent SS-SlideStop + fix #62 v2 push accumulates
         //   → box hovers at ground+1m → user perceives "1 block raised crouch".
         //   Same pattern as other SM phase guards (isClimbing/isCrawling/isCrawlClimbing/isCeilingClimbing).
-        // 🔴 fix #100 (2026-05-31, BUG-1 jump boost+fox movement "moved too quickly"):
-        //   Fox movement server-side state = isHeadJumping=true (isSliding=false). Original formula
-        //   missing isHeadJumping → suppress=false → vanilla requestTeleport passes → client
-        //   rubber-band → "stops in place". Confirmed via diagnostic log.
         boolean curInPhase = sm.isClimbing || sm.isCrawling || sm.isCrawlClimbing || sm.isCeilingClimbing
-                || sm.isSliding || sm.isHeadJumping;
+                || sm.isSliding;
 
-        // 🔴 fix #103 (2026-05-31, BUG = "HJ/sliding + 1 block water gap causes sharp cut and bounce back"):
-        //   Diagnostic log confirmed fact — client sends isHJ=false StatePayload → server.sm.isHeadJumping
+        // 🔴 fix #103 (2026-05-31, BUG = "sliding + 1 block water gap causes sharp cut and bounce back"):
+        //   Diagnostic log confirmed fact — client sends a phase-exit StatePayload → server.sm phase flag
         //   updates immediately → at next onPlayerMove of same tick sm_suppressPositionCheck=false →
         //   fix #101/#102's ModifyVariable returns original distSq/postDistSq value → vanilla "moved
         //   wrongly" matches (postDistSq=0.10 > 0.0625) → requestTeleport EXECUTED → client

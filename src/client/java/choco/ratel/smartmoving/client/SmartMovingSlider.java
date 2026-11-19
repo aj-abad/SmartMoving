@@ -19,8 +19,8 @@ import net.minecraft.world.phys.Vec3;
  *   9-4: handleSliding() — sliding damping formula + strafe forced rotation + travel() replacement
  *   9-5: spawnSlidingParticle() — BlockState-based particle spawning
  *
- * Exit conditions (sneak release / speed threshold) handled at SlideToHeadJumping next position
- * in SmartMovingClientState main tick. Original L2563-L2567 1:1.
+ * Exit conditions (sneak release / speed threshold) handled in the SmartMovingClientState main tick.
+ * Original L2563-L2567 1:1.
  */
 @Environment(EnvType.CLIENT)
 public final class SmartMovingSlider {
@@ -86,11 +86,11 @@ public final class SmartMovingSlider {
         player.setDeltaMovement(newVx, newVy, newVz);
         player.move(MoverType.SELF, player.getDeltaMovement());
 
-        // 🔴 BUG fix (2026-05-08, user report "sliding → cliff → auto headjump conversion failed"):
+        // 🔴 BUG fix (2026-05-08):
         //   sm_travel_client's ci.cancel() skips vanilla LivingEntity.travel body →
         //   fallDistance update formula inside body (`if onGround → fallDistance=0; else if vy<0 →
         //   fallDistance -= vy`) also skipped. Sliding off cliff → fallDistance=0 maintained →
-        //   SlideToHeadJumping threshold (0.05F) not reached → auto conversion not triggered.
+        //   the fall-based slide exits never trigger.
         //   Original 1.7.10 flow: SM superMoveEntityWithHeading calls vanilla moveEntity →
         //   fallDistance auto-updated inside moveEntity. 1.21.1 vanilla travel cancel means
         //   direct mapping needed.
@@ -111,7 +111,7 @@ public final class SmartMovingSlider {
         // [9-5] Sliding particle
         spawnSlidingParticle(player, sm, new Vec3(newVx, 0, newVz));
 
-        // Exit conditions in SmartMovingClientState main tick (next position after SlideToHeadJumping, original L2563-L2567)
+        // Exit conditions in SmartMovingClientState main tick (original L2563-L2567)
         // handled: sneak release + horizontalSpeedSquare < stopFactor*0.01 + wasCrawling=toCrawling() 1:1 processing.
         return true;
     }

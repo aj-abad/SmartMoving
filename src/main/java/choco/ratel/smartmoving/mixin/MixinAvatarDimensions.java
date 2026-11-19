@@ -19,7 +19,7 @@ public abstract class MixinAvatarDimensions {
         if (!((Object) this instanceof ServerPlayer player)) return;
         SmartMovingServer sm = SmartMovingServer.get(player);
 
-        if (sm.isClimbCrawling || sm.isHeadJumping || sm.isSliding
+        if (sm.isClimbCrawling || sm.isSliding
                 || sm.isSwimming || sm.isDiving) {
             cir.setReturnValue(EntityDimensions.scalable(0.6F, 0.8F).withEyeHeight(1.62F));
             return;

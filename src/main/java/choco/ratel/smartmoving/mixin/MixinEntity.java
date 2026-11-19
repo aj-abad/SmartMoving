@@ -91,19 +91,17 @@ public abstract class MixinEntity {
      *   abilities=null guard: PlayerEntity constructor may call setPosition before abilities initialization.
      */
     /**
-     * Red circle fix #175 v5 (2026-05-27, user report after fix v4 "head jump/fox movement collision+animation issue"):
-     *   v4 formula = check sm.isSliding only → blocks head jump attempt → box +1m up does not happen → box feet stuck.
-     *   v5 = check all SLIDING POSE entry paths (= sm_updatePose_client/server):
-     *     `isHeadJumping || isSliding → SLIDING`.
+     * Red circle fix #175 (2026-05-27): check the SLIDING POSE entry path (= sm_updatePose_client/server):
+     *     `isSliding → SLIDING`.
      *     (flying/Levitate passes STANDING after BUG-29 fix → does not enter SLIDING POSE).
-     *   If either phase is true, normal → keep main mixin active. Only if both false → block.
+     *   If sliding, normal → keep main mixin active. Otherwise → block.
      *   If reflection fails, return true (= pass guard → maintain existing behavior).
      */
     @org.spongepowered.asm.mixin.Unique
     private static boolean sm_isValidSlidingPoseState(Player player) {
         if (player instanceof ServerPlayer sp) {
             SmartMovingServer sm = SmartMovingServer.get(sp);
-            return sm.isSliding || sm.isHeadJumping;
+            return sm.isSliding;
         }
         // client side - reflection (avoids client class symbol during main module compile).
         // 🔴 fix (2026-06-08, BUG = "dev mode OK / in build (prod) quick sliding tap causes ground lock"):
@@ -127,8 +125,7 @@ public abstract class MixinEntity {
             if (getM == null) return true;
             Object state = getM.invoke(null, player);
             if (state == null) return true;  // fall through to main mixin.
-            return stateCls.getField("isSliding").getBoolean(state)
-                    || stateCls.getField("isHeadJumping").getBoolean(state);
+            return stateCls.getField("isSliding").getBoolean(state);
         } catch (Throwable e) {
             return true;  // If reflection fails, consider as normal SLIDING → keep main mixin active.
         }
@@ -143,25 +140,22 @@ public abstract class MixinEntity {
         EntityDimensions dim = this.dimensions;
         if (dim.height() >= 1.0F) return;       // STANDING / normal height
         // 🔴 fix #56 (2026-05-10, user report "after fix #53: box low + wall collision + difficult entry"):
-        //   Previous guard `eye <= 1.0F` only = mixin offset active only during isHeadJumping (eye=1.62).
-        //   During fix #53 entry (= 1:1 with 1.12.2): force isHeadJumping=false + isSliding=true → dim eye=0.62
+        //   Previous guard `eye <= 1.0F` only: on slide entry (= 1:1 with 1.12.2) dim eye=0.62
         //   → mixin offset blocked → box feet = entity.y = original ground - 1m → stuck.
         //
         //   1.7.10/1.12.2 `setHeightOffset(-1)` pattern = boundingBox.minY += 1m **direct change**
-        //   (regardless of POSE, applied to both isSliding/isHeadJumping). In vanilla 1.21.1 mapping,
+        //   (regardless of POSE). In vanilla 1.21.1 mapping,
         //   mixin offset equivalent is guard only by `eye>1` → BUG: not applied when isSliding.
         //
         //   Solution: activate mixin offset also on POSE.SLIDING. POSE.SLIDING branch:
-        //     - sm_updatePose pattern: isHeadJumping || isSliding || isFlying || isLevitating → SLIDING.
+        //     - sm_updatePose pattern: isSliding || isFlying || isLevitating → SLIDING.
         //   → offset +1m up on all SLIDING POSE. 1:1 effect as 1.7.10/1.12.2 setHeightOffset.
         //   Side effect: normal sliding also box +1m up — equivalent 1.12.2 behavior (= no regression).
         Pose pose = ((Entity) (Object) this).getPose();
         if (dim.eyeHeight() <= 1.0F && pose != Pose.SLIDING) return;
 
-        // Red circle fix #175 v5 (2026-05-27, v4 after head jump/fox movement regression fix):
-        //   SLIDING POSE entry path = 4 SM phase (isHeadJumping || isSliding || isFlying || isLevitating).
-        //   v4 = checks only sm.isSliding → blocks other phases → box gets stuck.
-        //   v5 = passes if any of 4 phases is true. blocks only when all false → remaining.
+        // Red circle fix #175 (2026-05-27): a SLIDING POSE left over after the SM phase ended
+        //   (= sm_isValidSlidingPoseState false) gets no offset.
         if (pose == Pose.SLIDING) {
             if (!sm_isValidSlidingPoseState(player)) return;
         }

@@ -113,13 +113,13 @@ public abstract class MixinLivingEntityClient {
         boolean wasDipping  = sm.isDipping;
         boolean wasShortInWater = wasSwimming || wasDiving || wasDipping;
         // 🔴 fix #155 (2026-05-22): Block locked visual after sliding rapid toggle — detect lock every tick.
-        //   Log measurement: sliding rapid toggle → SlideToHeadJumping auto-transition → falling → next ground reach
+        //   Log measurement: sliding rapid toggle → falling → next ground reach
         //     → box feet = ground - 1 stuck. fix #70 v4 (inside mustCrawl formula) only matches at isCrawling time →
         //     handleCrash → toCrawling call after locked cycle possible.
-        //   Fix: Every tick on sm_travel_client entry, (isCrawling || isHeadJumping || isSliding) + onGround=true
+        //   Fix: Every tick on sm_travel_client entry, (isCrawling || isSliding) + onGround=true
         //     time detect box stuck below ground → entity.y push + velocity Y/fallDistance reset.
         //   Guard: groundTop > bbMin + 0.005 (= lock detection) + groundTop <= bbMin + 1.0 (= block 1-block ceiling match).
-        if (player.onGround() && (sm.isCrawling || sm.isHeadJumping || sm.isSliding || sm.isClimbCrawling)) {
+        if (player.onGround() && (sm.isCrawling || sm.isSliding || sm.isClimbCrawling)) {
             net.minecraft.world.phys.AABB _stuckBb = player.getBoundingBox();
             double _stuckBbMin = _stuckBb.minY;
             double _stuckGround = choco.ratel.smartmoving.client.SmartMovingClientState
@@ -185,21 +185,6 @@ public abstract class MixinLivingEntityClient {
         if (SmartMovingSlider.handleSliding(player, sm)) {
             ci.cancel();
             return;
-        }
-
-        // [10-4] Head jump landing detection — restore pose
-        // 🔴 BUG fix (2026-05-08, head jump in-game verification round 1):
-        //   handleJumping (L98) tryJump head branch fires → same tick same function in main guard
-        //   `onGround && isHeadJumping` immediately matches → resetHeightOffset → isHeadJumping=false +
-        //   restore STANDING → head jump dies after 1 tick (user report BUG: "briefly crouched
-        //   then immediately stand"). vanilla travel body not yet applied, onGround=true persists race.
-        //   fix: `&& sm.wasHeadJumping` — reset only when isHeadJumping was already true previous tick.
-        //   Fire tick has wasHeadJumping=false so blocked. If onGround reached during head jump,
-        //   tickEssential 5-AND re-evaluation + handleCrash + standupIfPossible flow handles it (B-24/B-N).
-        //   Checklist Phase I found separately (duplicate with resetHeightOffset 5-AND flow) consistent — L149 itself
-        //   removal deferred to separate cycle after dead code analysis.
-        if (player.onGround() && sm.isHeadJumping && sm.wasHeadJumping) {
-            SmartMovingJumper.resetHeightOffset(player, sm);
         }
 
         // [10-5] Wall jump handling (before climbing)
@@ -386,13 +371,12 @@ public abstract class MixinLivingEntityClient {
             float jumpMovementFactor = 0.02F;
             climbRawSpeed = jumpMovementFactor / (player.isSprinting() && !player.getAbilities().flying ? 1.3F : 1F);
         }
-        // Phase F 1:1 correction: Remove jumpControlFactor / headJumpControlFactor application branch.
+        // Phase F 1:1 correction: Remove jumpControlFactor application branch.
         //   Original SmartMovingSelf L688-L719 flow is if/else chain:
         //     if (isClimbing && climbingUpIsBlockedBy*) { /* climb handling, factor not applied */ }
         //     else if (!isSliding) { /* land handling, factor applied (L703-L706) */ }
-        //   So jump Control/head Jump ControlFactor not applied in climbing branch.
-        //   Applying at this climbMotion location violates original. wouldWantClimb expression (`!isHeadJumping` guard)
-        //   blocks climbing entry during head jump making it dead code, but explicit 1:1 match.
+        //   So jumpControlFactor not applied in climbing branch.
+        //   Applying at this climbMotion location violates original.
         // runFactor (isRunning && !isFast).
         if (cfg2.run && SmartMovingMover.isRunning(player, sm, cfg2) && !sm.isFast) {
             climbSpeedFactor *= cfg2.runFactor;
@@ -492,7 +476,7 @@ public abstract class MixinLivingEntityClient {
      * Original: SmartMovingSelf.updateEntityActionState() isp.setIsJumpingField() logic.
      *
      * Suppression conditions:
-     *   isCrawling || isSliding || isHeadJumping || jumpCharge>0 || blockJumpTillButtonRelease
+     *   isCrawling || isSliding || jumpCharge>0 || blockJumpTillButtonRelease
      *
      * Execute in LivingEntity.tickMovement() HEAD → definitely set before jump() call inside travel().
      */
@@ -504,7 +488,7 @@ public abstract class MixinLivingEntityClient {
         //   blocks possible jumpCharge/blockJumpTillButtonRelease persistence (resetState resets but safety net).
         if (!SmartMovingConfig.Config.enabled) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
-        if (sm.isCrawling || sm.isSliding || sm.isHeadJumping
+        if (sm.isCrawling || sm.isSliding
                 || sm.jumpCharge > 0 || sm.blockJumpTillButtonRelease) {
             this.jumping = false;
         }
@@ -553,7 +537,7 @@ public abstract class MixinLivingEntityClient {
         if (!SmartMovingConfig.Config.enabled) return;
         if (!sprinting) return;  // setSprinting(false) always passes.
         SmartMovingClientState sm = SmartMovingClientState.get(player);
-        if (sm.isCrawling || sm.isSliding || sm.isHeadJumping
+        if (sm.isCrawling || sm.isSliding
                 || sm.isSwimming_sm || sm.isDiving) {
             ci.cancel();
         }
@@ -667,20 +651,6 @@ public abstract class MixinLivingEntityClient {
     }
 
     /**
-     * HorizontalAerodynamicDamping — horizontal deceleration correction right after slide→head jump transition.
-     * Original: SmartMovingBase.landMotion() (lines 751-755) — when isAerodynamic && !onGround && !isSliding
-     *       motionX/Z *= HorizontalAerodynamicDamping(0.999F)
-     *
-     * 1.21.1: Inserted after vanilla air resistance 0.91F in travel().
-     * When isAerodynamic=true reverse vanilla's 0.91F and apply 0.999F.
-     * correction factor = 0.999F / 0.91F
-     */
-    @Inject(method = "travel", at = @At("TAIL"))
-    private void sm_aerodynamicDamping(Vec3 movementInput, CallbackInfo ci) {
-        // 🔴 (2026-04-28) Temporarily disabled. Map head jump separately after land + jump action verification.
-    }
-
-    /**
      * B-2 (Session 26): Port Land movement user factor. Original `SmartMovingSelf.java` L119
      *   `speedFactor = getConfigSpeedFactor() * getPotionSpeedFactor() * ...`
      * Inject `getConfigSpeedFactor()` part into Land path processed by vanilla travel().
@@ -769,7 +739,7 @@ public abstract class MixinLivingEntityClient {
         if (!choco.ratel.smartmoving.client.SmartMovingClient.isSmRenderEnabled(player)) return;
         SmartMovingClientState sm = SmartMovingClientState.get(player);
         if (sm.isCrawling || sm.isCrawlClimbing || sm.isSwimming_sm || sm.isDiving
-                || sm.isHeadJumping || sm.isSliding) {
+                || sm.isSliding) {
             cir.setReturnValue(0F);
             return;
         }

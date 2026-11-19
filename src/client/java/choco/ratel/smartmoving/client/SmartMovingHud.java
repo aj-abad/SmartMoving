@@ -51,13 +51,9 @@ public final class SmartMovingHud {
         if (!cfg.displayExhaustionBar && !cfg.displayJumpChargeBar) return;
 
         // ── Jump charge bar ──────────────────────────────────────────────────
-        // Original: stillJumpCharge = sm.jumpCharge, runJumpCharge = sm.headJumpCharge
-        // Display the larger and use its maximum as reference
-        float maxStillCharge = cfg.jumpChargeMaximum;
-        float maxRunCharge   = cfg.headJumpChargeMaximum;
-        float stillCharge    = Math.min(sm.jumpCharge,     maxStillCharge);
-        float runCharge      = Math.min(sm.headJumpCharge, maxRunCharge);
-        boolean drawJump     = stillCharge > 0 || runCharge > 0;
+        float maxCharge = cfg.jumpChargeMaximum;
+        float charge    = Math.min(sm.jumpCharge, maxCharge);
+        boolean drawJump = charge > 0;
 
         // ── Exhaustion bar ───────────────────────────────────────────────────────
         // Original: maxExhaustion = climbExhaustionStop, display condition exhaustion > 0
@@ -71,9 +67,6 @@ public final class SmartMovingHud {
         int height = mc.getWindow().getGuiScaledHeight();
 
         if (drawJump) {
-            float maxCharge = stillCharge > runCharge ? maxStillCharge : maxRunCharge;
-            float charge    = Math.max(stillCharge, runCharge);
-
             // Original: when maxed fulls=10 half=0, otherwise ceil formula
             boolean maxed = charge >= maxCharge;
             int fulls = maxed ? 10 : Math.max(0, (int) Math.ceil(((double)(charge - 2) * 10D) / maxCharge));

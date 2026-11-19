@@ -154,7 +154,6 @@ public class SmartMovingClient implements ClientModInitializer {
                     //   self (= ClientPlayerEntity) has own fix.
                     boolean wasSliding = target.isSliding;
                     boolean wasFlying = target.isFlying;
-                    boolean wasHJ = target.isHeadJumping;
                     boolean wasICC = target.isClimbCrawling;
                     // 🔵 fix #154 (2026-05-22) — swim/dive → crawl direct transition snapshot (remote sink fix).
                     boolean wasSwim_fix154 = target.isSwimming_sm;
@@ -205,7 +204,7 @@ public class SmartMovingClient implements ClientModInitializer {
                         Pose targetPose = null;
                         if (target.isCrawling && !target.isClimbing) {
                             targetPose = Pose.SWIMMING;
-                        } else if (target.isHeadJumping || target.isSliding) {
+                        } else if (target.isSliding) {
                             targetPose = Pose.SLIDING;
                         } else if (target.isSwimming_sm || target.isDiving) {
                             targetPose = Pose.SWIMMING;
@@ -320,9 +319,9 @@ public class SmartMovingClient implements ClientModInitializer {
                             && !(entity instanceof LocalPlayer)) {
                         SmartMovingLivingEntityAccess accE =
                                 (SmartMovingLivingEntityAccess)(Object) remoteSlideEnter;
-                        // 🔴 fix #93 (2026-05-13, dump verification — user report "fox moving → simultaneous sliding entry gets briefly stuck"):
+                        // 🔴 fix #93 (2026-05-13, dump verification — user report "sliding entry gets briefly stuck"):
                         //   Previous newY = remoteSlideEnter.getY() - 1.0:
-                        //     when client.y before entry is locked by *head jump in progress server.y broadcast lag*
+                        //     when client.y before entry is locked by *server.y broadcast lag*
                         //     state (= -0.022m above ground) then newY = locked position - 1m → after setPos bb feet =
                         //     -0.022m above ground (= remains locked). after next broadcast vanilla lerp
                         //     recovers in ~3 tick. user visual "briefly stuck then recovers".
@@ -353,25 +352,7 @@ public class SmartMovingClient implements ClientModInitializer {
                     //     and newY (= entity.y after calc dim) → if drop > 0.5m do setPos(y+1).
                     //   regression prevention: flying → sliding exit (fix #87) etc where slideBoxMinYBefore ≈ remote.y cases
                     //     (= mixin offset already blocked) → willDrop=false → no push.
-                    // 🔵 fix #100 (2026-05-20, user report "sliding → cliff → head jump auto-transition REMOTE
-                    //   briefly rises 1 block then returns to normal"):
-                    //   Real path: SlideToHeadJumping auto-transition in SmartMovingClientState L2309-L2315.
-                    //     = only set bits `isSliding=false; isHeadJumping=true; isAerodynamic=true`.
-                    //     self side no entity.y push (= L2389 push guard `!isHeadJumping` no match).
-                    //     POSE side line 126-127 `isHJ || isSL → SLIDING` → keep POSE=SLIDING → mixin offset
-                    //     remains active (MixinEntity L122 guard `pose!=SLIDING` no match) → keep bb=entity.y+1.
-                    //     = no visual change on self side.
-                    //   remote side this branch: match wasSliding=true && target.isSliding=false.
-                    //     slideBoxMinYBefore = remote.y+1 (mixin active before calc dim),
-                    //     newY = remote.y (entity.y after calc dim, mixin offset still active).
-                    //     willDrop = (remote.y+1 - remote.y) > 0.5 = **false positive true**.
-                    //     → setPos(remote.y+1) + lerp cancel → keep POSE=SLIDING so mixin offset active →
-                    //     bb=(remote.y+1)+1=ground+2m → "1 block above floating" visual. next broadcast srvY=self.y
-                    //     arrival resumes lerp → -1m down → returns to normal position.
-                    //   Solution: add guard `!target.isHeadJumping` — 1:1 matching self side L2389 `!isHeadJumping` guard.
-                    //     block push on slide → HJ auto-transition. other slide-exit cases (crawl/standing/
-                    //     flying) have isHJ=false so pass → maintain existing behavior.
-                    if (wasSliding && !target.isSliding && !target.isHeadJumping
+                    if (wasSliding && !target.isSliding
                             && entity instanceof AbstractClientPlayer remoteSlideExit
                             && !(entity instanceof LocalPlayer)) {
                         SmartMovingLivingEntityAccess accX =
@@ -389,56 +370,6 @@ public class SmartMovingClient implements ClientModInitializer {
                         }
                     }
 
-                    // 🔴 (BUG 2 fix, 2026-05-13) remote head jump landing 1-block downward jump block.
-                    //   self side L2196 EXIT branch (SmartMovingClientState):
-                    //     `wasHJ && !isHJ && onGround` → standupIfPossible(false, true) → entity.y +1m push.
-                    //     verification (= log_temp.txt attempts 1~3): SELF-EXIT-POST dy=1.000.
-                    //   server side: self c2s SmartMovingState packet processed before c2s position packet
-                    //     → SERVER-RECV when server.y = before push (70.000). next server tick updates to 71.000.
-                    //   broadcast: SmartMovingState packet broadcast ~1 server tick earlier than EntityPositionS2CPacket
-                    //     (= reference_vanilla_server_tick_order, BUG-7/15/D same mechanism).
-                    //   remote: packet arrival when remote.y = 70.X (= lerp chasing srvY=70). bbMin=remote.y+1
-                    //     (mixin offset active, MixinEntity.sm_offsetBoundingBoxForFlying SLIDING POSE guard).
-                    //     box feet above ground (= no diving). **However model origin = entity.y = 70.X = 0.5~0.8m below ground
-                    //     → user visual "1-block submerged"**. after srvY=71 update, lerp chases for ~3~15 ticks
-                    //     (= 150~750ms).
-                    //   solution: BUG-7/15 same pattern — inside packet lambda immediately setPos(groundY) + lerp cancel.
-                    //     newY formula = directly measure ground top (= getMaxPlayerSolidBetween, yMax<bbMin blocks ceiling
-                    //     match). more accurate than srvY+1 (= srvY may persist inaccurate broadcast value on entry frame,
-                    //     attempts 3/5 verification).
-                    //   guard `!target.isSliding && !target.isCrawling`:
-                    //     - self sliding auto-transition (= fox movement, attempts 4/5): self.y no change → fix not applied, matches.
-                    //     - head jump → crawl transition etc: separate fix branch.
-                    // 🔵 fix #99 (2026-05-14) — HJ→CR direct transition branch.
-                    //   user report: head jump + wall collision + fall + GRAB+SNEAK press → auto-crouch
-                    //     transition when REMOTE briefly locks visually.
-                    //   real path: HJ:true→false + CR:false→true simultaneously.
-                    //   = self side `standupIfPossible` → `toSlidingOrCrawling` else branch (= grab
-                    //     no match) → `toCrawling()` call.
-                    //   existing fix branch gap: fix #93 (SL entry) / fix #98 v5 (HJ→standing) / fix #90
-                    //     (SL→CR) all guards no match.
-                    //   newY formula = srvY + 1m (= server side fix #99 v3 push then broadcast position accurate).
-                    //     direct groundY measurement (= fix #92/#93 pattern) entry frame box dim change (=
-                    //     calculateDimensions after isCrawling dim) causes yMax<ground top → clamp error.
-                    if (wasHJ && !target.isHeadJumping
-                            && !wasSliding && !target.isSliding
-                            && target.isCrawling
-                            && !wasIcc && !target.isClimbCrawling
-                            && !target.isClimbing && !target.isCeilingClimbing
-                            && !target.isSwimming_sm && !target.isDiving
-                            && !target.isFlying && !target.isLevitating
-                            && !target.isAngleJumping() && !target.isRopeSliding
-                            && entity instanceof AbstractClientPlayer remoteHJCr
-                            && !(entity instanceof LocalPlayer)) {
-                        SmartMovingLivingEntityAccess accHJCr =
-                                (SmartMovingLivingEntityAccess)(Object) remoteHJCr;
-                        double newYHJCr = accHJCr.sm_getServerY() + 1.0;
-                        remoteHJCr.setPos(remoteHJCr.getX(), newYHJCr, remoteHJCr.getZ());
-                        remoteHJCr.yOld = newYHJCr;
-                        remoteHJCr.yo = newYHJCr;
-                        accHJCr.sm_setServerY(newYHJCr);
-                        accHJCr.sm_setBodyTrackingIncrements(0);
-                    }
                     // 🔵 fix #154 (2026-05-22) — swim/dive → crawl direct transition remote sink fix.
                     //   User report: "swim → enter 1 block space auto crawl momentary remote opponent briefly enters ground then rises".
                     //
@@ -472,7 +403,6 @@ public class SmartMovingClient implements ClientModInitializer {
                             && (_checkRecent.tickCount - target.smRecentSwimDiveEndTick) <= 10;
                     if (_recentSwimEndedFix154
                             && !wasCR_fix154 && target.isCrawling
-                            && !wasHJ && !target.isHeadJumping
                             && !wasSliding && !target.isSliding
                             && !wasIcc && !target.isClimbCrawling
                             && !target.isClimbing && !target.isCeilingClimbing
@@ -497,71 +427,6 @@ public class SmartMovingClient implements ClientModInitializer {
                         accSwCr.sm_setBodyTrackingIncrements(0);
                         target.smRecentSwimDiveEndTick = -9999;  // Clear once only.
                     }
-                    if (wasHJ && !target.isHeadJumping
-                            && !target.isSliding && !target.isCrawling
-                            && entity instanceof AbstractClientPlayer remoteHJ
-                            && !(entity instanceof LocalPlayer)) {
-                        SmartMovingLivingEntityAccess accH =
-                                (SmartMovingLivingEntityAccess)(Object) remoteHJ;
-                        double bbMin = remoteHJ.getBoundingBox().minY;
-                        // 🔴 fix #92 (2026-05-13, dump verification — user report "sometimes briefly stuck then recovers"):
-                        //   Previous yMax = bbMin - 0.01: on locked state (= bbMin < ground top) search range
-                        //   no ground top match → groundY = bbMin - 0.01 (= remains locked position).
-                        //   Guard |newY - curY| > 0.05 no match (shallow lock 0.010m) → setPos not applied →
-                        //   srvY = locked position + bti=0 lerp cancel → client.y remains locked → on next broadcast
-                        //   (= srvY=ground top) arrival vanilla lerp recovers in ~3 tick.
-                        //   fix: yMax = bbMin + 0.5 (= extend 0.5m upward) → locked state also matches ground top →
-                        //   groundY accurate. ceiling (= near bbMin+1.0) no match (= 1 block space safe).
-                        //   + relax guard to 0.005m → shallow lock (= 0.010m) also gets setPos applied.
-                        double groundY = choco.ratel.smartmoving.client.SmartMovingClientState
-                                .getMaxPlayerSolidBetween(remoteHJ, bbMin - 1.5, bbMin + 0.5, 0);
-                        // 🔵 (2026-05-14, fix #98 v3 — use prevY): result of client tick order analysis.
-                        //   1) networkHandler.tick → packet callback queue
-                        //   2) world.tick → entity.tick → lerpPosAndRotation (= REMOTE.y 1-step progress)
-                        //   3) processTasks → packet processing (= this branch)
-                        //   4) render
-                        //   = at packet processing time remoteHJ.getY() already progressed through lerp (= reached ground).
-                        //   → hold condition (curY > groundY+0.005) no match → cycle 2-9 fix has no effect.
-                        //   Solution: use prevY (= previous frame y, before lerp progress). precisely detect
-                        //     airborne position right before EXIT. lastRenderY and prevY both same value (= right after resetPosition).
-                        double curY = remoteHJ.yo;
-                        double diff = curY - groundY;  // positive = airborne, negative = locked
-                        // 🔵 (2026-05-14, fix #98 position-based) separate fix #92 guard — locked vs airborne.
-                        //   Locked state (= curY < groundY - 0.005): existing fix #92 — setPos + lerp cancel.
-                        //   Airborne state (= curY > groundY + 0.005): user reported 3 times BUG cause. no setPos
-                        //     (= REMOTE.y reaches ground naturally via own vanilla lerp). meanwhile pose visual
-                        //     hold flag set + groundY saved. setupTransforms X/Y rotation branch guard adds with OR
-                        //     → maintain pose. sm_tickStatsForRemote TAIL position comparison (= REMOTE.y <=
-                        //     groundY+0.005) releases hold. not tick timeout (= user principle match).
-                        if (diff < -0.005) {
-                            // Locked state — existing fix #92.
-                            double newY = groundY;
-                            remoteHJ.setPos(remoteHJ.getX(), newY, remoteHJ.getZ());
-                            remoteHJ.yOld = newY;
-                            remoteHJ.yo = newY;
-                            // 🔴 lerp cancel — same pattern as BUG-7 v25.3 / BUG-15 / BUG B.
-                            accH.sm_setServerY(newY);
-                            accH.sm_setBodyTrackingIncrements(0);
-                        } else if (diff > 0.005) {
-                            // 🔵 (fix #98 v5) Airborne state — setPos(prevY) + 4-sync + lerp cancel + hold.
-                            //   Dump verification: srvY=71 (= remains before self.y push) → REMOTE.y lerp chases locked position
-                            //     → getY < groundY → user report "stuck on landing" cause.
-                            //   Solution: setPos(curY=prevY) + lerp cancel keeps REMOTE.y at airborne
-                            //     position. on next broadcast (= server.y=ground reached) arrival resumes lerp →
-                            //     REMOTE.y → ground. blocked locked trajectory during pose hold.
-                            //   Memory pattern: feedback_remote_setpos_lerp_cancel 4-sync.
-                            double newY = curY;  // prevY = remains airborne position.
-                            remoteHJ.setPos(remoteHJ.getX(), newY, remoteHJ.getZ());
-                            remoteHJ.yOld = newY;
-                            remoteHJ.yo = newY;
-                            accH.sm_setServerY(newY);
-                            accH.sm_setBodyTrackingIncrements(0);
-                            // Set pose visual hold flag.
-                            target.smRemoteHJVisualHold = true;
-                            target.smRemoteHJExitGroundY = groundY;
-                        }
-                    }
-
                     // 🔴 (BUG D fix, 2026-05-13) remote flying exit — 1:1 mapping to self side standupIfPossible.
                     //   Estimate 3 branches of self side `standupIfPossible(player, tryLanding=true, restoreFromFlying)` via
                     //   *result bits* (target.isSliding/isCrawling) + *gap measurement* + apply each
@@ -655,7 +520,7 @@ public class SmartMovingClient implements ClientModInitializer {
         // 🔵 Stats: self → server → REMOTE per tick stats angle sync (2026-05-14, Option F fix #97).
         //   Cause: vanilla lerpPosAndRotation interpolates REMOTE position over 5-tick equal division → realDxYz
         //     flattening + spike → atan2 result thetaT flows differently from self trajectory → lerpFadeAngle
-        //     0.2 lerp insufficient time to chase peak → insufficient head rotation at end of head jump.
+        //     0.2 lerp insufficient time to chase peak → remote body rotation lags behind self.
         //   Application: set sm.smRemoteStatsVerticalAngle/HorizontalAngle_fromPacket on packet arrival.
         //     Override own stats.calculate result with packet value in sm_tickStatsForRemote TAIL.
         ClientPlayNetworking.registerGlobalReceiver(SmartMovingNetwork.StatsPayload.ID,
@@ -776,7 +641,7 @@ public class SmartMovingClient implements ClientModInitializer {
     //
     // Format: "§0§1...§f§f" (first 4 chars = start marker, last 4 chars = end marker)
     // Change feature to config value corresponding to §code included in codes:
-    //   §0 → baseClimb = true ("standard"), §1~§b → each feature = false
+    //   §0 → baseClimb = true ("standard"), §1~§b → each feature = false (§9 is unused)
     // Codes not in codes unchanged (maintain current value).
     //
     // Text.getString() §code inclusion: possible if server sends as LiteralText (verified B-19).
@@ -795,7 +660,6 @@ public class SmartMovingClient implements ClientModInitializer {
         if (codes.contains("§6")) cfg.slide = false;
         if (codes.contains("§7")) cfg.fly = false;
         if (codes.contains("§8")) cfg.jumpCharge = false;
-        if (codes.contains("§9")) cfg.headJump = false;
         if (codes.contains("§a")) cfg.angleJumpSide = false;
         if (codes.contains("§b")) cfg.angleJumpBack = false;
     }

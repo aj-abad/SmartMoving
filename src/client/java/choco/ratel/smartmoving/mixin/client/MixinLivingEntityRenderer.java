@@ -107,7 +107,7 @@ public abstract class MixinLivingEntityRenderer {
         renderState.walkAnimationPos = sm.stats.getTotalHorizontalDistance(tickDelta);
 
         // Dodges keep the walk swing: the dodge pose blends over it, so takeoff and landing stay smooth.
-        boolean anySmState = sm.isFlying || sm.isCrawling || sm.isSliding || sm.isHeadJumping
+        boolean anySmState = sm.isFlying || sm.isCrawling || sm.isSliding
                 || sm.isClimbing || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isRopeSliding || sm.isClimbJumping
                 || sm.doFallingAnimation;

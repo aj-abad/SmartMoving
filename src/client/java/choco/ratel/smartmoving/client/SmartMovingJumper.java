@@ -1,6 +1,5 @@
 package choco.ratel.smartmoving.client;
 
-import choco.ratel.smartmoving.client.input.SmartMovingKeys;
 import choco.ratel.smartmoving.client.windrunner.WindrunnerControls;
 import choco.ratel.smartmoving.client.windrunner.WindrunnerWallRun;
 import choco.ratel.smartmoving.config.SmartMovingConfig;
@@ -8,11 +7,9 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.core.BlockPos;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -25,7 +22,6 @@ import net.minecraft.world.phys.Vec3;
  *   10-1: handleJumping() — Jump determination entry point
  *   10-2: tryJump() — Actual velocity calculation
  *   10-3: getJumpMoving() — Angled jump horizontal velocity helper
- *   10-4: setPoseSmall() / resetHeightOffset() — Head jump hitbox
  *   10-5: handleWallJumping() — Wall jump
  */
 @Environment(EnvType.CLIENT)
@@ -35,24 +31,18 @@ public final class SmartMovingJumper {
 
     // ── jumpType constants (Phase B-2.5 / Session 19 cleanup) ──────────────────
     // SmartMovingConfig.JUMP_TYPE_* alias (original SmartMovingClientConfig L178-L192).
-    // Unified with original values: Up=0, ChargeUp=1, Angle=2, HeadUp=3, SlideDown=4, ClimbUp=5,
-    //   ClimbUpHandsOnly=6, ClimbBackUp=7, ClimbBackUpHandsOnly=8, ClimbBackHead=9,
-    //   ClimbBackHeadHandsOnly=10, WallUp=11, WallHead=12, WallUpSlide=13, WallHeadSlide=14.
+    // Unified with original values: Up=0, ChargeUp=1, Angle=2, SlideDown=4, ClimbUp=5,
+    //   ClimbUpHandsOnly=6, ClimbBackUp=7, ClimbBackUpHandsOnly=8, WallUp=11, WallUpSlide=13.
     public static final int UP                          = SmartMovingConfig.JUMP_TYPE_UP;
     public static final int CHARGE_UP                   = SmartMovingConfig.JUMP_TYPE_CHARGE_UP;
     public static final int ANGLE                       = SmartMovingConfig.JUMP_TYPE_ANGLE;
-    public static final int HEAD_UP                     = SmartMovingConfig.JUMP_TYPE_HEAD_UP;
     public static final int SLIDE_DOWN                  = SmartMovingConfig.JUMP_TYPE_SLIDE_DOWN;
     public static final int CLIMB_UP                    = SmartMovingConfig.JUMP_TYPE_CLIMB_UP;
     public static final int CLIMB_UP_HANDS_ONLY         = SmartMovingConfig.JUMP_TYPE_CLIMB_UP_HANDS_ONLY;
     public static final int CLIMB_BACK                  = SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_UP;
     public static final int CLIMB_BACK_HANDS_ONLY       = SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY;
-    public static final int CLIMB_BACK_HEAD             = SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_HEAD;
-    public static final int CLIMB_BACK_HEAD_HANDS_ONLY  = SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY;
     public static final int WALL_UP                     = SmartMovingConfig.JUMP_TYPE_WALL_UP;
-    public static final int WALL_HEAD                   = SmartMovingConfig.JUMP_TYPE_WALL_HEAD;
     public static final int WALL_UP_SLIDE               = SmartMovingConfig.JUMP_TYPE_WALL_UP_SLIDE;
-    public static final int WALL_HEAD_SLIDE             = SmartMovingConfig.JUMP_TYPE_WALL_HEAD_SLIDE;
     // Phase E-4 (Session 20) integration complete: double-click directional jump → tryJump(ANGLE, ..., worldAngleDeg).
     //   Existing LEFT/RIGHT/BACK sentinel constants removed from usage 0 → removed.
 
@@ -100,69 +90,6 @@ public final class SmartMovingJumper {
         return new Vec3(x, 0, z);
     }
 
-    // ── [10-4] setPoseSmall / resetHeightOffset ──────────────────────────────
-
-    /**
-     * Start head jump: Switch to SLIDING pose and recalculate hitbox.
-     * Original: setHeightOffset(-1F) → direct boundingBox.minY manipulation (1.7.10)
-     * 1.21.1: Replaced with getBaseDimensions() Mixin (SLIDING→0.6×0.8) + pose change.
-     * pose_strategy.md C-02 final decision: EntityPose.SLIDING + getBaseDimensions Mixin.
-     */
-    public static void setPoseSmall(LocalPlayer player) {
-        player.setPose(Pose.SLIDING);
-        player.refreshDimensions();
-    }
-
-    /**
-     * End head jump (landing): Restore STANDING pose. Keep SLIDING if insufficient space.
-     * Original: resetHeightOffset() + standUp()
-     * PlayerEntity excluded from Entity.calculateDimensions() (pose_strategy.md 5-3) →
-     * SM directly checks space before pose transition.
-     *
-     * Caller (MixinLivingEntityClient) checks isOnGround && isHeadJumping every tick,
-     * so keep isHeadJumping = true until space is available to force updatePose Mixin to maintain SLIDING.
-     */
-    public static void resetHeightOffset(LocalPlayer player, SmartMovingClientState sm) {
-        Level world = player.level();
-        int px = (int) Math.floor(player.getX());
-        int pz = (int) Math.floor(player.getZ());
-        int fromY = (int) Math.ceil(player.getY() + 0.8D);
-        int toY   = (int) Math.ceil(player.getY() + 1.8D);
-
-        for (int by = fromY; by <= toY; by++) {
-            BlockPos pos = new BlockPos(px, by, pz);
-            if (!world.getBlockState(pos).getCollisionShape(world, pos).isEmpty()) {
-                return; // Insufficient space — keep isHeadJumping, maintain SLIDING pose
-            }
-        }
-
-        // Space available — restore STANDING
-        sm.isHeadJumping = false;
-        sm.heightOffset = 0F;
-
-        // B-29 (Session 54): Restore original toSlidingOrCrawling L2226 condition 1:1 —
-        //   `Config.isSlidingEnabled() && (grabButton.Pressed || wasHeadJumping)`
-        // Remove previous approximate `isSprinting() || isFast` mapping. Original is "grab pressed or previous tick
-        // headJumping" condition — remove oversimplified mapping with completely different meaning.
-        SmartMovingConfig cfg = SmartMovingConfig.Config;
-        if (cfg.slide && cfg.enabled
-                && (SmartMovingKeys.grab.isDown() || sm.wasHeadJumping)) {
-            sm.isSliding = true;
-        } else {
-            AABB standBox = player.getDimensions(Pose.STANDING)
-                                 .makeBoundingBox(player.position())
-                                 .deflate(1.0E-7);
-            if (!world.noCollision(player, standBox)) {
-                // B-45b (Session 45): Correspond to original toSlidingOrCrawling else branch `wasCrawling = toCrawling()`
-                // Previous inline (missing cfg.enabled) → call ClientState.toCrawling() helper.
-                sm.toCrawling();
-            }
-        }
-
-        player.setPose(Pose.STANDING);
-        player.refreshDimensions();
-    }
-
     // ── [10-2] tryJump (Phase D 1:1 rewrite, Session 19) ────────────────────
 
     /**
@@ -175,7 +102,7 @@ public final class SmartMovingJumper {
      *   D-5/D-14 inner block 100% dead. focus_05 §6.5 P-9~P-19 dead analysis consistent.
      *   Manual activation by user does not work (focus_02_5 §7-1 permanently registered).
      *
-     * @param type             SmartMovingConfig.JUMP_TYPE_* constant (15 types)
+     * @param type             SmartMovingConfig.JUMP_TYPE_* constant
      * @param inWaterOrNull    null → use sm.isDipping / non-null → force (SlideDown=false etc)
      * @param isRunningOrNull  null → use sm.isRunning(player) / non-null → force (SlideDown=wasRunning etc)
      * @param angle            null → normal jump / non-null → angled jump (Wall/Side/Back)
@@ -185,13 +112,10 @@ public final class SmartMovingJumper {
                                    int type, Boolean inWaterOrNull, Boolean isRunningOrNull, Float angle) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
 
-        // === D-2 (original L2002-L2006) — WallUpSlide/WallHeadSlide → noVertical conversion ===
+        // === D-2 (original L2002-L2006) — WallUpSlide → noVertical conversion ===
         boolean noVertical = false;
-        if (type == SmartMovingConfig.JUMP_TYPE_WALL_UP_SLIDE
-                || type == SmartMovingConfig.JUMP_TYPE_WALL_HEAD_SLIDE) {
-            type = (type == SmartMovingConfig.JUMP_TYPE_WALL_UP_SLIDE)
-                    ? SmartMovingConfig.JUMP_TYPE_WALL_UP
-                    : SmartMovingConfig.JUMP_TYPE_WALL_HEAD;
+        if (type == SmartMovingConfig.JUMP_TYPE_WALL_UP_SLIDE) {
+            type = SmartMovingConfig.JUMP_TYPE_WALL_UP;
             noVertical = true;
         }
 
@@ -201,20 +125,12 @@ public final class SmartMovingJumper {
         boolean charged = type == SmartMovingConfig.JUMP_TYPE_CHARGE_UP;
         boolean up = type == SmartMovingConfig.JUMP_TYPE_UP
                   || type == SmartMovingConfig.JUMP_TYPE_CHARGE_UP
-                  || type == SmartMovingConfig.JUMP_TYPE_HEAD_UP
                   || type == SmartMovingConfig.JUMP_TYPE_CLIMB_UP
                   || type == SmartMovingConfig.JUMP_TYPE_CLIMB_UP_HANDS_ONLY
                   || type == SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_UP
                   || type == SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_UP_HANDS_ONLY
-                  || type == SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_HEAD
-                  || type == SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY
                   || type == SmartMovingConfig.JUMP_TYPE_ANGLE
-                  || type == SmartMovingConfig.JUMP_TYPE_WALL_UP
-                  || type == SmartMovingConfig.JUMP_TYPE_WALL_HEAD;
-        boolean head = type == SmartMovingConfig.JUMP_TYPE_HEAD_UP
-                    || type == SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_HEAD
-                    || type == SmartMovingConfig.JUMP_TYPE_CLIMB_BACK_HEAD_HANDS_ONLY
-                    || type == SmartMovingConfig.JUMP_TYPE_WALL_HEAD;
+                  || type == SmartMovingConfig.JUMP_TYPE_WALL_UP;
 
         // === D-4 (original L2014-L2015) — getJumpSpeed + isJumpingEnabled ===
         int speed = SmartMovingConfig.getJumpSpeed(sm.isStanding, sm.isSlow, isRunning, sm.isFast, angle);
@@ -257,8 +173,8 @@ public final class SmartMovingJumper {
                                       * SmartMovingMover.getCombinedSpeedFactor(player, cfg);
             }
 
-            // === D-9 + D-10/D-11/D-12 (original L2047-L2111) — Up && vanilla branch if/else structure ===
-            //   F-1 audit correction (Session 21): Original is if(Up && vanilla) {...} else { head/angle/scale }
+            // === D-9 + D-11/D-12 (original L2047-L2111) — Up && vanilla branch if/else structure ===
+            //   F-1 audit correction (Session 21): Original is if(Up && vanilla) {...} else { angle/scale }
             //   1.21.1 previous: all 4 ifs execute sequentially → D-12 scale applied to vanilla Up jump
             //   regression (sprint jump horizontal velocity doubled). Restore if/else structure.
             Vec3 vel = player.getDeltaMovement();
@@ -274,27 +190,11 @@ public final class SmartMovingJumper {
                     motionZ += Math.cos(f) * 0.2F;
                 }
             } else {
-                // === D-10 (original L2065-L2079) — head recalculation ===
-                if (head) {
-                    double normalAngle = Math.atan(verticalMotion / horizontalMotion);
-                    double totalMotion = Math.sqrt(verticalMotion * verticalMotion
-                                                   + horizontalMotion * horizontalMotion);
-                    double factor = cfg.getHeadJumpFactor(sm.headJumpCharge);
-                    double newAngle = factor * normalAngle;
-                    double newVerticalMotion = totalMotion * Math.sin(newAngle);
-                    double newHorizontalMotion = totalMotion * Math.cos(newAngle);
-                    if (maxHorizontalMotion != null)
-                        maxHorizontalMotion = maxHorizontalMotion * (newHorizontalMotion / horizontalMotion);
-                    verticalMotion = newVerticalMotion;
-                    horizontalMotion = newHorizontalMotion;
-                }
-
                 // === D-11 (original L2081-L2095) — angle != null branch ===
                 if (angle != null) {
                     // Original RadiantToAngle = 180 / PI ≈ 57.2957795
                     float jumpAngleRad = angle / 57.295776F;
-                    boolean reset = type == SmartMovingConfig.JUMP_TYPE_WALL_UP
-                                 || type == SmartMovingConfig.JUMP_TYPE_WALL_HEAD;
+                    boolean reset = type == SmartMovingConfig.JUMP_TYPE_WALL_UP;
                     double horizontal = Math.max(horizontalMotion, horizontalJumpFactor);
                     double moveX = -Math.sin(jumpAngleRad);
                     double moveZ =  Math.cos(jumpAngleRad);
@@ -338,30 +238,6 @@ public final class SmartMovingJumper {
             // === D-14 — SKIP (§7-1 approximation) ===
             // Original L2120-L2124 post-jump exhaustion accumulation: Same dead as D-5.
 
-            // === D-15 (original L2126-L2130) — head → isHeadJumping + setPoseSmall + heightOffset ===
-            if (head) {
-                sm.isHeadJumping = true;
-                setPoseSmall(player);
-                sm.heightOffset = -1F;
-                // 🔴 fix (2026-05-08, user report "camera jumps up on entry + bounce on landing"):
-                //   Previous mapping: setPos(y+1m) + calculateDimensions() → player.y +1m immediate jump +
-                //     box update. Result:
-                //     (a) Entry camera = vanilla getCameraPosVec lerp(prevY=old, y=old+1) interpolates
-                //         +1m over 1 tick → "jumps up" visual (first/third person both).
-                //     (b) On exit player.y remains +1m → STANDING POSE restore box feet +1m above
-                //         → vanilla collision 1m away → box suddenly enlarges + bounces.
-                //   Original behavior: setHeightOffset(-1F) adjusts boundingBox.minY +=1m + height -=1m,
-                //     posY unchanged. Camera = posY + 1.62F (STANDING eyeHeight) = unchanged. Only vy
-                //     moves smoothly. Exit resetHeightOffset also only changes boundingBox, posY unchanged →
-                //     box naturally restores.
-                //   True mapping: posY unchanged + dim eyeHeight=1.62F (same as STANDING) handling.
-                //     Box collision foot position same as STANDING (1m difference — collision difference from
-                //     original requires separate fix if needed via calculateBoundingBox interception later).
-                //   eyeHeight 1.62F handling in MixinPlayerEntityClient.sm_getBaseDimensions_client with
-                //     isHeadJumping separate branch.
-                // Removed setPos / calculateDimensions — posY unchanged + camera = player.y + 1.62F.
-            }
-
             // === D-16 (original L2131-L2134) — setVelocity + isJumping ===
             // Windrunner Boots raise every SmartMoving jump by their jump strength, as vanilla's would be.
             player.setDeltaMovement(motionX, noVertical ? vel.y : WindrunnerControls.jumpVelocity(player, motionY), motionZ);
@@ -371,14 +247,14 @@ public final class SmartMovingJumper {
         }
 
         // === D-18 removed (Phase C 1:1 correction) — separated caller handling restores original 1:1 ===
-        //   Previous: tryJump end sets jumpCharge=0 / headJumpCharge=0 / blockJumpTillButtonRelease=true /
-        //         jumpPending=false all together. Original handles separately in caller (handleJumping charge/head
-        //         release branches) — other call sites (wall/climb/angle/slide/water/CreativeFlying)
+        //   Previous: tryJump end sets jumpCharge=0 / blockJumpTillButtonRelease=true /
+        //         jumpPending=false all together. Original handles separately in caller (handleJumping charge
+        //         release branch) — other call sites (wall/climb/angle/slide/water/CreativeFlying)
         //         don't set.
         //   Side effect (before removal): blockJumpTillButtonRelease=true set after every tryJump →
         //         wall/climb back/angle jump then jump key hold regular jump guard fails → difference.
-        //   After restoration: matches original behavior exactly. handleJumping charge/head branch caller resets
-        //         already correctly mapped (L413-L416 / L463-L468 / L419-L423 / L469-L473).
+        //   After restoration: matches original behavior exactly. handleJumping charge branch caller resets
+        //         already correctly mapped.
         //         jumpPending=false reset each tick at handleJumping start (L367).
 
         // === D-17 (original L2135) — return enabled ===
@@ -400,10 +276,9 @@ public final class SmartMovingJumper {
      *   3. isSwimming/isDiving early return (original L1849)
      *   4. Save jumpMotionX/Z (original L1853-L1854)
      *   5. Charge jump (original L1856-L1878) — jumpKey hold trigger + wouldIsSneaking gate
-     *   6. Head jump (original L1880-L1899) — jumpKey hold trigger + grab+sprint gate
-     *   7. Water jump (original L1901-L1913) — jumpKey hold + isDipping
-     *   8. Normal jump (original L1915-L1916) — jumpAvoided + !isVineAnyClimbing
-     *   9. Directional dodge — dedicated dodge key only (A/D/S double-tap removed)
+     *   6. Water jump (original L1901-L1913) — jumpKey hold + isDipping
+     *   7. Normal jump (original L1915-L1916) — jumpAvoided + !isVineAnyClimbing
+     *   8. Directional dodge — dedicated dodge key only (A/D/S double-tap removed)
      */
     public static void handleJumping(LocalPlayer player, SmartMovingClientState sm) {
         SmartMovingConfig cfg = SmartMovingConfig.Config;
@@ -417,7 +292,6 @@ public final class SmartMovingJumper {
         //   instead of raw KeyBinding. Apply `feedback_movementInput_vs_isSneaking` pattern
         //   (processed value from vanilla side — matches flying/sleeping etc scenarios).
         boolean jumpKeyPressed  = player.input.keyPresses.jump();
-        boolean grabKeyPressed  = SmartMovingKeys.grab.isDown();
 
         // 1. Clear jumpPending (original L1844 — method start) ★ B-3 correction
         sm.jumpPending = false;
@@ -483,64 +357,7 @@ public final class SmartMovingJumper {
             }
         }
 
-        // 6. Head jump (original L1880-L1899) ★ B-3 1:1 correction — jumpKey trigger
-        // Original formula:
-        //   isHeadJumpCharging = grabButton.Pressed && (isGroundSprinting || isSprintJump
-        //                       || (isRunning() && sp.onGround)) && !isCrawling
-        //   if (isHeadJumpCharging)
-        //     if (esp.movementInput.jump)         ★ jump key hold
-        //         headJumpCharge++
-        //     else  if (headJumpCharge > 0 && sp.onGround) tryJump(HeadUp); headJumpCharge = 0;
-        //   else  if (headJumpCharge > 0) blockJumpTillButtonRelease = true; headJumpCharge = 0;
-        //
-        // B-2 / B-3 (Phase B 1:1 correction): Remove local redefine of isGroundSprinting/isRunning.
-        //   Previous: Redefined in local variable with wrong formula (isGroundSprinting is original
-        //         isStandupSprintingOrRunning formula + isRunning incorrectly uses isFlying instead vanilla()).
-        //   Original is isGroundSprinting **field** (L2679 set: canHorizontallySprint
-        //   && (onGround||isLevitating) && !swimming && !diving && !climbing) +
-        //   isRunning() **method** (L3239: isSprinting && !isFast && (onGround||vanilla())).
-        //   1.21.1 side already has sm.isGroundSprinting / sm.isRunning(player) mapping — use directly.
-        //
-        // B-Slide-HeadJump-fix (2026-05-04): Keep `!sm.isSliding` guard — user reported BUG fix.
-        //   Original only explicitly guards `!isCrawling`. 1.21.1 vanilla sprint auto-stop behavior difference
-        //   causes isRunning to persist after sliding with forward held → head jump charge activation BUG.
-        //   This guard intentionally violates original 1:1.
-        boolean isHeadJumpCharging = false;
-        if (cfg.headJump) {
-            // 🔴 fix #37 revert (2026-05-08, user intent — maintain combined jump direction):
-            //   User confirms: fix #33 point (= remove guard + combined jumps) most similar to original.
-            //   Only remaining symptoms (bounce/push/low jump) need separate fix direction. Remove guard again.
-            // 🔴 fix #82 (2026-05-12, user report "jump charges while sliding and model upside down + forward move"):
-            //   Original 1.7.10 L1883 + 1.12.2 L1771 = only guards `!isCrawling`. No `!isSliding`.
-            //   Our mapping is also original 1:1 but user perceives visual corruption of jump charging while sliding
-            //   (= enter with isHeadJumping=true + normal head jump rotation visual → head ground/feet sky upside down).
-            //   Conflicts with fix #33 history (= combined jump intent) but user explicitly requests.
-            //   Regression concern: Block combined jump visual. If user *doesn't want behavior* fix revert needed.
-            isHeadJumpCharging = grabKeyPressed
-                    && (sm.isGroundSprinting || sm.isSprintJump
-                        || (sm.isRunning(player) && player.onGround()))
-                    && !sm.isCrawling
-                    && !sm.isSliding;
-            if (isHeadJumpCharging) {
-                if (jumpKeyPressed) {
-                    // B-3 (Phase B 1:1 correction): Original L1886 `headJumpCharge++` — no clamp.
-                    //   Clamp only inside getHeadJumpFactor. Remove Math.min at set stage.
-                    sm.headJumpCharge++;
-                } else {
-                    if (sm.headJumpCharge > 0 && player.onGround()) {
-                        tryJump(player, sm, HEAD_UP, null, null, null);
-                    }
-                    sm.headJumpCharge = 0;
-                }
-            } else {
-                if (sm.headJumpCharge > 0) {
-                    sm.blockJumpTillButtonRelease = true;
-                }
-                sm.headJumpCharge = 0;
-            }
-        }
-
-        // 7. Water jump (original L1901-L1913) ★ B-3 1:1 correction — jumpKey hold trigger
+        // 6. Water jump (original L1901-L1913) ★ B-3 1:1 correction — jumpKey hold trigger
         // Original formula:
         //   if (esp.movementInput.jump && sp.isInWater() && isDipping)
         //     if (posY - floor(posY) > (isSlow ? 0.37 : 0.6))
@@ -560,13 +377,13 @@ public final class SmartMovingJumper {
             }
         }
 
-        // 8. Normal jump (original L1915-L1916) ★ B-3 1:1 correction — add !isVineAnyClimbing
-        if (jump && !sm.blockJumpTillButtonRelease && !isJumpCharging && !isHeadJumpCharging
+        // 7. Normal jump (original L1915-L1916) ★ B-3 1:1 correction — add !isVineAnyClimbing
+        if (jump && !sm.blockJumpTillButtonRelease && !isJumpCharging
                 && !sm.isVineAnyClimbing) {
             tryJump(player, sm, UP, Boolean.FALSE, null, null);
         }
 
-        // 9. Dedicated dodge key (replaces original L1918-L1943 A/D/S double-tap)
+        // 8. Dedicated dodge key (replaces original L1918-L1943 A/D/S double-tap)
         if (sm.dodgeJustPressed) {
             Minecraft mc = Minecraft.getInstance();
             int forward = (mc.options.keyUp.isDown() ? 1 : 0)
@@ -593,7 +410,7 @@ public final class SmartMovingJumper {
                 || sm.isCrawling || sm.isClimbing || sm.isClimbCrawling
                 || sm.isCrawlClimbing || sm.isCeilingClimbing
                 || sm.isSwimming_sm || sm.isDiving || sm.isSliding
-                || sm.isHeadJumping || sm.isFlying
+                || sm.isFlying
                 || sm.isChainClimbing) {
             return false;
         }
@@ -636,7 +453,7 @@ public final class SmartMovingJumper {
      *
      * Original: SmartMovingSelf (L2863-2897) + jump.md L629-668 1:1 port.
      *
-     *   canWallJumping = isWallJumpEnabled && !isHeadJumping && !onGround
+     *   canWallJumping = isWallJumpEnabled && !onGround
      *                    && !isClimbing && !isSwimming && !isDiving
      *                    && !isLevitating && !isFlying
      *
@@ -671,8 +488,8 @@ public final class SmartMovingJumper {
         }
 
         // 2. (Original L2868) canWallJumping
-        boolean isWallJumpEnabled = cfg.wallUpJump || cfg.wallHeadJump;
-        boolean canWallJumping = isWallJumpEnabled && !sm.isHeadJumping && !player.onGround()
+        boolean isWallJumpEnabled = cfg.wallUpJump;
+        boolean canWallJumping = isWallJumpEnabled && !player.onGround()
                 && !sm.isClimbing && !sm.isSwimming_sm && !sm.isDiving
                 && !sm.isLevitating && !sm.isFlying;
 
@@ -747,18 +564,10 @@ public final class SmartMovingJumper {
         //     when box sliding against wall) difficult to match in 1.21.1 mapping — user intent takes priority.
         boolean wasCollH = false;
 
-        // Original L1952-L1963: grab=true → WallHead/WallHeadSlide, grab=false → WallUp/WallUpSlide.
-        boolean grabPressed = SmartMovingKeys.grab.isDown();
-        int jumpType;
-        if (grabPressed) {
-            if (!cfg.wallHeadJump) return;
-            if (player.fallDistance > cfg.wallHeadJumpFallMaximumDistance) return;
-            jumpType = wasCollH ? WALL_HEAD_SLIDE : WALL_HEAD;
-        } else {
-            if (!cfg.wallUpJump) return;
-            if (player.fallDistance > cfg.wallUpJumpFallMaximumDistance) return;
-            jumpType = wasCollH ? WALL_UP_SLIDE : WALL_UP;
-        }
+        // Original L1952-L1963.
+        if (!cfg.wallUpJump) return;
+        if (player.fallDistance > cfg.wallUpJumpFallMaximumDistance) return;
+        int jumpType = wasCollH ? WALL_UP_SLIDE : WALL_UP;
 
         // Original L1965-L1975: wasCollidedHorizontally=false → reflection angle; true → wall normal angle as-is.
         // 🔴 fix #164 (2026-05-27): jumpMotion=0 fallback movementAngle = player.getYaw().
@@ -824,8 +633,8 @@ public final class SmartMovingJumper {
         // Phase G difference 2/3 1:1 correction: tryJump result if branch + post-processing only on success (original L1990-L1996).
         //   Previous: Ignored tryJump result + double set isWallJumping + post-processing before tryJump call.
         if (tryJump(player, sm, jumpType, null, null, jumpAngle)) {
-            // Original L1992: continueWallJumping = !isHeadJumping (false for WallHead)
-            sm.continueWallJumping = !sm.isHeadJumping;
+            // Original L1992.
+            sm.continueWallJumping = true;
             // Original L1993: sp.isCollidedHorizontally = false
             player.horizontalCollision = false;
             // Original L1994: sp.rotationYaw = jumpAngle
