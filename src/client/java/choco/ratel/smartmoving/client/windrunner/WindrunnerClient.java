@@ -1,5 +1,6 @@
 package choco.ratel.smartmoving.client.windrunner;
 
+import choco.ratel.smartmoving.client.windrunner.model.WindrunnerFittedRobes;
 import choco.ratel.smartmoving.client.windrunner.model.WindrunnerHeadbandModel;
 import choco.ratel.smartmoving.client.windrunner.model.WindrunnerSashModel;
 import choco.ratel.smartmoving.windrunner.WindrunnerMoves;
@@ -21,6 +22,7 @@ public final class WindrunnerClient {
         ClientTickEvents.END_CLIENT_TICK.register(WindrunnerGlideSound::update);
         ModelLayerRegistry.registerModelLayer(WindrunnerSashModel.SASH, WindrunnerSashModel::sash);
         ModelLayerRegistry.registerModelLayer(WindrunnerHeadbandModel.LAYER, WindrunnerHeadbandModel::create);
+        ModelLayerRegistry.registerModelLayer(WindrunnerFittedRobes.LAYER, WindrunnerFittedRobes::create);
         ParticleProviderRegistry.getInstance().register(WindrunnerParticles.BOOM, WindrunnerBoomParticle.Provider::new);
         WindrunnerMoves.drawsOwnEffects = () -> !Minecraft.getInstance().options.getCameraType().isFirstPerson();
     }

@@ -25,6 +25,7 @@
     "windrunner.MixinWindrunnerAvatarRenderer",
     "windrunner.MixinWindrunnerAvatarRenderState",
     "windrunner.MixinWindrunnerCamera",
+    "windrunner.MixinWindrunnerHumanoidArmorLayer",
     "windrunner.MixinWindrunnerHumanoidModel",
     "windrunner.MixinWindrunnerKeyMapping",
     "windrunner.MixinWindrunnerLocalPlayer",
