@@ -351,7 +351,7 @@ public final class WindrunnerMoves {
         }
     }
 
-    /** A glide boost cracks like a wind charge and leaves a gust behind. */
+    /** A glide boost cracks like a wind charge, leaves a gust behind and trails like a dash. */
     private static final int SONIC_BOOM_RINGS = 3;
 
     /** One ring at the middle of the player's body and two ahead along its path, so the booster bursts through them. */
@@ -364,6 +364,7 @@ public final class WindrunnerMoves {
 
     /** The booster's own rings, drawn locally: server particles would arrive after the player had passed them. */
     public static void localSonicBoom(Player player, Vec3 forward) {
+        of(player).startTrail();
         if (!drawsOwnEffects.getAsBoolean()) return;
         for (int ring = 0; ring < SONIC_BOOM_RINGS; ring++) {
             Vec3 at = sonicBoomRing(player, forward, ring);
@@ -372,6 +373,7 @@ public final class WindrunnerMoves {
     }
 
     static void boostEffects(ServerPlayer server, Vec3 forward) {
+        of(server).startTrail();
         Vec3 behind = server.position().add(0, 0.4, 0).subtract(forward.scale(0.8));
         // Watchers get the shockwave from here; the booster's own client draws it the tick it predicts the boost.
         for (int ring = 0; ring < SONIC_BOOM_RINGS; ring++) {
