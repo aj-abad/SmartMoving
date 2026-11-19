@@ -43,3 +43,5 @@ The booster's own rings are hidden in first person, where the ring ahead fills t
 draw sits in common code (`WindrunnerMoves.localSonicBoom`, called from the glide's predicted tick),
 which cannot see the camera, so the client sets a hook at init that answers whether the camera is
 first person. Watchers still get the server's rings, and third person still draws them.
+
+In game: a first-person boost showed no rings; the same boost in third person framed the player in one.
