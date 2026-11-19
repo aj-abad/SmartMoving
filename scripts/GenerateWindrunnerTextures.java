@@ -6,8 +6,8 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 
 /**
- * Builds the Windrunner set's textures in the Breeze's palette: the monk robe armor layers and sash
- * (adapted from the mage robe baseline in art/windrunner), the four item icons, the phantom-membrane
+ * Builds the Windrunner set's textures in the Breeze's palette: the shinobi-style armor layers and obi
+ * knot, the four item icons, the phantom-membrane
  * glide wings, their breeze-rod ribs, and the white rings of the glide boost. Run from the project root with
  * {@code java scripts/GenerateWindrunnerTextures.java}.
  */
@@ -31,11 +31,9 @@ public final class GenerateWindrunnerTextures {
 
     // ---- Armor layers (64 x 32, vanilla humanoid box nets) ----
     //
-    // Both layers start from the mage robe in art/windrunner: a white, hand-shaded cloth base and a
-    // gold-trim overlay. The base's shading is gradient-mapped onto the Breeze's lavender, the trim
-    // becomes its deep-blue band, and the robe is then restyled as a wrapped monk robe.
-
-    private static final Path BASELINE = Path.of("art/windrunner");
+    // Fitted shinobi wear in the Breeze's colours: an indigo jacket (the Breeze's navy) with a lavender
+    // collar and obi, white wind-cloth wraps on the forearms and shins, split-toe tabi, and a cloth mask
+    // under the headband. Faces are drawn as pixel maps, left to right as the texture lays them out.
 
     // Vanilla Breeze palette (textures/entity/breeze/breeze.png and breeze_wind.png).
     private static final int B_SHADOW = 0xFF958DD3, B_CLOTH = 0xFFAB9CCB, B_MID = 0xFFB5A5CA, B_LIGHT = 0xFFBFAFC9;
@@ -46,24 +44,126 @@ public final class GenerateWindrunnerTextures {
     private static final int B_HOLLOW = 0xFF26262F, B_VOID = 0xFF19191D;
     // Vanilla breeze rod (textures/item/breeze_rod.png): lavender highlights, periwinkle core, deep shadow.
     private static final int ROD_SHADOW_DEEP = 0xFF2F527F;
+    // The indigo cloth: the Breeze's navy, a fold highlight between it and the band, and a seam shadow.
+    private static final int INDIGO_LIGHT = 0xFF3B4E6B, INDIGO = B_NAVY, INDIGO_DARK = B_NAVY_DARK, INDIGO_SEAM = 0xFF222D3F;
 
-    private static BufferedImage humanoid() throws IOException {
-        BufferedImage base = ImageIO.read(BASELINE.resolve("mage_base.png").toFile());
-        BufferedImage trim = ImageIO.read(BASELINE.resolve("mage_overlay.png").toFile());
+    private static final Map<Character, Integer> CLOTH = Map.ofEntries(
+            Map.entry('.', CLEAR), Map.entry('h', INDIGO_LIGHT), Map.entry('n', INDIGO), Map.entry('d', INDIGO_DARK),
+            Map.entry('s', INDIGO_SEAM), Map.entry('L', B_LIGHT), Map.entry('M', B_MID), Map.entry('B', B_CLOTH),
+            Map.entry('S', B_SHADOW), Map.entry('W', B_WIND), Map.entry('w', B_WIND_MID), Map.entry('v', B_WIND_SHADE),
+            Map.entry('Y', B_EYE), Map.entry('T', B_BAND), Map.entry('D', B_BAND_LIGHT), Map.entry('F', B_BAND_DARK),
+            Map.entry('K', B_HOLLOW), Map.entry('X', B_VOID));
+
+    // Jacket front, viewer's left being the wearer's right: the wearer's left panel crosses over to the
+    // right hip, its lavender collar meeting the under-panel's at the throat over a white under-robe.
+    private static final String[] JACKET_FRONT = {
+            "nMWWWWMn",
+            "hnMWWMnd",
+            "hnnMLnnd",
+            "hnMLnnnd",
+            "hMLnnnnd",
+            "hMLnnnnd",
+            "MLnnnnnd",
+            "BBYBBBBS",
+            "SSSSSSSS",
+            "hdnnnnnd",
+            "hdnnnnnd",
+            "dssddddd"};
+
+    // Jacket back, with a white ring crest round a wind swirl between the shoulders.
+    private static final String[] JACKET_BACK = {
+            "dnMMMMnh",
+            "dnnnnnnh",
+            "dnnWWnnh",
+            "dnWnvWnh",
+            "dnWvnWnh",
+            "dnnWWnnh",
+            "dnnnnnnh",
+            "BBBBBBBB",
+            "SSSSSSSS",
+            "dnnnsnnh",
+            "dnnnsnnh",
+            "dddsdddd"};
+
+    private static final String[] JACKET_SIDE = {
+            "dnnh",
+            "dnnh",
+            "dnnh",
+            "dnnh",
+            "dnnh",
+            "dnnh",
+            "dnnh",
+            "BBBB",
+            "SSSS",
+            "dnnh",
+            "dnnh",
+            "dsdd"};
+
+    // Tabi and the white shin wraps above them, by row, for every face of the leg: the top rows are left
+    // clear so the trousers show.
+    private static final String[] TABI = {
+            "....",
+            "....",
+            "....",
+            "FFFF",
+            "WWWW",
+            "wwww",
+            "WWWW",
+            "vvvv",
+            "DDDD",
+            "KKKK",
+            "KKKK",
+            "XXXX"};
+
+    private static BufferedImage humanoid() {
         BufferedImage img = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
-        for (int x = 0; x < 64; x++) for (int y = 0; y < 32; y++) {
-            // The baseline paints a skirt on the leg faces; here only boots may use them, so the
-            // skirt moves to the leggings layer. Its hood gives way to the headband.
-            boolean leg = x < 16 && y >= 16, head = y < 16;
-            if (head) continue;
-            if (!leg && opaque(base, x, y)) set(img, x, y, cloth(base.getRGB(x, y)));
-            if (opaque(trim, x, y) && (!leg || y >= 27)) set(img, x, y, accent(trim.getRGB(x, y)));
-        }
+        jacket(img);
+        sleeves(img);
+        tabi(img);
         headband(img);
-        wrapFront(img);
-        sash(img, 16, 40);
-        bootWraps(img);
+        mask(img);
         return img;
+    }
+
+    private static void jacket(BufferedImage img) {
+        paint(img, 20, 20, JACKET_FRONT);
+        paint(img, 32, 20, JACKET_BACK);
+        paint(img, 16, 20, JACKET_SIDE);
+        paint(img, 28, 20, JACKET_SIDE);
+        // Shoulders, with the collar running round the neck; the hem underneath.
+        for (int x = 20; x < 28; x++) for (int y = 16; y < 20; y++) {
+            boolean collar = x >= 22 && x <= 25 && (y == 16 || y == 19);
+            set(img, x, y, collar ? B_MID : x == 20 ? INDIGO_LIGHT : INDIGO);
+        }
+        for (int x = 28; x < 36; x++) for (int y = 16; y < 20; y++) set(img, x, y, INDIGO_DARK);
+    }
+
+    /**
+     * Close indigo sleeves to the elbow, a lavender hem, then white wraps wound diagonally round the
+     * forearm. The last two rows and the underside stay clear so the hands show.
+     */
+    private static void sleeves(BufferedImage img) {
+        for (int x = 44; x < 48; x++) for (int y = 16; y < 20; y++) set(img, x, y, INDIGO);
+        for (int x = 40; x < 56; x++) {
+            int face = (x - 40) / 4;
+            for (int y = 20; y < 25; y++) set(img, x, y, face == 0 ? INDIGO_LIGHT : face == 2 ? INDIGO_DARK : INDIGO);
+            set(img, x, 25, B_SHADOW);
+            for (int y = 26; y < 30; y++) {
+                boolean edge = Math.floorMod(x + y, 4) == 0;
+                set(img, x, y, edge ? B_WIND_SHADE : y % 2 == 0 ? B_WIND : B_WIND_MID);
+            }
+        }
+    }
+
+    /** Boots: split-toe tabi in near-black with the Breeze-blue straps and white shin wraps above. */
+    private static void tabi(BufferedImage img) {
+        for (int face = 0; face < 4; face++) paint(img, face * 4, 20, TABI);
+        // Blue cross-lacing up the front of the shin wraps.
+        String[] lacing = {"T..T", ".TT.", ".TT.", "T..T"};
+        for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) if (lacing[y].charAt(x) == 'T') set(img, 4 + x, 24 + y, B_BAND);
+        // The front's split between the big toe and the rest.
+        set(img, 5, 30, B_VOID); set(img, 5, 31, B_VOID);
+        for (int x = 8; x < 12; x++) for (int y = 16; y < 20; y++) set(img, x, y, B_VOID);
     }
 
     /**
@@ -81,94 +181,42 @@ public final class GenerateWindrunnerTextures {
         for (int x = 27; x <= 28; x++) { set(img, x, 10, B_BAND_LIGHT); set(img, x, 11, B_BAND); set(img, x, 12, B_BAND_DARK); }
     }
 
-    /** Closes the mage's open coat into a right-over-left wrap with a glimpse of the white under-robe. */
-    private static void wrapFront(BufferedImage img) {
-        for (int x = 21; x <= 26; x++) for (int y = 20; y < 32; y++) {
-            set(img, x, y, cloth(0xFF000000 | grey(img, x - 4, y) * 0x010101));
-        }
-        set(img, 23, 20, B_WIND); set(img, 24, 20, B_WIND_MID); set(img, 24, 21, B_WIND_MID);
-        int[][] overlap = {{22, 20}, {23, 21}, {24, 22}, {25, 23}, {26, 24}, {26, 25}};
-        for (int[] p : overlap) set(img, p[0], p[1], B_BAND);
-        set(img, 25, 20, B_BAND_DARK);
-        set(img, 22, 21, B_LIGHT); set(img, 23, 22, B_LIGHT);
-        // Below the sash the overlapping panel's edge falls straight to the hem.
-        for (int y = 29; y < 32; y++) set(img, 25, y, B_BAND);
-    }
-
-    /** A white wind-cloth sash at the waist, knotted left of centre with a Breeze-eye bead. */
-    private static void sash(BufferedImage img, int from, int to) {
-        for (int x = from; x < to; x++) {
-            set(img, x, 27, B_WIND);
-            set(img, x, 28, x % 3 == 0 ? B_WIND_SHADE : B_WIND_MID);
-        }
-        set(img, 22, 27, B_EYE); set(img, 22, 28, B_WIND);
-        set(img, 21, 29, B_WIND); set(img, 22, 29, B_WIND_MID);
-        set(img, 21, 30, B_WIND_MID); set(img, 22, 30, B_WIND);
-        set(img, 22, 31, B_WIND_SHADE);
-    }
-
-    /** Navy boots from the baseline's dark leather, with crossing wind-cloth wraps up from the ankle. */
-    private static void bootWraps(BufferedImage img) {
-        for (int x = 0; x < 16; x++) {
-            set(img, x, 27, x % 2 == 0 ? B_WIND : B_WIND_MID);
-            if ((x + 1) % 4 == 0) set(img, x, 28, B_WIND_MID);
-            if ((x + 3) % 4 == 0) set(img, x, 29, B_WIND_SHADE);
+    /** An indigo cloth mask over the nose and mouth, wrapping back along the cheeks. */
+    private static void mask(BufferedImage img) {
+        for (int row = 0; row < 3; row++) {
+            int y = 13 + row, colour = row == 0 ? INDIGO_LIGHT : row == 1 ? INDIGO : INDIGO_DARK;
+            for (int x = 8; x < 16; x++) set(img, x, y, colour);
+            for (int i = 0; i < 3 + row; i++) {
+                set(img, 7 - i, y, colour);
+                set(img, 16 + i, y, colour);
+            }
         }
     }
 
-    /** Trousers in the Breeze's deep band, with the robe's split skirt hanging over the outside and back. */
-    private static BufferedImage leggings() throws IOException {
-        BufferedImage base = ImageIO.read(BASELINE.resolve("mage_base.png").toFile());
-        BufferedImage trim = ImageIO.read(BASELINE.resolve("mage_overlay.png").toFile());
+    /** Close-fitting indigo trousers; the waistband sits under the jacket when both are worn. */
+    private static BufferedImage leggings() {
         BufferedImage img = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
-        for (int x = 0; x < 16; x++) for (int y = 16; y < 32; y++) {
-            int fold = Math.floorMod((x * 7 + y * 3) ^ (x * y), 9);
-            set(img, x, y, x % 4 == 1 && y > 21 ? B_BAND_DARK : fold == 0 ? B_BAND_LIGHT : B_BAND);
-        }
-        for (int x = 8; x < 12; x++) for (int y = 16; y < 20; y++) set(img, x, y, B_BAND_DARK);
-        for (int x = 0; x < 16; x++) for (int y = 16; y < 27; y++) {
-            if (opaque(base, x, y)) set(img, x, y, cloth(base.getRGB(x, y)));
-            if (opaque(trim, x, y)) set(img, x, y, accent(trim.getRGB(x, y)));
-        }
         for (int x = 0; x < 16; x++) {
-            set(img, x, 27, B_WIND_MID);
-            set(img, x, 28, x % 2 == 0 ? B_WIND : B_WIND_MID);
-            set(img, x, 29, B_BAND_LIGHT);
-            set(img, x, 30, B_BAND);
-            set(img, x, 31, B_BAND_DARK);
+            int face = x / 4;
+            for (int y = 20; y < 32; y++) {
+                boolean fold = (face == 1 && y == 25 && x != 4) || (face == 3 && y == 26);
+                set(img, x, y, fold ? INDIGO_SEAM : face == 0 ? INDIGO_LIGHT : face == 2 ? INDIGO_DARK : INDIGO);
+            }
         }
-        // The waistband sits under the robe when both are worn.
+        for (int x = 4; x < 8; x++) for (int y = 16; y < 20; y++) set(img, x, y, INDIGO);
+        for (int x = 8; x < 12; x++) for (int y = 16; y < 20; y++) set(img, x, y, INDIGO_DARK);
         for (int x = 16; x < 40; x++) {
-            set(img, x, 27, B_WIND_MID);
-            for (int y = 28; y < 32; y++) set(img, x, y, y == 31 ? B_BAND_DARK : B_BAND);
+            set(img, x, 27, B_BAND_DARK);
+            for (int y = 28; y < 32; y++) set(img, x, y, y == 31 ? INDIGO_SEAM : INDIGO_DARK);
         }
-        for (int x = 28; x < 36; x++) for (int y = 16; y < 20; y++) set(img, x, y, B_BAND);
+        for (int x = 28; x < 36; x++) for (int y = 16; y < 20; y++) set(img, x, y, INDIGO_DARK);
         return img;
     }
 
-    /** Quantizes the baseline's grey cloth shading onto four Breeze lavenders. */
-    private static int cloth(int argb) {
-        int v = argb & 0xFF;
-        return v >= 0xF2 ? B_LIGHT : v >= 0xE2 ? B_MID : v >= 0xCC ? B_CLOTH : B_SHADOW;
-    }
-
-    /** Gold trim becomes the deep-blue band by brightness; the dark leather becomes navy. */
-    private static int accent(int argb) {
-        int r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
-        if (r > 0xC0 && b < 0x40) return g >= 0xB4 ? B_BAND_LIGHT : g >= 0x9C ? B_BAND : B_BAND_DARK;
-        int v = (r + g + b) / 3;
-        return v >= 0x40 ? B_BAND_DARK : v >= 0x24 ? B_NAVY : B_NAVY_DARK;
-    }
-
-    private static boolean opaque(BufferedImage img, int x, int y) { return (img.getRGB(x, y) >>> 24) > 0; }
-
-    /** Grey level of the baseline pixel used to shade a filled-in patch, from a neighbouring column. */
-    private static int grey(BufferedImage img, int x, int y) {
-        int c = img.getRGB(x, y);
-        if (c == B_LIGHT) return 0xF8;
-        if (c == B_MID) return 0xEA;
-        if (c == B_CLOTH) return 0xDA;
-        return 0xC8;
+    private static void paint(BufferedImage img, int u, int v, String[] rows) {
+        for (int y = 0; y < rows.length; y++) {
+            for (int x = 0; x < rows[y].length(); x++) set(img, u + x, v + y, CLOTH.get(rows[y].charAt(x)));
+        }
     }
 
     // ---- Glide and sash textures ----
@@ -213,13 +261,13 @@ public final class GenerateWindrunnerTextures {
         return img;
     }
 
-    /** The robe's sash in wind-cloth white, banded with the Breeze's deep blue near each tip. */
+    /** The jacket's obi knot and its two short tails in the obi's lavender, beside the headband's tails. */
     private static BufferedImage sash() {
         BufferedImage img = new BufferedImage(32, 16, BufferedImage.TYPE_INT_ARGB);
-        for (int x = 0; x < 10; x++) for (int y = 0; y < 3; y++) set(img, x, y, B_WIND);
-        set(img, 3, 2, B_WIND_SHADE); set(img, 4, 2, B_WIND_SHADE); set(img, 4, 1, B_EYE);
-        tail(img, 10, 12, 9);
-        tail(img, 16, 10, 7);
+        for (int x = 0; x < 10; x++) for (int y = 0; y < 3; y++) set(img, x, y, y == 2 ? B_SHADOW : x % 5 == 2 ? B_MID : B_CLOTH);
+        set(img, 4, 1, B_EYE);
+        tail(img, 10, 7);
+        tail(img, 16, 6);
         headbandTail(img, 22, 7);
         headbandTail(img, 26, 5);
         return img;
@@ -232,11 +280,9 @@ public final class GenerateWindrunnerTextures {
         }
     }
 
-    private static void tail(BufferedImage img, int u, int height, int band) {
+    private static void tail(BufferedImage img, int u, int height) {
         for (int x = u; x < u + 5; x++) for (int y = 0; y < height; y++) {
-            int c = y == band ? B_BAND : y == band + 1 ? B_BAND_LIGHT : x == u || x == u + 4 ? B_WIND_MID : B_WIND;
-            if (y == height - 1) c = B_WIND_SHADE;
-            set(img, x, y, c);
+            set(img, x, y, y == height - 1 ? B_SHADOW : x == u || x == u + 4 ? B_MID : B_CLOTH);
         }
     }
 
@@ -247,7 +293,8 @@ public final class GenerateWindrunnerTextures {
             Map.entry('S', B_SHADOW), Map.entry('B', B_CLOTH), Map.entry('M', B_MID), Map.entry('L', B_LIGHT),
             Map.entry('D', B_BAND_LIGHT), Map.entry('T', B_BAND), Map.entry('F', B_BAND_DARK),
             Map.entry('N', B_NAVY), Map.entry('I', B_HOLLOW), Map.entry('W', B_WIND), Map.entry('w', B_WIND_MID),
-            Map.entry('Y', B_EYE));
+            Map.entry('Y', B_EYE), Map.entry('h', INDIGO_LIGHT), Map.entry('n', INDIGO), Map.entry('d', INDIGO_DARK),
+            Map.entry('s', INDIGO_SEAM), Map.entry('v', B_WIND_SHADE));
 
     private static final String[] HEADBAND = {
             "................",
@@ -269,37 +316,37 @@ public final class GenerateWindrunnerTextures {
 
     private static final String[] ROBES = {
             "................",
-            "...OOO....OOO...",
-            "..OLMTO..OTBSO..",
-            ".OLMBBTwwTBBBSO.",
-            "OLMBBBBTwTBBBBSO",
-            "OLMOBBBBTBBBOBSO",
-            "OLMOBBBBBTBBOBSO",
-            "OMBOBBBBBBTBOBSO",
-            "OTTOBBBBBBBTOTTO",
-            "OOOOWWYWWWWWOOOO",
-            "...OwWwwwwwwO...",
-            "...OBWBBBTBSO...",
-            "...OLwBBBTBSO...",
-            "...OLBBBBTBSO...",
-            "...OOOOOOOOOO...",
+            "....XXXXXXXX....",
+            "..XXnMWWWWMnXX..",
+            ".XhnnnMWWMnnndX.",
+            "XhnnnnnMLnnnnndX",
+            "XhnnnnMLnnnnnndX",
+            "XhnXnMLnnnnnXndX",
+            "XhnXMLnnnnnnXndX",
+            "XwwXBBYBBBBBXwwX",
+            "XWvXSSSSSSSSXvWX",
+            "...XhdnnnnnnX...",
+            "...XhdnnnnnnX...",
+            "...XXXXXXXXXX...",
+            "................",
+            "................",
             "................"};
 
     private static final String[] PANTS = {
             "................",
-            "..OOOOOOOOOOOO..",
-            "..OwWwWwWwWwwO..",
-            "..OLBDTTTTTBSO..",
-            "..OLBDTTTTFBSO..",
-            "..OLBDTTTTFBSO..",
-            "..OLBDTOOTFBSO..",
-            "..OLBDO..OFBSO..",
-            ".OLBDTO..OTFBSO.",
-            ".OLBDTO..OTFBSO.",
-            ".OLBDTO..OTFBSO.",
-            ".OwWwWO..OWwWwO.",
-            "..ODTO....OTFO..",
-            "..OOOO....OOOO..",
+            "...XXXXXXXXXX...",
+            "...XFFFFFFFFX...",
+            "...XhnnnnnndX...",
+            "...XhnnnnnndX...",
+            "...XhnnXXnndX...",
+            "...XhnX..XndX...",
+            "...XhnX..XndX...",
+            "...XhnX..XndX...",
+            "...XhnX..XndX...",
+            "...XhdX..XddX...",
+            "...XXXX..XXXX...",
+            "................",
+            "................",
             "................",
             "................"};
 
@@ -309,14 +356,14 @@ public final class GenerateWindrunnerTextures {
             "................",
             "................",
             "..XXXX....XXXX..",
-            "..XwNX....XNwX..",
-            "..XNwX....XwNX..",
-            "..XwNX....XNwX..",
-            "..XWWX....XWWX..",
-            "..XFNX....XNNX..",
-            ".XFNNX....XNNNX.",
-            "XFNNNX....XNNNNX",
-            "XIIIIX....XIIIIX",
+            "..XWTX....XTWX..",
+            "..XTWX....XWTX..",
+            "..XWTX....XTWX..",
+            "..XDDX....XDDX..",
+            "..XKKX....XKKX..",
+            ".XKKKX....XKKKX.",
+            "XKKXKX....XKXKKX",
+            "XKKXKX....XKXKKX",
             "XXXXXX....XXXXXX",
             "................",
             "................"};
