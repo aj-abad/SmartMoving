@@ -22,6 +22,6 @@ public final class WindrunnerClient {
         ModelLayerRegistry.registerModelLayer(WindrunnerSashModel.SASH, WindrunnerSashModel::sash);
         ModelLayerRegistry.registerModelLayer(WindrunnerHeadbandModel.LAYER, WindrunnerHeadbandModel::create);
         ParticleProviderRegistry.getInstance().register(WindrunnerParticles.BOOM, WindrunnerBoomParticle.Provider::new);
-        WindrunnerMoves.drawsOwnRings = () -> !Minecraft.getInstance().options.getCameraType().isFirstPerson();
+        WindrunnerMoves.drawsOwnEffects = () -> !Minecraft.getInstance().options.getCameraType().isFirstPerson();
     }
 }

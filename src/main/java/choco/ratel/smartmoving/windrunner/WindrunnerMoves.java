@@ -5,14 +5,17 @@ import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -44,8 +47,13 @@ public final class WindrunnerMoves {
     /** The boots' fastest fall, 30 blocks/s against vanilla's 78; reached after about 19 blocks of falling. */
     public static final double FALL_CAP = 1.5;
     public static final int DASH_COOLDOWN = 10;
-    /** Ticks the dash start's gust follows the dash, kicking up dust from the ground below it. */
-    private static final int DASH_TRAIL_TICKS = 6;
+    /**
+     * Ticks a dash's trail lasts: the opening gust, then a following gust and the ground's dust. One more
+     * than it draws, since the dasher's first trail tick runs before the dash has moved it.
+     */
+    private static final int DASH_TRAIL_TICKS = 7;
+    /** The least a tick must have carried the player for its trail to draw. */
+    private static final double TRAIL_MIN_MOVE = 0.15;
 
     private final Player player;
     private boolean jumpSpent, dashSpent, wallRunning;
@@ -55,6 +63,8 @@ public final class WindrunnerMoves {
     private int shownChangeTick = Integer.MIN_VALUE / 2;
     private int dashCooldown, groundDashTicks, dashTrailTicks;
     private double groundDashY;
+    private boolean trailOpened;
+    private Vec3 trailFrom = Vec3.ZERO, trailLast = Vec3.ZERO;
 
     public WindrunnerMoves(Player player) { this.player = player; }
     public static WindrunnerMoves of(Player player) { return ((WindrunnerUser) player).windrunner$moves(); }
@@ -150,12 +160,20 @@ public final class WindrunnerMoves {
     public void spendJump() { jumpSpent = true; }
     /** A wall kick hands the pants' double jump back. */
     public void refreshJump() { jumpSpent = false; }
-    public void spendDash() { dashSpent = true; dashCooldown = DASH_COOLDOWN; }
+    public void spendDash() { dashSpent = true; dashCooldown = DASH_COOLDOWN; startTrail(); }
     /** A ground dash leaves the air dash in hand: it spends only the shared cooldown. */
     public void groundDash() {
         groundDashTicks = GROUND_DASH_TICKS;
         groundDashY = player.getY();
         dashCooldown = DASH_COOLDOWN;
+        startTrail();
+    }
+
+    /** Run on both sides: the dasher's client draws its own trail, the server draws it for watchers. */
+    public void startTrail() {
+        dashTrailTicks = DASH_TRAIL_TICKS;
+        trailOpened = false;
+        trailFrom = trailLast = player.position();
     }
     public void spendDashJump() { groundDashTicks = 0; }
 
@@ -187,8 +205,8 @@ public final class WindrunnerMoves {
                 || Math.abs(player.getY() - groundDashY) > GROUND_DASH_ELEVATION)) {
             groundDashTicks = 0;
         }
+        if (dashTrailTicks > 0) trail(--dashTrailTicks);
         if (!(player instanceof ServerPlayer server)) return;
-        if (dashTrailTicks > 0) trail(server, --dashTrailTicks);
         if (wallRunning) {
             // A run up may start from the ground, so its first few ticks still read as grounded.
             if (++wallRunTicks > WALL_RUN_MAX_TICKS || !WindrunnerArmor.boots(player) || grounded() && wallRunTicks > 3) {
@@ -270,29 +288,66 @@ public final class WindrunnerMoves {
     }
 
     private void dashEffects(ServerPlayer server) {
-        puff(server, ParticleTypes.GUST, player.position().add(0, 0.9, 0), 1, 0);
-        dust(server);
-        dashTrailTicks = DASH_TRAIL_TICKS;
         server.level().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BREEZE_WIND_CHARGE_BURST,
                 SoundSource.PLAYERS, 0.5F, 1.4F);
     }
 
-    /** The start's gust keeps pace with the dash, and the ground under it kicks up like a sprint. */
-    private void trail(ServerPlayer server, int remaining) {
-        if (remaining % 2 == 1) puff(server, ParticleTypes.GUST, player.position().add(0, 0.9, 0), 1, 0);
-        dust(server);
+    /**
+     * The opening gust where the dash left from, then a gust keeping pace and the ground kicking up like a
+     * sprint, but only for ticks that carried the player. Ticks with no move yet (the dasher's first,
+     * or a server tick without a move packet) wait, so a collision left over from before the dash
+     * cannot end it; a move that hit a wall does.
+     */
+    private void trail(int remaining) {
+        Vec3 at = player.position();
+        double moved = at.subtract(trailLast).horizontalDistance();
+        if (moved < 1.0E-6) return;
+        trailLast = at;
+        if (player.horizontalCollision) {
+            dashTrailTicks = 0;
+            return;
+        }
+        if (moved < TRAIL_MIN_MOVE) return;
+        if (!trailOpened) {
+            trailOpened = true;
+            gust(trailFrom);
+            dust(trailFrom);
+            return;
+        }
+        if (remaining % 2 == 1) gust(at);
+        dust(at);
+    }
+
+    private void gust(Vec3 feet) {
+        emit(ParticleTypes.GUST, feet.x, feet.y + player.getBbHeight() * 0.5, feet.z, 1, 0, 0, 0, 0);
     }
 
     /** Sprint-style block particles from the first visible block within two below the feet, if any. */
-    private void dust(ServerPlayer server) {
-        ServerLevel level = server.level();
+    private void dust(Vec3 feet) {
+        Level level = player.level();
         for (int depth = 0; depth <= 2; depth++) {
-            BlockPos below = BlockPos.containing(player.getX(), player.getY() - 0.2 - depth, player.getZ());
+            BlockPos below = BlockPos.containing(feet.x, feet.y - 0.2 - depth, feet.z);
             BlockState state = level.getBlockState(below);
             if (state.isAir() || state.getRenderShape() == RenderShape.INVISIBLE) continue;
-            level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state),
-                    player.getX(), below.getY() + 1.05, player.getZ(), 6, 0.3, 0.02, 0.3, 0.15);
+            emit(new BlockParticleOption(ParticleTypes.BLOCK, state), feet.x, below.getY() + 1.05, feet.z, 6, 0.3, 0.02, 0.3, 0.15);
             return;
+        }
+    }
+
+    /** To watchers from the server; drawn by the dasher's own client, spread as a particle packet would be. */
+    private void emit(ParticleOptions type, double x, double y, double z, int count, double dx, double dy, double dz, double speed) {
+        if (player instanceof ServerPlayer server) {
+            for (ServerPlayer watcher : PlayerLookup.tracking(server)) {
+                server.level().sendParticles(watcher, type, false, false, x, y, z, count, dx, dy, dz, speed);
+            }
+            return;
+        }
+        if (!drawsOwnEffects.getAsBoolean()) return;
+        RandomSource random = player.getRandom();
+        for (int i = 0; i < count; i++) {
+            player.level().addParticle(type, x + random.nextGaussian() * dx, y + random.nextGaussian() * dy,
+                    z + random.nextGaussian() * dz, random.nextGaussian() * speed, random.nextGaussian() * speed,
+                    random.nextGaussian() * speed);
         }
     }
 
@@ -304,12 +359,12 @@ public final class WindrunnerMoves {
         return entity.position().add(0, entity.getBbHeight() * 0.5, 0).add(forward.scale(ring * 2.5));
     }
 
-    /** Set by the client: false in first person, where the ring just ahead would fill the view. */
-    public static BooleanSupplier drawsOwnRings = () -> true;
+    /** Set by the client: false in first person, where the boost's rings and a dash's gusts would fill the view. */
+    public static BooleanSupplier drawsOwnEffects = () -> true;
 
     /** The booster's own rings, drawn locally: server particles would arrive after the player had passed them. */
     public static void localSonicBoom(Player player, Vec3 forward) {
-        if (!drawsOwnRings.getAsBoolean()) return;
+        if (!drawsOwnEffects.getAsBoolean()) return;
         for (int ring = 0; ring < SONIC_BOOM_RINGS; ring++) {
             Vec3 at = sonicBoomRing(player, forward, ring);
             player.level().addParticle(WindrunnerParticles.BOOM, at.x, at.y, at.z, 0, 0, 0);
