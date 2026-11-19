@@ -13,7 +13,7 @@ import net.minecraft.client.model.geom.builders.MeshDefinition;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.util.Mth;
 
-/** The robes' knotted sash, drawn in body space; its two tails trail with walking and airflow. */
+/** The jacket's obi knot, drawn in body space; its two short tails trail with walking and airflow. */
 public final class WindrunnerSashModel extends EntityModel<AvatarRenderState> {
     public static final ModelLayerLocation SASH = new ModelLayerLocation(Windrunner.id("windrunner_sash"), "main");
     private final ModelPart left, right;
@@ -26,13 +26,13 @@ public final class WindrunnerSashModel extends EntityModel<AvatarRenderState> {
 
     public static LayerDefinition sash() {
         var mesh = new MeshDefinition();
-        // The knot sits just proud of the robe layer's inflated waist at the back of the body.
+        // The knot sits on the obi, just proud of the fitted jacket's waist at the back of the body.
         mesh.getRoot().addOrReplaceChild("knot", CubeListBuilder.create().texOffs(0, 0)
-                .addBox(-2, 9.5F, 2.4F, 4, 2, 1), PartPose.ZERO);
+                .addBox(-2, 7, 2.1F, 4, 2, 1), PartPose.ZERO);
         mesh.getRoot().addOrReplaceChild("tail_left", CubeListBuilder.create().texOffs(10, 0)
-                .addBox(-0.9F, 0, 0, 1.8F, 11, 0.5F), PartPose.offset(1.1F, 11, 2.9F));
+                .addBox(-0.8F, 0, 0, 1.6F, 6, 0.4F), PartPose.offset(1.1F, 8.5F, 2.7F));
         mesh.getRoot().addOrReplaceChild("tail_right", CubeListBuilder.create().texOffs(16, 0)
-                .addBox(-0.9F, 0, 0, 1.8F, 9, 0.5F), PartPose.offset(-1.1F, 11, 2.9F));
+                .addBox(-0.8F, 0, 0, 1.6F, 5, 0.4F), PartPose.offset(-1.1F, 8.5F, 2.7F));
         return LayerDefinition.create(mesh, 32, 16);
     }
 
