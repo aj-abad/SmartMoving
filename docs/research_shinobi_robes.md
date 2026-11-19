@@ -33,3 +33,15 @@ Tighter and darker, keeping the Breeze palette so the set still reads as the Bre
 
 The textures are drawn from scratch in `scripts/GenerateWindrunnerTextures.java`; the mage baseline is
 no longer read.
+
+## Results
+
+- Screenshots on a mannequin from six sides and on the player (front, back, sprinting): an indigo
+  jacket with the lavender collar crossing to the right hip and a narrow obi with the eye bead, a white
+  ring crest on the back, close sleeves ending in white forearm wraps, tight trousers, white shin wraps
+  with blue cross-lacing over near-black tabi, and the mask under the headband.
+- The fitted chest (0.65) is visibly slimmer at the shoulders and arms than the old 1.0 robe and still
+  covers the trousers' waistband.
+- First passes drew the wraps as three-tone diagonals, which read as a checkerboard, and the crest as
+  an open swirl, which read as a glyph; both were simplified.
+- The 3D obi knot and tails show only on players (the mannequin has no glide state), as the sash did.

@@ -20,7 +20,7 @@ Fabric 26.3 port of the classic [SmartMoving](https://www.curseforge.com/minecra
 - **Wall Jump** — Mid-air wall jump with motion order / rotation correction
 - **Vine Climbing** — Weeping / twisting vines ladder animation
 - **Chain Climbing** *(prototype)* — Vertical iron / copper chains climb exactly like ladders, with a hand-over-hand pose; horizontal chains overhead work as ceiling handholds
-- **Windrunner armor set** — A wind monk's traversal set in the Breeze's colours: a headband that dashes, robes that glide, pants that run faster and double-jump, and boots that jump higher and soften falls (see below)
+- **Windrunner armor set** — A wind shinobi's traversal set in the Breeze's colours: a masked headband that dashes, fitted robes that glide, pants that run faster and double-jump, and boots that jump higher and soften falls (see below)
 - **Multiplayer Sync** — Full self ↔ server ↔ remote state synchronization
 
 ## Requirements
@@ -107,8 +107,9 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   durability: opening costs one point, loaded fabric wears every five seconds, and overspeed, deep stalls
   and boosts add wear.
 
-Textures come from `scripts/GenerateWindrunnerTextures.java`, which adapts the mage-robe baseline in
-`art/windrunner/` to the Breeze palette. The optional Wind mod, when installed,
+The set is drawn as fitted shinobi wear: an indigo jacket with a lavender collar and obi knot, forearm
+and shin wraps, split-toe tabi, and a cloth mask under the headband. Textures come from
+`scripts/GenerateWindrunnerTextures.java`, in the Breeze palette. The optional Wind mod, when installed,
 supplies the glide's horizontal breeze.
 
 ## Build

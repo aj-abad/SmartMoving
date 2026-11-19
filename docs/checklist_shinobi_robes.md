@@ -5,5 +5,5 @@
 - [x] Jacket, pants, boots and masked headband textures
 - [x] Short obi knot in place of the sash tails
 - [x] Item icons
-- [ ] Screenshots on a mannequin and the player, README
+- [x] Screenshots on a mannequin and the player, README
 - [ ] Build, test, deploy
