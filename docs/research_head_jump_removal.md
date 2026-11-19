@@ -23,3 +23,22 @@ hitbox (`MixinAvatarDimensions*`), HUD and statistics code.
   charge. That block goes, so Grab + sprint + Jump is an ordinary jump. For the Windrunner wall run this
   means a run along a wall can now be entered holding Grab from takeoff.
 - Gates that listed `isHeadJumping` (dodge, climbing entry, sliding, Windrunner wall run) drop the term.
+
+## Outcome
+
+- State bit 20 (`isHeadJumping`) is reserved. Bit 35 (`wasSelfSlideFire`) is reserved too: only the
+  head-jump render branches read it, so it had no readers left.
+- Jump type ids 3, 9, 10, 12 and 14 (head-jump only) are gone; the rest keep their numbers. They are
+  not sent over the network.
+- Config keys no longer read or written: `move.jump.head.charge`, `move.forward.jump.control.factor`,
+  `move.forward.jump.charge.maximum`, `move.fall.head.damage.start.distance`,
+  `move.fall.head.damage.factor`, `move.jump.wall.head` and its three sub-keys,
+  `move.climb.jump.back.head`, `move.jump.climb.back.head` and its four sub-keys. The server feature
+  block code that disabled head jumping now does nothing.
+- Knock-on behaviour:
+  - A wall jump with Grab held is the up wall jump (2-block fall limit, was 3 for the head variant).
+  - The climb back jump is the ordinary one with or without Grab (the default used to dive without it).
+  - A slide that leaves a ledge used to turn into a near-dragless dive; it now carries on in the air
+    until Sneak is released, speed drops or it has fallen more than 3 blocks.
+  - Landing from a slide slides on only with Grab held (the "was diving" case is gone).
+  - Rope sliding's body-yaw fade used head-jump fields, renamed `smRopeSlideYaw_*`; unchanged.
