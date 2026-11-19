@@ -8,7 +8,7 @@ import javax.imageio.ImageIO;
 /**
  * Builds the Windrunner set's textures in the Breeze's palette: the monk robe armor layers and sash
  * (adapted from the mage robe baseline in art/windrunner), the four item icons, the phantom-membrane
- * glide wings, and their breeze-rod ribs. Run from the project root with
+ * glide wings, their breeze-rod ribs, and the white rings of the glide boost. Run from the project root with
  * {@code java scripts/GenerateWindrunnerTextures.java}.
  */
 public final class GenerateWindrunnerTextures {
@@ -26,6 +26,7 @@ public final class GenerateWindrunnerTextures {
         write(icon(ROBES), "item/windrunner_robes.png");
         write(icon(PANTS), "item/windrunner_pants.png");
         write(icon(BOOTS), "item/windrunner_boots.png");
+        for (int frame = 0; frame < BOOM_FRAMES; frame++) write(boom(frame), "particle/windrunner_boom_" + frame + ".png");
     }
 
     // ---- Armor layers (64 x 32, vanilla humanoid box nets) ----
@@ -327,6 +328,46 @@ public final class GenerateWindrunnerTextures {
             for (int x = 0; x < 16; x++) set(img, x, y, PALETTE.get(rows[y].charAt(x)));
         }
         return img;
+    }
+
+    // ---- Boost rings (32 x 32, eight frames for particles/windrunner_boom.json) ----
+    //
+    // Original white artwork for the glide boost's shockwave: unlike the Warden's sonic boom, which
+    // converges for half its frames before it bursts, these start at the burst, a small thick ring
+    // that opens into a double ring and breaks up as it spreads.
+
+    private static final int BOOM_FRAMES = 8;
+    private static final int BOOM_WHITE = 0xFFFFFFFF, BOOM_SOFT = 0xFFDCE6EC;
+
+    private static BufferedImage boom(int frame) {
+        BufferedImage img = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
+        switch (frame) {
+            // Thin bands throughout: the booster flies through these, so a thick one would white out the view.
+            case 0 -> ring(img, 4.5, 2, BOOM_WHITE, 0, 0);
+            case 1 -> { ring(img, 7.5, 1.8, BOOM_WHITE, 0, 0); ring(img, 10, 1, BOOM_SOFT, 0, 0); }
+            case 2 -> { ring(img, 6.5, 1, BOOM_SOFT, 0, 0); ring(img, 9.5, 1.5, BOOM_WHITE, 0, 0); ring(img, 12, 1, BOOM_SOFT, 0, 0); }
+            case 3 -> { ring(img, 11, 1.5, BOOM_WHITE, 0, 0); ring(img, 13.5, 1, BOOM_SOFT, 0, 0); }
+            case 4 -> ring(img, 12.5, 1.4, BOOM_WHITE, 0, 0);
+            case 5 -> ring(img, 13.5, 1.2, BOOM_WHITE, 5, -0.6);
+            case 6 -> ring(img, 14.2, 1.1, BOOM_SOFT, 3, 0.1);
+            default -> ring(img, 14.8, 1, BOOM_SOFT, 2, 0.6);
+        }
+        return img;
+    }
+
+    /**
+     * A pixel ring of the given radius and width around the texture centre. With {@code breaks} above
+     * zero it keeps only the arcs where {@code sin(angle * breaks + 1) > gap}, so it reads as breaking up.
+     */
+    private static void ring(BufferedImage img, double radius, double width, int argb, int breaks, double gap) {
+        for (int y = 0; y < 32; y++) {
+            for (int x = 0; x < 32; x++) {
+                double dx = x - 15.5, dy = y - 15.5;
+                if (Math.abs(Math.sqrt(dx * dx + dy * dy) - radius) > width / 2) continue;
+                if (breaks > 0 && Math.sin(Math.atan2(dy, dx) * breaks + 1) <= gap) continue;
+                set(img, x, y, argb);
+            }
+        }
     }
 
     // ---- Helpers ----

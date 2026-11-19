@@ -26,6 +26,7 @@ public final class Windrunner {
 
     public static void init() {
         WindrunnerItems.init();
+        WindrunnerParticles.init();
         // The set is upgraded leather armor, so it follows the leather set among the armor.
         ResourceKey<CreativeModeTab> combat = ResourceKey.create(Registries.CREATIVE_MODE_TAB, Identifier.withDefaultNamespace("combat"));
         CreativeModeTabEvents.modifyOutputEvent(combat).register(output -> output.insertAfter(Items.LEATHER_BOOTS,
