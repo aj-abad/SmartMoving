@@ -29,10 +29,10 @@ final class WindrunnerGlideTest {
         System.out.printf("Wingsuit trim: forward %.2f, sink %.2f blocks/s, ratio %.2f, pitch %.2f%n",
                 straight.v.horizontalDistance() * 20, -straight.v.y * 20,
                 straight.v.horizontalDistance() / -straight.v.y, straight.s.pitch);
-        check(straight.v.horizontalDistance() > 0.65 && straight.v.horizontalDistance() < 0.95, "Wingsuit fits aircraft travel balance");
-        check(straight.v.y < -0.12 && straight.v.y > -0.20, "Hands-off glide still spends altitude");
+        check(straight.v.horizontalDistance() > 1.5 && straight.v.horizontalDistance() < 2.1, "The robes cruise past 30 blocks/s");
+        check(straight.v.y < -0.08 && straight.v.y > -0.18, "Hands-off glide still spends altitude, but slowly");
         double ratio = straight.v.horizontalDistance() / -straight.v.y;
-        check(ratio > 4.5 && ratio < 5.5, "A clean glide covers about five blocks per block of altitude");
+        check(ratio > 11 && ratio < 17, "An endgame glide covers well over ten blocks per block of altitude");
         Sim bank = straight.copy();
         double before = bank.p.y;
         for (int i = 0; i < 120; i++) { straight.tick(Input.NONE); bank.tick(new Input(0, 1)); }
@@ -44,7 +44,7 @@ final class WindrunnerGlideTest {
         Sim dive = trimmed();
         for (int i = 0; i < 120; i++) dive.tick(new Input(1, 0));
         System.out.printf("Wingsuit dive: %.2f blocks/s, pitch %.2f%n", dive.v.length() * 20, dive.s.pitch);
-        check(dive.v.length() > 0.9 && dive.v.length() < 2, "Dive accelerates within a bounded drag envelope");
+        check(dive.v.length() > 2.5 && dive.v.length() < 4.2, "A dive builds past 50 blocks/s and is bounded near 75");
     }
 
     private static void inertiaAndRecovery() {
@@ -166,7 +166,7 @@ final class WindrunnerGlideTest {
         System.out.printf("Timed boosts: speed %.2f blocks/s, altitude vs glide %+.2f%n",
                 pumped.v.length() * 20, pumped.p.y - unpowered.p.y);
         check(pumped.p.y > unpowered.p.y + 10, "Well-timed boosts carry the robes beyond an unpowered glide");
-        check(pumped.v.length() < 2, "Overspeed drag still bounds a boosted glide");
+        check(pumped.v.length() < 4.2, "Overspeed drag still bounds a boosted glide");
 
         State vacuumState = State.deploy(new Vec3(0, -0.2, 0.8), 0);
         Vec3 vacuum = WindrunnerGlideModel.tick(new Vec3(0, -0.2, 0.8), vacuumState, new Input(0, 0, true), Environment.VACUUM);
@@ -194,8 +194,8 @@ final class WindrunnerGlideTest {
         State walking = State.deploy(new Vec3(0, 0.4, 0.25), 35);
         State falling = State.deploy(new Vec3(0, -2, 0.25), 35);
         State fast = State.deploy(new Vec3(0, -0.1, 0.8), 35);
-        check(stationary.pitch >= walking.pitch && walking.pitch > fast.pitch && stationary.pitch <= 15,
-                "More horizontal momentum starts a shallower glide, and none opens steeper than 15 degrees");
+        check(stationary.pitch >= walking.pitch && walking.pitch > fast.pitch && stationary.pitch <= 5,
+                "More horizontal momentum starts a shallower glide, and none opens steeper than 5 degrees");
         check(Math.abs(walking.pitch - falling.pitch) < 0.001,
                 "Vertical entry speed does not override the momentum-based initial pitch");
         check(stationary.yaw == 35 && fast.yaw == 0,
@@ -216,7 +216,7 @@ final class WindrunnerGlideTest {
                 worst = Math.max(worst, s.pitch);
                 if (i < 40) lost -= v.y;
                 if (i == 9) sinkAtHalf = -v.y * 20;
-                if (settled < 0 && Math.abs(s.pitch - WindrunnerGlideModel.TRIM) < 6 && v.y > -0.25) settled = i;
+                if (settled < 0 && v.y > -0.2) settled = i;
             }
             System.out.printf("Deploy from %s: nose %.1f -> worst %.1f, sinking %.1f b/s at 0.5 s, %.1f blocks lost in 2 s, settled at %d ticks%n",
                     entry, start, worst, sinkAtHalf, lost, settled);
@@ -260,15 +260,19 @@ final class WindrunnerGlideTest {
         check(WindrunnerGlidePhysics.impactDamage(new Vec3(0, -0.2, 0.25), new Vec3(0, -0.01, 0.25), true, false) == 0, "A slow, settled touchdown lands safely");
         check(WindrunnerGlidePhysics.impactDamage(new Vec3(0, -2, 0), Vec3.ZERO, true, false) > 20, "Late opening remains a hard impact even on a short final step");
         check(WindrunnerGlidePhysics.impactDamage(new Vec3(0, 0, 1), Vec3.ZERO, false, true) > 0, "Wall impacts use collision speed");
+        check(WindrunnerGlidePhysics.impactDamage(new Vec3(0, 0, 1.8), Vec3.ZERO, false, true) == 15,
+                "A wall at cruise hurts like an elytra crash, not a fall from the sky");
     }
 
     private static void durability() {
         check(WindrunnerGlideWear.DURABILITY == 240, "Robe durability stays distinct from the Elytra");
         check(WindrunnerGlideWear.deployment(0.8) == 1, "An ordinary opening flexes the membranes once");
-        check(WindrunnerGlideWear.deployment(2) == 2, "A severe-speed opening adds stress wear");
+        check(WindrunnerGlideWear.deployment(2) == 1 && WindrunnerGlideWear.deployment(3.6) == 2,
+                "Only an opening past the dive envelope adds stress wear");
         check(WindrunnerGlideWear.periodic(99, 0.8) == 0 && WindrunnerGlideWear.periodic(100, 0.8) == 1,
                 "Ordinary loaded fabric wears once every five seconds");
-        check(WindrunnerGlideWear.periodic(20, 1.3) == 1 && WindrunnerGlideWear.periodic(20, 1.8) == 2,
+        check(WindrunnerGlideWear.periodic(20, 1.9) == 0 && WindrunnerGlideWear.periodic(20, 2.7) == 1
+                        && WindrunnerGlideWear.periodic(20, 3.6) == 2,
                 "Sustained overspeed adds wear");
         check(WindrunnerGlideWear.BOOST == 1, "Each glide boost strains the membranes once");
         check(WindrunnerGlideWear.deepStall(0.6F, 0) && WindrunnerGlideWear.deepStall(0, 0.5F)

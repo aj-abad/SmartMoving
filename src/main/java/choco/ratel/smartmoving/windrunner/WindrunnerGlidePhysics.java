@@ -9,10 +9,10 @@ public final class WindrunnerGlidePhysics {
     /** Settled sink used to turn horizontal entry momentum into the initial glide attitude. */
     private static final double DEPLOY_REFERENCE_SINK = 0.15;
     /** A fresh glide opens no steeper than this nose-down (or nose-up), whatever the entry. */
-    private static final float DEPLOY_PITCH_DOWN = 15, DEPLOY_PITCH_UP = -10;
+    private static final float DEPLOY_PITCH_DOWN = 5, DEPLOY_PITCH_UP = -10;
     /** Share of the entry speed the opening keeps, and the least it leaves for control authority. */
     private static final double DEPLOY_KEEP = 0.85;
-    public static final double DEPLOY_MIN_SPEED = 0.65;
+    public static final double DEPLOY_MIN_SPEED = 1.5;
 
     private WindrunnerGlidePhysics() {}
 
@@ -148,7 +148,7 @@ public final class WindrunnerGlidePhysics {
     public static float impactDamage(Vec3 intended, Vec3 actual, boolean ground, boolean wall) {
         double vertical = ground ? Math.max(0, -intended.y) : 0;
         double horizontal = wall ? Math.max(0, intended.horizontalDistance() - actual.horizontalDistance()) : 0;
-        return (float) Math.max(0, Math.max(vertical * vertical * 18 - 3,
-                horizontal * horizontal * 14 - 3));
+        // Walls take vanilla's elytra crash rule (lost speed x10 - 3): squared, a cruise-speed hit was fatal.
+        return (float) Math.max(0, Math.max(vertical * vertical * 18 - 3, horizontal * 10 - 3));
     }
 }

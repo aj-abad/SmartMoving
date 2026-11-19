@@ -5,12 +5,12 @@ public final class WindrunnerGlideWear {
     public static final int DURABILITY = 240;
     public static final int PASSIVE_INTERVAL = 100;
     public static final int OVERSPEED_INTERVAL = 20;
-    public static final double OVERSPEED = 1.25;
+    public static final double OVERSPEED = 2.6;
 
     /** Each glide boost strains the membranes once. */
     public static final int BOOST = 1;
 
-    private static final double SEVERE_OVERSPEED = 1.75;
+    private static final double SEVERE_OVERSPEED = 3.4;
 
     private WindrunnerGlideWear() {}
 
