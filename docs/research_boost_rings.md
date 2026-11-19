@@ -36,3 +36,10 @@ is above the body. The rings move to the middle of the player's current hitbox (
 - In first person the ring just ahead fills much of the view for the tick or two before the player
   flies through it, as a ring placed on the path must. The bands are kept 1 to 2 pixels wide (about
   0.1 to 0.2 blocks) so it reads as a ring rather than a white wall.
+
+## Follow-up: no rings in first person
+
+The booster's own rings are hidden in first person, where the ring ahead fills the view. The local
+draw sits in common code (`WindrunnerMoves.localSonicBoom`, called from the glide's predicted tick),
+which cannot see the camera, so the client sets a hook at init that answers whether the camera is
+first person. Watchers still get the server's rings, and third person still draws them.
