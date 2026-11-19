@@ -32,8 +32,8 @@ public final class GenerateWindrunnerTextures {
     // ---- Armor layers (64 x 32, vanilla humanoid box nets) ----
     //
     // Fitted shinobi wear in the Breeze's colours: an indigo jacket (the Breeze's navy) with a lavender
-    // collar and obi, white wind-cloth wraps on the forearms and shins, split-toe tabi, and a cloth mask
-    // under the headband. Faces are drawn as pixel maps, left to right as the texture lays them out.
+    // collar and obi, white wind-cloth wraps on the forearms and shins, and split-toe tabi. Faces are
+    // drawn as pixel maps, left to right as the texture lays them out.
 
     // Vanilla Breeze palette (textures/entity/breeze/breeze.png and breeze_wind.png).
     private static final int B_SHADOW = 0xFF958DD3, B_CLOTH = 0xFFAB9CCB, B_MID = 0xFFB5A5CA, B_LIGHT = 0xFFBFAFC9;
@@ -121,7 +121,6 @@ public final class GenerateWindrunnerTextures {
         sleeves(img);
         tabi(img);
         headband(img);
-        mask(img);
         return img;
     }
 
@@ -179,18 +178,6 @@ public final class GenerateWindrunnerTextures {
         set(img, 11, 11, B_EYE); set(img, 12, 11, B_EYE);
         set(img, 10, 10, B_WIND_SHADE); set(img, 13, 10, B_WIND_SHADE);
         for (int x = 27; x <= 28; x++) { set(img, x, 10, B_BAND_LIGHT); set(img, x, 11, B_BAND); set(img, x, 12, B_BAND_DARK); }
-    }
-
-    /** An indigo cloth mask over the nose and mouth, wrapping back along the cheeks. */
-    private static void mask(BufferedImage img) {
-        for (int row = 0; row < 3; row++) {
-            int y = 13 + row, colour = row == 0 ? INDIGO_LIGHT : row == 1 ? INDIGO : INDIGO_DARK;
-            for (int x = 8; x < 16; x++) set(img, x, y, colour);
-            for (int i = 0; i < 3 + row; i++) {
-                set(img, 7 - i, y, colour);
-                set(img, 16 + i, y, colour);
-            }
-        }
     }
 
     /** Close-fitting indigo trousers; the waistband sits under the jacket when both are worn. */

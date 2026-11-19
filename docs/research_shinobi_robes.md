@@ -36,6 +36,8 @@ no longer read.
 
 ## Results
 
+- Follow-up: the cloth mask was dropped; the headband is back to the band and eye plate alone.
+
 - Screenshots on a mannequin from six sides and on the player (front, back, sprinting): an indigo
   jacket with the lavender collar crossing to the right hip and a narrow obi with the eye bead, a white
   ring crest on the back, close sleeves ending in white forearm wraps, tight trousers, white shin wraps
