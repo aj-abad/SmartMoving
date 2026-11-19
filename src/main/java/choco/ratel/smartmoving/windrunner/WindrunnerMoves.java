@@ -1,5 +1,6 @@
 package choco.ratel.smartmoving.windrunner;
 
+import java.util.function.BooleanSupplier;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -303,8 +304,12 @@ public final class WindrunnerMoves {
         return entity.position().add(0, entity.getBbHeight() * 0.5, 0).add(forward.scale(ring * 2.5));
     }
 
+    /** Set by the client: false in first person, where the ring just ahead would fill the view. */
+    public static BooleanSupplier drawsOwnRings = () -> true;
+
     /** The booster's own rings, drawn locally: server particles would arrive after the player had passed them. */
     public static void localSonicBoom(Player player, Vec3 forward) {
+        if (!drawsOwnRings.getAsBoolean()) return;
         for (int ring = 0; ring < SONIC_BOOM_RINGS; ring++) {
             Vec3 at = sonicBoomRing(player, forward, ring);
             player.level().addParticle(WindrunnerParticles.BOOM, at.x, at.y, at.z, 0, 0, 0);
