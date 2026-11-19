@@ -97,8 +97,8 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   blocks/s (some 14 blocks forward per block down), banks into a half turn in about two seconds, dives
   to about 75 blocks/s and settles by itself when you let go. Pulling up stops at the edge of a stall
   rather than going over it. It needs three blocks of clear air below; the robes catch the air as they
-  open, turning your fall straight into a shallow glide, and a faster fall is braked to about 30
-  blocks/s within half a second. W/S pitch, A/D bank; wind, storms and lava updrafts still push it
+  open, turning your fall straight into a shallow glide at about 20 blocks/s that builds to cruise
+  over a couple of seconds; a faster fall is braked to about 20 blocks/s within half a second. W/S pitch, A/D bank; wind, storms and lava updrafts still push it
   about, with server-authoritative flight and client prediction, and a fan of phantom-membrane leaves
   on breeze-rod ribs. Boosts add about 18 blocks/s each, leaving a trail of sonic booms, on a
   three-quarter-second cooldown. Wall crashes hurt like an elytra's. The robes have 240
