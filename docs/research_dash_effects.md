@@ -38,3 +38,15 @@ Fix: during a ground dash, `collide` treats the player as on the ground for its 
 anything up to the step height is stepped onto mid-hop. Both sides run it (the server replays the
 client's moves through `collide`), and `groundDashing` is set on both. A ground dash still ends after
 leaving its starting height by more than `GROUND_DASH_ELEVATION`.
+
+## Results
+
+- Ledges: `MixinWindrunnerEntity` steps a ground dash from where `collide`'s vertical move ended: up by
+  the step height, across, back down. Making `collide` think the player was on the ground was not
+  enough, since its step search starts at the feet and missed a lip just above them. All 96 dashes over
+  the striped field now travel the full 7.3 to 7.8 blocks with no wall hit (2 stalled before).
+- Trail, client particle counts after the press (third person unless noted): open ground builds to
+  about 38; flush against a wall, 0; a wall 2.5 blocks ahead, the opening burst of 7 on the tick that
+  moved and nothing after the hit; first person, 0 for ground and air dashes. A glide boost in third
+  person adds the trail to its rings (about 38); in first person only the server's small gust behind
+  the booster (2) remains.

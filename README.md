@@ -76,8 +76,10 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   launches as a low hop that slides on after landing, every half second. The hop still counts as the
   ground: no air dash, and a jump out of it is a ground jump that keeps the dash's momentum and your
   double jump. A ground dash that leaves its starting height by more than about half a block, off a cliff
-  say, becomes an ordinary fall. Each dash darts the view wider (scaled by FOV effects), leaves a following
-  gust and kicks up dust; a sliding ground dash slows the view and hand bob.
+  say, becomes an ordinary fall. A ground dash steps up small ledges, like a dirt path's edge onto grass,
+  even mid-hop. Each dash darts the view wider (scaled by FOV effects), leaves a following gust and kicks
+  up dust while it carries you; a dash into a wall leaves none, and hitting one mid-dash ends the trail.
+  You don't see your own gusts in first person. A sliding ground dash slows the view and hand bob.
 - **The double jump** kicks about 2 blocks high (2.4 with the boots) and resets your fall. The headband's
   dash and the double jump give way to SmartMoving while you climb, swim, fly, crawl or slide,
   and the double jump yields to wall jumps next to a wall.
@@ -100,7 +102,7 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   open, turning your fall straight into a shallow glide at about 20 blocks/s that builds to cruise
   over a couple of seconds; a faster fall is braked to about 20 blocks/s within half a second. W/S pitch, A/D bank; wind, storms and lava updrafts still push it
   about, with server-authoritative flight and client prediction, and a fan of phantom-membrane leaves
-  on breeze-rod ribs. Boosts add about 18 blocks/s each, leaving a trail of white shockwave rings, on a
+  on breeze-rod ribs. Boosts add about 18 blocks/s each, leaving white shockwave rings and a dash's gusts, on a
   three-quarter-second cooldown. Wall crashes hurt like an elytra's. The robes have 240
   durability: opening costs one point, loaded fabric wears every five seconds, and overspeed, deep stalls
   and boosts add wear.
