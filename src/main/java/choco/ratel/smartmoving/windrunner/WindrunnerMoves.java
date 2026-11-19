@@ -295,9 +295,30 @@ public final class WindrunnerMoves {
     }
 
     /** A glide boost cracks like a wind charge and leaves a gust behind. */
+    private static final int SONIC_BOOM_RINGS = 3;
+
+    /** One ring at the player and two ahead, so the booster bursts through them. */
+    static Vec3 sonicBoomRing(Vec3 position, Vec3 forward, int ring) {
+        return position.add(0, 0.9, 0).add(forward.scale(ring * 2.5));
+    }
+
+    /** The booster's own rings, drawn locally: server particles would arrive after the player had passed them. */
+    public static void localSonicBoom(Player player, Vec3 forward) {
+        for (int ring = 0; ring < SONIC_BOOM_RINGS; ring++) {
+            Vec3 at = sonicBoomRing(player.position(), forward, ring);
+            player.level().addParticle(ParticleTypes.SONIC_BOOM, at.x, at.y, at.z, 0, 0, 0);
+        }
+    }
+
     static void boostEffects(ServerPlayer server, Vec3 forward) {
         Vec3 behind = server.position().add(0, 0.4, 0).subtract(forward.scale(0.8));
-        puff(server, ParticleTypes.GUST, behind, 1, 0);
+        // Watchers get the shockwave from here; the booster's own client draws it the tick it predicts the boost.
+        for (int ring = 0; ring < SONIC_BOOM_RINGS; ring++) {
+            Vec3 at = sonicBoomRing(server.position(), forward, ring);
+            for (ServerPlayer watcher : PlayerLookup.tracking(server)) {
+                server.level().sendParticles(watcher, ParticleTypes.SONIC_BOOM, true, false, at.x, at.y, at.z, 1, 0, 0, 0, 0);
+            }
+        }
         puff(server, ParticleTypes.SMALL_GUST, behind.subtract(forward.scale(0.6)), 2, 0.15);
         server.level().playSound(null, server.getX(), server.getY(), server.getZ(), SoundEvents.WIND_CHARGE_BURST,
                 SoundSource.PLAYERS, 0.45F, 1.3F);

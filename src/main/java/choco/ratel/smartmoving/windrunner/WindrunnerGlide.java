@@ -234,6 +234,10 @@ public final class WindrunnerGlide {
             while (prediction.size() > 60) prediction.removeFirst();
         }
         move(input, environment);
+        // Live prediction only: replays after a correction re-run old frames and must not redraw them.
+        if (player.level().isClientSide() && WindrunnerGlideModel.boosted(state)) {
+            WindrunnerMoves.localSonicBoom(player, forward());
+        }
         if (player instanceof ServerPlayer server && (player.onGround() || player.horizontalCollision || player.isInWater())) {
             Vec3 intended = lastIntended;
             Vec3 actual = player.position().subtract(lastMoveStart);
