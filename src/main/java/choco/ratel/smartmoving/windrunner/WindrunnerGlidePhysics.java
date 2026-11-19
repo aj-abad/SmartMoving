@@ -12,7 +12,7 @@ public final class WindrunnerGlidePhysics {
     private static final float DEPLOY_PITCH_DOWN = 5, DEPLOY_PITCH_UP = -10;
     /** Share of the entry speed the opening keeps, and the least it leaves for control authority. */
     private static final double DEPLOY_KEEP = 0.85;
-    public static final double DEPLOY_MIN_SPEED = 1.5;
+    public static final double DEPLOY_MIN_SPEED = 1.0;
 
     private WindrunnerGlidePhysics() {}
 
