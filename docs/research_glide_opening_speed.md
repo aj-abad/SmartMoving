@@ -27,3 +27,15 @@ opening, which is the nosedive the catch was added to stop.
 - `DEPLOY_MIN_SPEED` 1.5 to 1.0 (20 blocks/s), nose cap stays 5 degrees. The brake target follows,
   so a fast fall is braked to about 20 blocks/s; entries faster than that still keep 85% of their speed.
 - Simulation test thresholds move with it (height lost in the first two seconds).
+
+## Results
+
+`DEPLOY_MIN_SPEED` 1.0. Hands-off simulation: every slow entry opens at 20 blocks/s with the nose held
+at 5 degrees, sinks 8.6 blocks/s half a second in and loses 17.3 blocks in two seconds; falls of 24 to
+70 blocks/s sink 5.8 to 8.3 blocks/s half a second in. The deploy test now allows 20 blocks lost in two
+seconds and four seconds to settle (sink under 4 blocks/s), and the dive pull-out check clears the
+brake its test setup arms, since a dive in flight is never braked.
+
+In game (temporary client test): a standstill opened at 20.0 blocks/s and reached 23.3, 26.1, 28.6 and
+30.5 blocks/s at each half second; a 41.6 blocks/s fall was down to 22.9 blocks/s and a 7.6 blocks/s
+sink half a second in. Client and server speeds were within 0.3 blocks/s.
