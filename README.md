@@ -16,7 +16,6 @@ Fabric 26.3 port of the classic [SmartMoving](https://www.curseforge.com/minecra
 - **Climbing** — Block / ladder / vine / fence / iron bar self-climbing + ceiling climbing
 - **Crawling** — 1-block-tall space entry, head rotation, crawl-climbing, slide ↔ crawl transitions
 - **Sliding** — Sneak-launched sliding, post-flight landing slide, transition camera stabilization
-- **Head Jump** — Jump + sneak launched jump, fox movement
 - **Swimming** — Swim / dive states + left-click swing animation
 - **Wall Jump** — Mid-air wall jump with motion order / rotation correction
 - **Vine Climbing** — Weeping / twisting vines ladder animation
@@ -87,19 +86,22 @@ Boots     leather boots + 2 breeze rods               (shapeless)
   you go; reach the top and you step onto it. Hit it at a glancing angle (40 degrees or less) in the
   air to run along it for up to 1.5 seconds, sinking slowly the whole way. Angles in between do
   nothing. Jump during a run to kick off the wall, which also gives back the pants' double jump. You
-  can chain runs between walls, but not run the same wall twice before landing. Grab + sprint + Jump on
-  the ground is still SmartMoving's head jump, so press Grab after takeoff for a run along a wall.
+  can chain runs between walls, but not run the same wall twice before landing; holding Grab from
+  takeoff works for a run along a wall.
   Runs have their own poses for every viewer (feet on the wall and hands reaching up, or leaning off
   the wall at a sprint), and in first person the view and hands bob as you run.
 - **The boots' fall save** works like a totem for falls only: with nine hearts or more when you land, a
   fall that would kill you leaves half a heart instead, and a held totem is not used up. Absorption hearts
   don't count toward the nine.
-- **The glide** needs three blocks of clear air below. The robes catch the air as they open, turning
-  your fall into a shallow glide (never steeper than 15 degrees nose-down) rather than a dive; a fast
-  fall is braked to about 13 blocks/s within half a second before the glide builds speed again. It has responsive arcade handling (W/S pitch,
-  A/D bank), stalls, wind, storms and lava updrafts, server-authoritative flight with client prediction,
-  and a fan of phantom-membrane leaves on breeze-rod ribs. A settled glide covers about 4.8 blocks per
-  block of altitude. Boosts add 8 blocks/s each, on a three-quarter-second cooldown. The robes have 240
+- **The glide** flies like an endgame glider: it cruises at about 36 blocks/s, sinks about 2.5
+  blocks/s (some 14 blocks forward per block down), banks into a half turn in about two seconds, dives
+  to about 75 blocks/s and settles by itself when you let go. Pulling up stops at the edge of a stall
+  rather than going over it. It needs three blocks of clear air below; the robes catch the air as they
+  open, turning your fall straight into a shallow glide, and a faster fall is braked to about 30
+  blocks/s within half a second. W/S pitch, A/D bank; wind, storms and lava updrafts still push it
+  about, with server-authoritative flight and client prediction, and a fan of phantom-membrane leaves
+  on breeze-rod ribs. Boosts add about 18 blocks/s each, leaving a trail of sonic booms, on a
+  three-quarter-second cooldown. Wall crashes hurt like an elytra's. The robes have 240
   durability: opening costs one point, loaded fabric wears every five seconds, and overspeed, deep stalls
   and boosts add wear.
 
