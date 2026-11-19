@@ -6,4 +6,4 @@
 - [x] Trail only while the dash moves the player; a wall hit ends it
 - [x] Glide boost starts the dash trail
 - [x] Verify in game, README
-- [ ] Build, test, deploy
+- [x] Build, test, deploy
